@@ -8,8 +8,13 @@ import {
   KeyRound,
   FileBadge,
   Phone,
+  PenTool,
+  Upload,
+  Trash2,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { useAuthStore } from '@/store/authStore';
+import { authApi } from '@/api/authService';
 import { Input, Button, Card, CardHeader, CardTitle, CardContent, Badge, Alert } from '@/components/ui';
 
 const passwordSchema = z
@@ -27,8 +32,12 @@ type PasswordFormData = z.infer<typeof passwordSchema>;
 
 export const ProfilePage: React.FC = () => {
   const { user, changePassword, isChangingPassword } = useAuth();
+  const { updateUser } = useAuthStore();
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [sigMessage, setSigMessage] = useState<string | null>(null);
+  const [sigError, setSigError] = useState<string | null>(null);
+  const [isUploadingSig, setIsUploadingSig] = useState<boolean>(false);
 
   const {
     register,
@@ -58,6 +67,40 @@ export const ProfilePage: React.FC = () => {
     }
   };
 
+  const handleSigUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingSig(true);
+    setSigMessage(null);
+    setSigError(null);
+    try {
+      const updated = await authApi.uploadSignature(file);
+      updateUser(updated);
+      setSigMessage('Personal diagnostic signature image uploaded successfully.');
+    } catch (err: any) {
+      setSigError(err?.response?.data?.detail || err?.message || 'Failed to upload signature image');
+    } finally {
+      setIsUploadingSig(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleSigDelete = async () => {
+    if (!window.confirm('Remove your personal signature and revert to standard certified signature?')) return;
+    setIsUploadingSig(true);
+    setSigMessage(null);
+    setSigError(null);
+    try {
+      const updated = await authApi.deleteSignature();
+      updateUser(updated);
+      setSigMessage('Personal signature removed.');
+    } catch (err: any) {
+      setSigError(err?.response?.data?.detail || err?.message || 'Failed to remove signature');
+    } finally {
+      setIsUploadingSig(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -68,7 +111,7 @@ export const ProfilePage: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column: User Profile Overview */}
+        {/* Left Column: User Profile Overview & Signature */}
         <div className="lg:col-span-1 space-y-6">
           <Card>
             <CardContent className="text-center pt-8">
@@ -111,6 +154,73 @@ export const ProfilePage: React.FC = () => {
                       <strong>Degrees:</strong> {user.qualifications}
                     </span>
                   </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Diagnostic Signature Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <PenTool className="w-4 h-4 text-teal-600" /> Diagnostic Report Signature
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-xs text-slate-500">
+                This signature is automatically embedded when you approve or finalize medical diagnostic reports.
+              </p>
+
+              {sigMessage && (
+                <Alert type="success" onDismiss={() => setSigMessage(null)}>
+                  {sigMessage}
+                </Alert>
+              )}
+              {sigError && (
+                <Alert type="error" onDismiss={() => setSigError(null)}>
+                  {sigError}
+                </Alert>
+              )}
+
+              <div className="h-20 w-full bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-center p-2 shadow-inner overflow-hidden">
+                {user?.signature_image_url ? (
+                  <img
+                    src={`/storage/${user.signature_image_url.replace(/^(\.\/)?storage\//, '')}`}
+                    alt="Doctor Signature"
+                    className="max-h-full max-w-full object-contain"
+                  />
+                ) : (
+                  <div className="text-center text-xs text-slate-400">
+                    <p className="italic">No personal signature uploaded</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Using standard certified system signature</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-600 hover:bg-brand-700 text-white text-xs font-medium rounded-lg transition-colors shadow-sm">
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>{isUploadingSig ? 'Uploading...' : 'Upload Signature'}</span>
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="hidden"
+                    disabled={isUploadingSig}
+                    onChange={handleSigUpload}
+                  />
+                </label>
+                {user?.signature_image_url && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-rose-600 hover:bg-rose-50 text-xs"
+                    onClick={handleSigDelete}
+                    disabled={isUploadingSig}
+                    leftIcon={<Trash2 className="w-3.5 h-3.5" />}
+                  >
+                    Reset
+                  </Button>
                 )}
               </div>
             </CardContent>

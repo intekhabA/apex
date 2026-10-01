@@ -389,9 +389,34 @@ async def finalize_report(
             detail="Report is already finalized and sealed.",
         )
 
-    # Fetch Laboratory Details
-    lab_res = await db.execute(select(Laboratory).where(Laboratory.id == report.lab_id))
+    # Fetch Laboratory Details and Settings
+    lab_res = await db.execute(
+        select(Laboratory)
+        .options(selectinload(Laboratory.settings))
+        .where(Laboratory.id == report.lab_id)
+    )
     lab = lab_res.scalar_one()
+    lab_settings = lab.settings
+
+    # Resolve Approving Signatory
+    signatory = current_user
+    if report.approved_by and report.approved_by != current_user.id:
+        u_res = await db.execute(select(User).where(User.id == report.approved_by))
+        u = u_res.scalar_one_or_none()
+        if u:
+            signatory = u
+
+    # Check for doctor's custom signature or lab default signature
+    sig_source = signatory.signature_image_url or (lab_settings.default_signatory_signature_url if lab_settings else None)
+
+    # Signatory Title / Qualifications
+    signatory_title = (
+        "Consultant Radiologist"
+        if getattr(signatory.role, "value", str(signatory.role)) == "RADIOLOGIST"
+        else (lab_settings.default_signatory_designation if lab_settings and lab_settings.default_signatory_designation else "Consultant Pathologist")
+    )
+    signatory_degrees = signatory.qualifications or (lab_settings.default_signatory_degrees if lab_settings else "")
+    signatory_reg_no = signatory.medical_license_number or (lab_settings.default_signatory_reg_no if lab_settings else "")
 
     # Generate or reuse verification token
     if not report.verification_token:
@@ -446,7 +471,11 @@ async def finalize_report(
         "version": report.current_version,
         "date": report.finalized_at.strftime("%d-%b-%Y %I:%M %p"),
         "finalized_at": report.finalized_at.strftime("%d-%b-%Y %I:%M %p"),
-        "approved_by_name": current_user.full_name,
+        "approved_by_name": signatory.full_name,
+        "signatory_title": signatory_title,
+        "signatory_degrees": signatory_degrees,
+        "signatory_reg_no": signatory_reg_no,
+        "signature_image": sig_source,
     }
     result_vals_dict = [
         {

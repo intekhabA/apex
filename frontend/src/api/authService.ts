@@ -59,4 +59,27 @@ export const authApi = {
       // Invalidate client side even if server call fails
     }
   },
+
+  uploadSignature: async (file: File): Promise<UserProfile> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await apiClient.post<APIResponse<UserProfile>>(
+      API_ENDPOINTS.AUTH.SIGNATURE,
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    );
+    if (!res.data.success || !res.data.data) {
+      throw new Error(res.data.message || 'Failed to upload signature');
+    }
+    return res.data.data;
+  },
+
+  deleteSignature: async (): Promise<UserProfile> => {
+    const res = await apiClient.delete<APIResponse<UserProfile>>(API_ENDPOINTS.AUTH.SIGNATURE);
+    if (!res.data.success || !res.data.data) {
+      throw new Error(res.data.message || 'Failed to remove signature');
+    }
+    return res.data.data;
+  },
 };
+

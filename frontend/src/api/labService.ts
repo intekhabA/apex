@@ -84,4 +84,27 @@ export const labApi = {
     }
     return res.data.data;
   },
+
+  uploadSignature: async (file: File): Promise<LaboratorySettings> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await apiClient.post<APIResponse<LaboratorySettings>>(
+      '/lab/signature',
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    );
+    if (!res.data.success || !res.data.data) {
+      throw new Error(res.data.message || 'Failed to upload laboratory signatory signature');
+    }
+    return res.data.data;
+  },
+
+  deleteSignature: async (): Promise<LaboratorySettings> => {
+    const res = await apiClient.delete<APIResponse<LaboratorySettings>>('/lab/signature');
+    if (!res.data.success || !res.data.data) {
+      throw new Error(res.data.message || 'Failed to remove signatory signature');
+    }
+    return res.data.data;
+  },
 };
+

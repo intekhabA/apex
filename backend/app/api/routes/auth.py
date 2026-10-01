@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+import os
+from fastapi import APIRouter, Depends, HTTPException, status, Request, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -17,6 +18,7 @@ from app.schemas.auth import (
 )
 from app.services.auth_service import AuthService
 from app.services.audit_service import AuditService
+from app.services.storage_service import storage_service
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -135,3 +137,53 @@ async def logout(
         message="Logout successful.",
         data=MessageResponse(message="Session terminated."),
     )
+
+
+@router.post("/signature", response_model=APIResponse[UserProfileResponse])
+async def upload_user_signature(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Upload personal human signature image for doctor / pathologist diagnostic reports."""
+    contents = await file.read()
+    if len(contents) > 3 * 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Signature image must be under 3 MB.",
+        )
+
+    ext = os.path.splitext(file.filename or "")[1].lower() or ".png"
+    if ext not in [".png", ".jpg", ".jpeg", ".webp"]:
+        ext = ".png"
+
+    rel_path = f"signatures/users/{current_user.id}/signature{ext}"
+    stored_path = await storage_service.save_file_bytes(
+        file_bytes=contents,
+        rel_path=rel_path,
+        content_type=file.content_type or "image/png",
+    )
+    current_user.signature_image_url = stored_path
+    await db.commit()
+    await db.refresh(current_user)
+
+    return await get_me(current_user=current_user, db=db)
+
+
+@router.delete("/signature", response_model=APIResponse[UserProfileResponse])
+async def delete_user_signature(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Remove custom signature and revert back to system default signature."""
+    if current_user.signature_image_url:
+        try:
+            await storage_service.delete_file(current_user.signature_image_url)
+        except Exception:
+            pass
+        current_user.signature_image_url = None
+        await db.commit()
+        await db.refresh(current_user)
+
+    return await get_me(current_user=current_user, db=db)
+

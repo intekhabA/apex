@@ -1,8 +1,11 @@
 import os
 import io
+import base64
+import logging
 import hmac
 import hashlib
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Union
+from PIL import Image as PILImage
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.platypus import (
@@ -19,6 +22,95 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.pdfgen import canvas
 import qrcode
+
+logger = logging.getLogger(__name__)
+
+DEFAULT_SIGNATURE_PATH = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "static", "signatures", "default_doctor_signature.png")
+)
+
+
+def get_signature_flowable(
+    signature_source: Optional[Union[str, bytes]] = None,
+    max_width: float = 140,
+    max_height: float = 40,
+) -> Optional[Image]:
+    """
+    Resolves, proportional scales, and returns a human signature Image Flowable.
+    Handles:
+    - Raw image bytes (PNG, JPEG, etc.)
+    - Base64 data URIs (e.g. data:image/png;base64,...)
+    - Local filesystem paths or relative paths in storage
+    - Seamlessly falls back to the default certified medical doctor handwritten signature image.
+    """
+    img = None
+    try:
+        if signature_source:
+            if isinstance(signature_source, bytes):
+                img = PILImage.open(io.BytesIO(signature_source))
+            elif isinstance(signature_source, str):
+                sig_str = signature_source.strip()
+                if sig_str.startswith("data:image/"):
+                    _, b64data = sig_str.split(",", 1)
+                    raw_bytes = base64.b64decode(b64data)
+                    img = PILImage.open(io.BytesIO(raw_bytes))
+                elif len(sig_str) > 200 and not os.path.exists(sig_str) and not sig_str.startswith("http"):
+                    try:
+                        raw_bytes = base64.b64decode(sig_str)
+                        img = PILImage.open(io.BytesIO(raw_bytes))
+                    except Exception:
+                        pass
+
+                if img is None:
+                    candidate_paths = [
+                        sig_str,
+                        os.path.abspath(sig_str),
+                        os.path.join(os.getcwd(), sig_str.lstrip("/")),
+                        os.path.join("/app", sig_str.lstrip("/")),
+                    ]
+                    try:
+                        from app.core.config import settings
+                        storage_root = os.path.abspath(settings.STORAGE_LOCAL_ROOT)
+                        clean_sub = sig_str.replace("storage/uploads/", "").replace("storage/", "").lstrip("/")
+                        candidate_paths.append(os.path.join(storage_root, clean_sub))
+                    except Exception:
+                        pass
+
+                    for p in candidate_paths:
+                        if p and os.path.isfile(p):
+                            img = PILImage.open(p)
+                            break
+
+        # Fallback to default doctor signature PNG asset
+        if img is None and os.path.isfile(DEFAULT_SIGNATURE_PATH):
+            img = PILImage.open(DEFAULT_SIGNATURE_PATH)
+
+        if img is None:
+            return None
+
+        orig_w, orig_h = img.size
+        if orig_w <= 0 or orig_h <= 0:
+            return None
+
+        aspect = orig_w / float(orig_h)
+        calc_w = max_height * aspect
+        calc_h = max_height
+        if calc_w > max_width:
+            calc_w = max_width
+            calc_h = max_width / aspect
+
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        buf.seek(0)
+
+        sig_img = Image(buf, width=calc_w, height=calc_h)
+        sig_img.hAlign = "RIGHT"
+        return sig_img
+
+    except Exception as exc:
+        logger.warning("Could not render human signature image: %s", exc)
+        return None
+
 
 
 def generate_report_hmac(
@@ -354,11 +446,62 @@ def generate_medical_report_pdf(
         f"<i>This medical report is tamper-proof signed and electronically validated.</i>"
     )
 
-    sig_text = (
-        f"<b>Digitally Signed By:</b><br/>"
+    sig_source = (
+        report_info.get("signature_image")
+        or report_info.get("signature_image_url")
+        or report_info.get("signature_bytes")
+    )
+    sig_flowable = get_signature_flowable(sig_source, max_width=140, max_height=38)
+
+    signatory_title = report_info.get("signatory_title") or "Consultant Pathologist / Radiologist"
+    signatory_degrees = report_info.get("signatory_degrees") or ""
+    signatory_reg_no = report_info.get("signatory_reg_no") or ""
+
+    cred_parts = [signatory_title]
+    if signatory_degrees:
+        cred_parts.append(signatory_degrees)
+    if signatory_reg_no:
+        cred_parts.append(f"Reg: {signatory_reg_no}")
+    cred_str = " | ".join(cred_parts)
+
+    sig_cell_elements = [
+        Paragraph(
+            "<b>Digitally Authenticated &amp; Signed By:</b>",
+            ParagraphStyle("SigAuthHeader", parent=styles["Normal"], fontSize=7.5, leading=9.5, alignment=2, textColor=colors.HexColor("#475569")),
+        )
+    ]
+    if sig_flowable:
+        sig_cell_elements.append(Spacer(1, 2))
+        sig_cell_elements.append(sig_flowable)
+        sig_cell_elements.append(Spacer(1, 2))
+
+    sig_info_text = (
         f"<b>{approver_name}</b><br/>"
-        f"<font color='#64748B'>Consultant Pathologist / Radiologist</font><br/>"
-        f"<font color='#64748B'>Date: {report_info.get('finalized_at', 'N/A')}</font>"
+        f"<font color='#64748B'>{cred_str}</font><br/>"
+        f"<font color='#94A3B8'>Date: {report_info.get('finalized_at', 'N/A')}</font>"
+    )
+    sig_cell_elements.append(
+        Paragraph(
+            sig_info_text,
+            ParagraphStyle("SigDocInfo", parent=styles["Normal"], fontSize=8, leading=10.5, alignment=2, textColor=slate_dark),
+        )
+    )
+
+    sig_sub_table = Table(
+        [[elem] for elem in sig_cell_elements],
+        colWidths=[185],
+    )
+    sig_sub_table.setStyle(
+        TableStyle(
+            [
+                ("ALIGN", (0, 0), (-1, -1), "RIGHT"),
+                ("VALIGN", (0, 0), (-1, -1), "BOTTOM"),
+                ("TOPPADDING", (0, 0), (-1, -1), 0),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+            ]
+        )
     )
 
     footer_table = Table(
@@ -366,15 +509,15 @@ def generate_medical_report_pdf(
             [
                 qr_flowable,
                 Paragraph(footer_text, subtitle_style),
-                Paragraph(sig_text, ParagraphStyle("SigStyle", parent=styles["Normal"], fontSize=8.5, leading=12, alignment=2)),
+                sig_sub_table,
             ]
         ],
-        colWidths=[85, 255, 180],
+        colWidths=[85, 250, 185],
     )
     footer_table.setStyle(
         TableStyle(
             [
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("VALIGN", (0, 0), (-1, -1), "BOTTOM"),
                 ("TOPPADDING", (0, 0), (-1, -1), 4),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
                 ("LINEABOVE", (0, 0), (-1, 0), 1, brand_color),
@@ -1131,11 +1274,63 @@ def generate_consolidated_booking_report_pdf(
         f"<i>This consolidated document is electronically certified by {lab_info.get('name', 'DiagnoLab')}.</i>"
     )
 
-    sig_text = (
-        f"<b>Digitally Authenticated By:</b><br/>"
-        f"<b>Chief Laboratory Officer &amp; Pathologist</b><br/>"
-        f"<font color='#64748B'>Consultant Laboratory Medicine</font><br/>"
-        f"<font color='#64748B'>Validated: {booking_info.get('appointment_date', 'N/A')}</font>"
+    chief_sig_source = (
+        lab_info.get("signature_image")
+        or lab_info.get("default_signatory_signature_url")
+        or booking_info.get("signature_image")
+    )
+    chief_sig_flowable = get_signature_flowable(chief_sig_source, max_width=140, max_height=38)
+
+    chief_name = lab_info.get("default_signatory_name") or "Chief Laboratory Officer & Pathologist"
+    chief_desig = lab_info.get("default_signatory_designation") or "Consultant Laboratory Medicine"
+    chief_degrees = lab_info.get("default_signatory_degrees") or ""
+    chief_reg = lab_info.get("default_signatory_reg_no") or ""
+
+    chief_cred_parts = [chief_desig]
+    if chief_degrees:
+        chief_cred_parts.append(chief_degrees)
+    if chief_reg:
+        chief_cred_parts.append(f"Reg: {chief_reg}")
+    chief_cred_str = " | ".join(chief_cred_parts)
+
+    chief_cell_elements = [
+        Paragraph(
+            "<b>Digitally Authenticated By:</b>",
+            ParagraphStyle("ConsolidatedSigAuth", parent=styles["Normal"], fontSize=7.5, leading=9.5, alignment=2, textColor=colors.HexColor("#475569")),
+        )
+    ]
+    if chief_sig_flowable:
+        chief_cell_elements.append(Spacer(1, 2))
+        chief_cell_elements.append(chief_sig_flowable)
+        chief_cell_elements.append(Spacer(1, 2))
+
+    chief_text = (
+        f"<b>{chief_name}</b><br/>"
+        f"<font color='#64748B'>{chief_cred_str}</font><br/>"
+        f"<font color='#94A3B8'>Validated: {booking_info.get('appointment_date', 'N/A')}</font>"
+    )
+    chief_cell_elements.append(
+        Paragraph(
+            chief_text,
+            ParagraphStyle("ConsolidatedDocInfo", parent=styles["Normal"], fontSize=8, leading=10.5, alignment=2, textColor=slate_dark),
+        )
+    )
+
+    chief_sub_table = Table(
+        [[elem] for elem in chief_cell_elements],
+        colWidths=[185],
+    )
+    chief_sub_table.setStyle(
+        TableStyle(
+            [
+                ("ALIGN", (0, 0), (-1, -1), "RIGHT"),
+                ("VALIGN", (0, 0), (-1, -1), "BOTTOM"),
+                ("TOPPADDING", (0, 0), (-1, -1), 0),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+            ]
+        )
     )
 
     footer_table = Table(
@@ -1143,15 +1338,15 @@ def generate_consolidated_booking_report_pdf(
             [
                 qr_flowable,
                 Paragraph(footer_text, subtitle_style),
-                Paragraph(sig_text, ParagraphStyle("MasterSig", parent=styles["Normal"], fontSize=8.5, leading=11.5, alignment=2)),
+                chief_sub_table,
             ]
         ],
-        colWidths=[80, 260, 180],
+        colWidths=[80, 255, 185],
     )
     footer_table.setStyle(
         TableStyle(
             [
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("VALIGN", (0, 0), (-1, -1), "BOTTOM"),
                 ("TOPPADDING", (0, 0), (-1, -1), 4),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
                 ("LINEABOVE", (0, 0), (-1, 0), 1, brand_color),

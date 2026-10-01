@@ -1,5 +1,6 @@
+import os
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -20,6 +21,7 @@ from app.schemas.user import UserCreate, UserUpdate, UserResponse, UserStatusUpd
 from app.schemas.dashboard import LabDashboardResponse
 from app.services.audit_service import AuditService
 from app.services.dashboard_service import DashboardService
+from app.services.storage_service import storage_service
 
 router = APIRouter(prefix="/lab", tags=["Laboratory Management & Settings"])
 
@@ -142,6 +144,75 @@ async def update_lab_settings(
         message="Laboratory settings updated successfully.",
         data=LaboratorySettingsResponse.model_validate(settings),
     )
+
+
+@router.post("/signature", response_model=APIResponse[LaboratorySettingsResponse])
+async def upload_lab_default_signature(
+    file: UploadFile = File(...),
+    current_user: User = Depends(require_lab_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Upload laboratory certified signatory signature image."""
+    if not current_user.lab_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No active laboratory.")
+
+    contents = await file.read()
+    if len(contents) > 3 * 1024 * 1024:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Signature image must be under 3 MB.")
+
+    res = await db.execute(select(LaboratorySettings).where(LaboratorySettings.lab_id == current_user.lab_id))
+    settings = res.scalar_one_or_none()
+    if not settings:
+        settings = LaboratorySettings(lab_id=current_user.lab_id)
+        db.add(settings)
+
+    ext = os.path.splitext(file.filename or "")[1].lower() or ".png"
+    if ext not in [".png", ".jpg", ".jpeg", ".webp"]:
+        ext = ".png"
+
+    rel_path = f"signatures/labs/{current_user.lab_id}/default_signatory{ext}"
+    stored_path = await storage_service.save_file_bytes(
+        file_bytes=contents,
+        rel_path=rel_path,
+        content_type=file.content_type or "image/png",
+    )
+    settings.default_signatory_signature_url = stored_path
+    await db.commit()
+    await db.refresh(settings)
+
+    return APIResponse(
+        success=True,
+        message="Laboratory certified signatory signature uploaded successfully.",
+        data=LaboratorySettingsResponse.model_validate(settings),
+    )
+
+
+@router.delete("/signature", response_model=APIResponse[LaboratorySettingsResponse])
+async def delete_lab_default_signature(
+    current_user: User = Depends(require_lab_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Remove laboratory custom signature and revert back to system default signature."""
+    if not current_user.lab_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No active laboratory.")
+
+    res = await db.execute(select(LaboratorySettings).where(LaboratorySettings.lab_id == current_user.lab_id))
+    settings = res.scalar_one_or_none()
+    if settings and settings.default_signatory_signature_url:
+        try:
+            await storage_service.delete_file(settings.default_signatory_signature_url)
+        except Exception:
+            pass
+        settings.default_signatory_signature_url = None
+        await db.commit()
+        await db.refresh(settings)
+
+    return APIResponse(
+        success=True,
+        message="Laboratory signatory signature reset to default.",
+        data=LaboratorySettingsResponse.model_validate(settings) if settings else LaboratorySettingsResponse(id="", lab_id=current_user.lab_id),
+    )
+
 
 
 @router.get("/users", response_model=APIResponse[List[UserResponse]])

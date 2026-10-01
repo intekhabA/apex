@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { FileCheck, Save, ShieldCheck, QrCode } from 'lucide-react';
+import { FileCheck, Save, ShieldCheck, QrCode, PenTool, Upload, Trash2 } from 'lucide-react';
 import { labApi } from '@/api/labService';
 import { Input, Button, Card, CardHeader, CardTitle, CardContent, Alert, LoadingSpinner } from '@/components/ui';
 import { LaboratorySettingsUpdatePayload } from '@/types';
@@ -28,6 +28,7 @@ export const ReportSettingsPage: React.FC = () => {
   const queryClient = useQueryClient();
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isUploadingSig, setIsUploadingSig] = useState<boolean>(false);
 
   const { data: settings, isLoading } = useQuery({
     queryKey: ['labSettings'],
@@ -79,6 +80,38 @@ export const ReportSettingsPage: React.FC = () => {
     setSuccessMessage(null);
     setErrorMessage(null);
     updateMutation.mutate(data);
+  };
+
+  const handleSigUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingSig(true);
+    setErrorMessage(null);
+    try {
+      const updated = await labApi.uploadSignature(file);
+      queryClient.setQueryData(['labSettings'], updated);
+      setSuccessMessage('Laboratory certified signature image uploaded successfully.');
+    } catch (err: any) {
+      setErrorMessage(err?.response?.data?.detail || err?.message || 'Failed to upload signature image');
+    } finally {
+      setIsUploadingSig(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleSigDelete = async () => {
+    if (!window.confirm('Reset signature to the standard certified signature?')) return;
+    setIsUploadingSig(true);
+    setErrorMessage(null);
+    try {
+      const updated = await labApi.deleteSignature();
+      queryClient.setQueryData(['labSettings'], updated);
+      setSuccessMessage('Signature reset to standard certified signature.');
+    } catch (err: any) {
+      setErrorMessage(err?.response?.data?.detail || err?.message || 'Failed to reset signature');
+    } finally {
+      setIsUploadingSig(false);
+    }
   };
 
   const primaryColor = watch('primary_color_hex') || '#0284c7';
@@ -146,6 +179,63 @@ export const ReportSettingsPage: React.FC = () => {
                   error={errors.default_signatory_reg_no?.message}
                   {...register('default_signatory_reg_no')}
                 />
+              </div>
+
+              {/* Human Signature Image Section */}
+              <div className="mt-4 p-4 rounded-xl bg-slate-50 border border-slate-200">
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                  <PenTool className="w-3.5 h-3.5 text-teal-600" /> Human Signature Image on Diagnostic Reports
+                </label>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className="h-16 w-48 bg-white border border-slate-300 rounded-lg flex items-center justify-center p-2 shadow-inner overflow-hidden">
+                      {settings?.default_signatory_signature_url ? (
+                        <img
+                          src={`/storage/${settings.default_signatory_signature_url.replace(/^(\.\/)?storage\//, '')}`}
+                          alt="Doctor Signature"
+                          className="max-h-full max-w-full object-contain"
+                        />
+                      ) : (
+                        <span className="text-xs text-slate-400 italic">Default system signature</span>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-slate-800">
+                        {settings?.default_signatory_signature_url ? 'Custom Signature Active' : 'Default Certified Signature'}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        PNG with transparent background recommended (Max 3MB).
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-600 hover:bg-brand-700 text-white text-xs font-medium rounded-lg transition-colors shadow-sm">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>{isUploadingSig ? 'Uploading...' : 'Upload Image'}</span>
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        className="hidden"
+                        disabled={isUploadingSig}
+                        onChange={handleSigUpload}
+                      />
+                    </label>
+                    {settings?.default_signatory_signature_url && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-rose-600 hover:bg-rose-50 text-xs"
+                        onClick={handleSigDelete}
+                        disabled={isUploadingSig}
+                        leftIcon={<Trash2 className="w-3.5 h-3.5" />}
+                      >
+                        Reset
+                      </Button>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
 

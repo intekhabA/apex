@@ -6,6 +6,7 @@ export const API_ENDPOINTS = {
     ME: '/auth/me',
     CHANGE_PASSWORD: '/auth/change-password',
     LOGOUT: '/auth/logout',
+    SIGNATURE: '/auth/signature',
   },
   ADMIN: {
     LABS: '/admin/laboratories',
@@ -16,6 +17,7 @@ export const API_ENDPOINTS = {
     SETTINGS: '/lab/settings',
     STAFF: '/lab/staff',
     PROFILE: '/lab/profile',
+    SIGNATURE: '/lab/signature',
   },
   PATIENTS: {
     BASE: '/patients',

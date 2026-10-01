@@ -602,9 +602,14 @@ async def download_booking_reports_pdf(
 
     verify_tenant_access(current_user, booking.lab_id)
 
-    # 2. Fetch Laboratory details
-    lab_res = await db.execute(select(Laboratory).where(Laboratory.id == booking.lab_id))
+    # 2. Fetch Laboratory details and settings
+    lab_res = await db.execute(
+        select(Laboratory)
+        .options(selectinload(Laboratory.settings))
+        .where(Laboratory.id == booking.lab_id)
+    )
     lab = lab_res.scalar_one_or_none()
+    lab_settings = lab.settings if lab else None
 
     # 3. Fetch all reports for this booking with related test, sample, and result_values
     rep_res = await db.execute(
@@ -631,6 +636,11 @@ async def download_booking_reports_pdf(
         "phone": lab.phone if lab else "N/A",
         "email": lab.email if lab else "N/A",
         "license": lab.registration_number if lab else "ISO 15189 / NABL Certified",
+        "default_signatory_name": lab_settings.default_signatory_name if lab_settings else None,
+        "default_signatory_designation": lab_settings.default_signatory_designation if lab_settings else None,
+        "default_signatory_degrees": lab_settings.default_signatory_degrees if lab_settings else None,
+        "default_signatory_reg_no": lab_settings.default_signatory_reg_no if lab_settings else None,
+        "default_signatory_signature_url": lab_settings.default_signatory_signature_url if lab_settings else None,
     }
     patient = booking.patient
     patient_info = {
