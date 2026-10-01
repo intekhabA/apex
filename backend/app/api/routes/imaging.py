@@ -20,6 +20,7 @@ from app.schemas.imaging import (
     ImagingReportResponse,
     ImagingTemplateResponse,
 )
+from app.services.storage_service import storage_service
 
 router = APIRouter(prefix="/imaging", tags=["Imaging & Radiology Reporting"])
 
@@ -293,12 +294,8 @@ async def upload_imaging_attachment(
             detail="Cannot add attachments to a finalized report.",
         )
 
-    # Prepare storage directory
-    upload_dir = os.path.join(settings.STORAGE_LOCAL_ROOT, "reports", report_id)
-    os.makedirs(upload_dir, exist_ok=True)
-
     safe_filename = f"{len(report.attachments) + 1}_{file.filename}"
-    file_path = os.path.join(upload_dir, safe_filename)
+    rel_path = f"reports/{report_id}/{safe_filename}"
 
     # Read and store file
     contents = await file.read()
@@ -309,17 +306,18 @@ async def upload_imaging_attachment(
             detail=f"File exceeds maximum allowed size of {settings.STORAGE_MAX_FILE_SIZE_BYTES // (1024 * 1024)} MB.",
         )
 
-    with open(file_path, "wb") as f:
-        f.write(contents)
-
-    rel_storage_path = os.path.relpath(file_path, start=".")
+    stored_path = await storage_service.save_file_bytes(
+        file_bytes=contents,
+        rel_path=rel_path,
+        content_type=file.content_type or "application/octet-stream",
+    )
 
     attachment = ReportAttachment(
         report_id=report.id,
         file_name=file.filename or "attachment",
         file_type=file.content_type or "application/octet-stream",
         file_size_bytes=file_size,
-        storage_path=rel_storage_path,
+        storage_path=stored_path,
         caption=caption,
         uploaded_by=current_user.id,
     )
@@ -341,6 +339,42 @@ async def upload_imaging_attachment(
             uploaded_by=attachment.uploaded_by,
             created_at=attachment.created_at,
         ),
+    )
+
+
+@router.get("/{report_id}/attachments/{attachment_id}/download")
+async def download_imaging_attachment(
+    report_id: str,
+    attachment_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_lab_staff),
+):
+    """Download or view an uploaded diagnostic scan/image attachment."""
+    res = await db.execute(
+        select(ReportAttachment).where(
+            ReportAttachment.id == attachment_id,
+            ReportAttachment.report_id == report_id,
+        )
+    )
+    attachment = res.scalar_one_or_none()
+    if not attachment:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attachment not found.")
+
+    rep_res = await db.execute(select(Report).where(Report.id == report_id))
+    report = rep_res.scalar_one_or_none()
+    if not report:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found.")
+
+    if current_user.role.value != "SUPER_ADMIN" and report.lab_id != current_user.lab_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access forbidden.")
+
+    if not await storage_service.file_exists(attachment.storage_path):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attachment file not found in storage.")
+
+    return await storage_service.get_file_response(
+        rel_path=attachment.storage_path,
+        filename=attachment.file_name,
+        media_type=attachment.file_type or "application/octet-stream",
     )
 
 
@@ -375,12 +409,8 @@ async def delete_imaging_attachment(
             detail="Cannot delete attachments from a finalized report.",
         )
 
-    # Delete file from filesystem if exists
-    if os.path.exists(attachment.storage_path):
-        try:
-            os.remove(attachment.storage_path)
-        except OSError:
-            pass
+    # Delete file from storage (Local or S3)
+    await storage_service.delete_file(attachment.storage_path)
 
     await db.delete(attachment)
     await db.commit()

@@ -26,6 +26,7 @@ from app.schemas.invoice import (
 from app.services.sequence_service import generate_receipt_id
 from app.services.pdf_engine import generate_payment_receipt_pdf
 from app.services.notification_service import NotificationService
+from app.services.storage_service import storage_service
 
 router = APIRouter(prefix="/invoices", tags=["Billing & Invoices"])
 
@@ -322,8 +323,8 @@ async def download_payment_receipt(
     lab = lab_res.scalar_one()
 
     receipt_filename = f"{target_payment.receipt_id_display}.pdf"
-    receipt_dir = os.path.join(settings.STORAGE_LOCAL_ROOT, "receipts", str(inv.id))
-    output_pdf_path = os.path.join(receipt_dir, receipt_filename)
+    rel_receipt_path = f"receipts/{inv.id}/{receipt_filename}"
+    output_pdf_path = storage_service.get_local_staging_path(rel_receipt_path)
 
     lab_info = {
         "name": lab.name,
@@ -359,9 +360,10 @@ async def download_payment_receipt(
         invoice_summary=invoice_summary,
         output_path=output_pdf_path,
     )
+    await storage_service.persist_file(output_pdf_path, rel_receipt_path, content_type="application/pdf")
 
-    return FileResponse(
-        path=output_pdf_path,
-        media_type="application/pdf",
+    return await storage_service.get_file_response(
+        rel_path=rel_receipt_path,
         filename=receipt_filename,
+        media_type="application/pdf",
     )

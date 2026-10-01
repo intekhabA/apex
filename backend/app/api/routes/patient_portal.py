@@ -29,6 +29,7 @@ from app.schemas.imaging import ImagingAttachmentResponse
 from app.schemas.invoice import InvoiceResponse, PaymentResponse
 from app.schemas.patient_portal import PatientProfileResponse, PatientDashboardResponse
 from app.services.pdf_engine import generate_payment_receipt_pdf, generate_consolidated_booking_report_pdf
+from app.services.storage_service import storage_service
 
 
 router = APIRouter(prefix="/patient-portal", tags=["Patient Self-Service Portal"])
@@ -578,18 +579,18 @@ async def download_patient_report_pdf(
         )
 
     pdf_filename = f"report_v{report.current_version}.pdf"
-    pdf_path = os.path.join(settings.STORAGE_LOCAL_ROOT, "reports", str(report.id), pdf_filename)
+    rel_pdf_path = f"reports/{report.id}/{pdf_filename}"
 
-    if not os.path.exists(pdf_path):
+    if not await storage_service.file_exists(rel_pdf_path):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="PDF document has not been generated for this report yet.",
         )
 
-    return FileResponse(
-        path=pdf_path,
-        media_type="application/pdf",
+    return await storage_service.get_file_response(
+        rel_path=rel_pdf_path,
         filename=f"{report.report_id_display}_v{report.current_version}.pdf",
+        media_type="application/pdf",
     )
 
 
@@ -710,8 +711,8 @@ async def download_patient_booking_reports_pdf(
             },
         })
 
-    pdf_dir = os.path.join(settings.STORAGE_LOCAL_ROOT, "bookings", str(booking.id))
-    pdf_path = os.path.join(pdf_dir, "consolidated_report.pdf")
+    rel_pdf_path = f"bookings/{booking.id}/consolidated_report.pdf"
+    output_pdf_path = storage_service.get_local_staging_path(rel_pdf_path)
     qr_url = f"{settings.APP_URL}/verify/{primary_token}" if primary_token else f"{settings.APP_URL}/bookings"
 
     generate_consolidated_booking_report_pdf(
@@ -720,13 +721,14 @@ async def download_patient_booking_reports_pdf(
         booking_info=booking_info,
         reports_data=reports_data,
         qr_url=qr_url,
-        output_path=pdf_path,
+        output_path=output_pdf_path,
     )
+    await storage_service.persist_file(output_pdf_path, rel_pdf_path, content_type="application/pdf")
 
-    return FileResponse(
-        path=pdf_path,
-        media_type="application/pdf",
+    return await storage_service.get_file_response(
+        rel_path=rel_pdf_path,
         filename=f"Booking_{booking.booking_id_display}_All_Reports.pdf",
+        media_type="application/pdf",
     )
 
 
@@ -841,9 +843,8 @@ async def download_patient_invoice_receipt(
     target_payment = inv.payments[-1]
 
     receipt_filename = f"{target_payment.receipt_id_display}.pdf"
-    receipt_dir = os.path.join(settings.STORAGE_LOCAL_ROOT, "receipts", str(inv.id))
-    os.makedirs(receipt_dir, exist_ok=True)
-    output_pdf_path = os.path.join(receipt_dir, receipt_filename)
+    rel_receipt_path = f"receipts/{inv.id}/{receipt_filename}"
+    output_pdf_path = storage_service.get_local_staging_path(rel_receipt_path)
 
     lab = inv.laboratory
     lab_info = {
@@ -880,9 +881,10 @@ async def download_patient_invoice_receipt(
         invoice_summary=invoice_summary,
         output_path=output_pdf_path,
     )
+    await storage_service.persist_file(output_pdf_path, rel_receipt_path, content_type="application/pdf")
 
-    return FileResponse(
-        path=output_pdf_path,
-        media_type="application/pdf",
+    return await storage_service.get_file_response(
+        rel_path=rel_receipt_path,
         filename=f"Receipt_{inv.invoice_id_display}.pdf",
+        media_type="application/pdf",
     )

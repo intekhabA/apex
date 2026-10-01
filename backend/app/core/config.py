@@ -52,6 +52,31 @@ class Settings(BaseSettings):
     AWS_REGION: str = "us-east-1"
     AWS_S3_BUCKET: str = "diagnolab-reports"
 
+    @property
+    def is_production(self) -> bool:
+        return (self.ENVIRONMENT or "").lower() in ("production", "prod")
+
+    @property
+    def use_s3_storage(self) -> bool:
+        """
+        Determines whether to use AWS S3 bucket or local filesystem storage:
+        - If STORAGE_PROVIDER is 's3', returns True.
+        - If STORAGE_PROVIDER is 'local' in local/development environment, returns False.
+        - If ENVIRONMENT is 'production' (or AWS runtime) and AWS_S3_BUCKET is set, returns True.
+        - Defaults to False (local storage) for local development.
+        """
+        provider = (self.STORAGE_PROVIDER or "").lower().strip()
+        if provider == "s3":
+            return True
+        if provider == "local" and not self.is_production:
+            return False
+        if self.is_production and bool(self.AWS_S3_BUCKET):
+            return True
+        is_aws_runtime = bool(os.getenv("AWS_EXECUTION_ENV")) or bool(os.getenv("AWS_LAMBDA_FUNCTION_NAME"))
+        if is_aws_runtime and bool(self.AWS_S3_BUCKET):
+            return True
+        return False
+
     # Super Admin Seed
     INITIAL_SUPER_ADMIN_EMAIL: str = "admin@example.com"
     INITIAL_SUPER_ADMIN_PASSWORD: str = "SuperAdmin@2026!"

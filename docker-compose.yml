@@ -40,6 +40,12 @@ services:
       - MYSQL_DATABASE=diagnolab_db
       - DATABASE_URL=mysql+aiomysql://diagnolab:diagnolab_secret@mysql:3306/diagnolab_db
       - SYNC_DATABASE_URL=mysql+pymysql://diagnolab:diagnolab_secret@mysql:3306/diagnolab_db
+      - STORAGE_PROVIDER=${STORAGE_PROVIDER:-local}
+      - STORAGE_LOCAL_ROOT=${STORAGE_LOCAL_ROOT:-./storage/uploads}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_S3_BUCKET=${AWS_S3_BUCKET:-diagnolab-reports}
     ports:
       - "8000:8000"
     volumes:

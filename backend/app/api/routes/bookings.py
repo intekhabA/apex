@@ -22,6 +22,7 @@ from app.models.report import Report, ReportStatus
 from app.models.invoice import Invoice, Payment, PaymentMethod
 from app.models.notification import NotificationEventType, NotificationChannel
 from app.services.pdf_engine import generate_consolidated_booking_report_pdf
+from app.services.storage_service import storage_service
 from app.schemas.common import APIResponse, MessageResponse
 from app.schemas.booking import (
     BookingCreate,
@@ -694,8 +695,8 @@ async def download_booking_reports_pdf(
             },
         })
 
-    pdf_dir = os.path.join(settings.STORAGE_LOCAL_ROOT, "bookings", str(booking.id))
-    pdf_path = os.path.join(pdf_dir, "consolidated_report.pdf")
+    rel_pdf_path = f"bookings/{booking.id}/consolidated_report.pdf"
+    output_pdf_path = storage_service.get_local_staging_path(rel_pdf_path)
     qr_url = f"{settings.APP_URL}/verify/{primary_token}" if primary_token else f"{settings.APP_URL}/bookings"
 
     generate_consolidated_booking_report_pdf(
@@ -704,12 +705,13 @@ async def download_booking_reports_pdf(
         booking_info=booking_info,
         reports_data=reports_data,
         qr_url=qr_url,
-        output_path=pdf_path,
+        output_path=output_pdf_path,
     )
+    await storage_service.persist_file(output_pdf_path, rel_pdf_path, content_type="application/pdf")
 
-    return FileResponse(
-        path=pdf_path,
-        media_type="application/pdf",
+    return await storage_service.get_file_response(
+        rel_path=rel_pdf_path,
         filename=f"Booking_{booking.booking_id_display}_All_Reports.pdf",
+        media_type="application/pdf",
     )
 

@@ -41,6 +41,7 @@ from app.services.pdf_engine import (
 from app.models.notification import NotificationEventType, NotificationChannel
 from app.services.notification_service import NotificationService
 from app.services.audit_service import audit_log
+from app.services.storage_service import storage_service
 
 router = APIRouter(prefix="/reports", tags=["Medical Reports Workflow & PDF Engine"])
 
@@ -416,8 +417,8 @@ async def finalize_report(
 
     # File paths for ReportLab PDF Generation
     pdf_filename = f"report_v{report.current_version}.pdf"
-    pdf_dir = os.path.join(settings.STORAGE_LOCAL_ROOT, "reports", str(report.id))
-    output_pdf_path = os.path.join(pdf_dir, pdf_filename)
+    rel_pdf_path = f"reports/{report.id}/{pdf_filename}"
+    output_pdf_path = storage_service.get_local_staging_path(rel_pdf_path)
     qr_verification_url = f"{settings.APP_URL}/verify/{report.verification_token}"
 
     lab_info = {
@@ -477,6 +478,7 @@ async def finalize_report(
         hmac_digest=report.hmac_digest,
         output_path=output_pdf_path,
     )
+    await storage_service.persist_file(output_pdf_path, rel_pdf_path, content_type="application/pdf")
 
     report.pdf_file_url = f"/api/reports/{report.id}/download"
 
@@ -522,18 +524,18 @@ async def download_report_pdf(
     verify_tenant_access(current_user, report.lab_id)
 
     pdf_filename = f"report_v{report.current_version}.pdf"
-    pdf_path = os.path.join(settings.STORAGE_LOCAL_ROOT, "reports", str(report.id), pdf_filename)
+    rel_pdf_path = f"reports/{report.id}/{pdf_filename}"
 
-    if not os.path.exists(pdf_path):
+    if not await storage_service.file_exists(rel_pdf_path):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="PDF document has not been generated for this report yet. Please finalize the report.",
         )
 
-    return FileResponse(
-        path=pdf_path,
-        media_type="application/pdf",
+    return await storage_service.get_file_response(
+        rel_path=rel_pdf_path,
         filename=f"{report.report_id_display}_v{report.current_version}.pdf",
+        media_type="application/pdf",
     )
 
 
