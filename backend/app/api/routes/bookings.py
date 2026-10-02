@@ -43,19 +43,68 @@ from app.services.notification_service import NotificationService
 router = APIRouter(prefix="/bookings", tags=["Bookings & Orders"])
 
 
+def map_booking_to_response(b: Booking) -> BookingResponse:
+    p = b.patient
+    return BookingResponse(
+        id=str(b.id),
+        lab_id=str(b.lab_id),
+        patient_id=str(b.patient_id),
+        patient_name=p.full_name if p else None,
+        patient_id_display=p.patient_id_display if p else None,
+        patient_phone=p.phone if p else None,
+        patient_gender=p.gender.value if p and p.gender else None,
+        patient_age_years=p.age_years if p else None,
+        booking_id_display=b.booking_id_display,
+        booking_date=b.booking_date,
+        appointment_date=b.appointment_date,
+        appointment_time=b.appointment_time,
+        referring_doctor=b.referring_doctor,
+        status=b.status,
+        payment_status=b.payment_status,
+        subtotal_amount=b.subtotal_amount,
+        discount_amount=b.discount_amount,
+        tax_amount=b.tax_amount,
+        grand_total=b.grand_total,
+        paid_amount=b.paid_amount,
+        balance_amount=b.balance_amount,
+        clinical_notes=b.clinical_notes,
+        items=[
+            BookingItemResponse(
+                id=str(item.id),
+                item_type=item.item_type,
+                test_id=str(item.test_id) if item.test_id else None,
+                package_id=str(item.package_id) if item.package_id else None,
+                item_name=item.item_name,
+                unit_price=item.unit_price,
+                discount_amount=item.discount_amount,
+                final_price=item.final_price,
+            )
+            for item in b.items
+        ],
+        created_at=b.created_at,
+        updated_at=b.updated_at,
+    )
+
+
 @router.get("", response_model=APIResponse[List[BookingResponse]])
 async def list_bookings(
     status_filter: Optional[BookingStatus] = Query(None, alias="status"),
     patient_id: Optional[str] = Query(None),
-    search: Optional[str] = Query(None, description="Search by booking ID or referring doctor"),
+    search: Optional[str] = Query(None, description="Search by booking ID, patient name/ID, phone, or referring doctor"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_lab_staff),
 ):
-    """List diagnostic bookings with status and patient filters."""
+    """List diagnostic bookings with status, patient, and search filters."""
     if not current_user.lab_id and current_user.role.value != "SUPER_ADMIN":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No active laboratory.")
 
-    query = select(Booking).options(selectinload(Booking.items))
+    query = (
+        select(Booking)
+        .options(
+            selectinload(Booking.items),
+            selectinload(Booking.patient),
+        )
+    )
     if current_user.lab_id:
         query = query.where(Booking.lab_id == current_user.lab_id)
 
@@ -67,10 +116,14 @@ async def list_bookings(
 
     if search:
         term = f"%{search}%"
-        query = query.where(
+        query = query.outerjoin(Booking.patient).where(
             or_(
                 Booking.booking_id_display.ilike(term),
                 Booking.referring_doctor.ilike(term),
+                Patient.first_name.ilike(term),
+                Patient.last_name.ilike(term),
+                Patient.patient_id_display.ilike(term),
+                Patient.phone.ilike(term),
             )
         )
 
@@ -81,44 +134,9 @@ async def list_bookings(
     return APIResponse(
         success=True,
         message=f"Retrieved {len(bookings)} bookings.",
-        data=[
-            BookingResponse(
-                id=str(b.id),
-                lab_id=str(b.lab_id),
-                patient_id=str(b.patient_id),
-                booking_id_display=b.booking_id_display,
-                booking_date=b.booking_date,
-                appointment_date=b.appointment_date,
-                appointment_time=b.appointment_time,
-                referring_doctor=b.referring_doctor,
-                status=b.status,
-                payment_status=b.payment_status,
-                subtotal_amount=b.subtotal_amount,
-                discount_amount=b.discount_amount,
-                tax_amount=b.tax_amount,
-                grand_total=b.grand_total,
-                paid_amount=b.paid_amount,
-                balance_amount=b.balance_amount,
-                clinical_notes=b.clinical_notes,
-                items=[
-                    BookingItemResponse(
-                        id=str(item.id),
-                        item_type=item.item_type,
-                        test_id=str(item.test_id) if item.test_id else None,
-                        package_id=str(item.package_id) if item.package_id else None,
-                        item_name=item.item_name,
-                        unit_price=item.unit_price,
-                        discount_amount=item.discount_amount,
-                        final_price=item.final_price,
-                    )
-                    for item in b.items
-                ],
-                created_at=b.created_at,
-                updated_at=b.updated_at,
-            )
-            for b in bookings
-        ],
+        data=[map_booking_to_response(b) for b in bookings],
     )
+
 
 
 @router.post("", response_model=APIResponse[BookingResponse], status_code=status.HTTP_201_CREATED)
@@ -232,7 +250,7 @@ async def create_booking(
         appointment_date=payload.appointment_date,
         appointment_time=payload.appointment_time,
         referring_doctor=payload.referring_doctor or patient.referring_doctor,
-        status=BookingStatus.PENDING,
+        status=payload.status or BookingStatus.CONFIRMED,
         payment_status=payment_status,
         subtotal_amount=subtotal,
         discount_amount=discount,
@@ -350,10 +368,13 @@ async def create_booking(
 
     await db.commit()
 
-    # Re-fetch with loaded items
+    # Re-fetch with loaded items and patient
     res = await db.execute(
         select(Booking)
-        .options(selectinload(Booking.items))
+        .options(
+            selectinload(Booking.items),
+            selectinload(Booking.patient),
+        )
         .where(Booking.id == booking.id)
     )
     created_booking = res.scalar_one()
@@ -392,40 +413,7 @@ async def create_booking(
     return APIResponse(
         success=True,
         message=f"Order {created_booking.booking_id_display} created successfully.",
-        data=BookingResponse(
-            id=str(created_booking.id),
-            lab_id=str(created_booking.lab_id),
-            patient_id=str(created_booking.patient_id),
-            booking_id_display=created_booking.booking_id_display,
-            booking_date=created_booking.booking_date,
-            appointment_date=created_booking.appointment_date,
-            appointment_time=created_booking.appointment_time,
-            referring_doctor=created_booking.referring_doctor,
-            status=created_booking.status,
-            payment_status=created_booking.payment_status,
-            subtotal_amount=created_booking.subtotal_amount,
-            discount_amount=created_booking.discount_amount,
-            tax_amount=created_booking.tax_amount,
-            grand_total=created_booking.grand_total,
-            paid_amount=created_booking.paid_amount,
-            balance_amount=created_booking.balance_amount,
-            clinical_notes=created_booking.clinical_notes,
-            items=[
-                BookingItemResponse(
-                    id=str(item.id),
-                    item_type=item.item_type,
-                    test_id=str(item.test_id) if item.test_id else None,
-                    package_id=str(item.package_id) if item.package_id else None,
-                    item_name=item.item_name,
-                    unit_price=item.unit_price,
-                    discount_amount=item.discount_amount,
-                    final_price=item.final_price,
-                )
-                for item in created_booking.items
-            ],
-            created_at=created_booking.created_at,
-            updated_at=created_booking.updated_at,
-        ),
+        data=map_booking_to_response(created_booking),
     )
 
 
@@ -438,7 +426,10 @@ async def get_booking(
     """Retrieve booking order with strict tenant isolation."""
     res = await db.execute(
         select(Booking)
-        .options(selectinload(Booking.items))
+        .options(
+            selectinload(Booking.items),
+            selectinload(Booking.patient),
+        )
         .where(Booking.id == booking_id)
     )
     b = res.scalar_one_or_none()
@@ -451,40 +442,7 @@ async def get_booking(
     return APIResponse(
         success=True,
         message="Booking retrieved.",
-        data=BookingResponse(
-            id=str(b.id),
-            lab_id=str(b.lab_id),
-            patient_id=str(b.patient_id),
-            booking_id_display=b.booking_id_display,
-            booking_date=b.booking_date,
-            appointment_date=b.appointment_date,
-            appointment_time=b.appointment_time,
-            referring_doctor=b.referring_doctor,
-            status=b.status,
-            payment_status=b.payment_status,
-            subtotal_amount=b.subtotal_amount,
-            discount_amount=b.discount_amount,
-            tax_amount=b.tax_amount,
-            grand_total=b.grand_total,
-            paid_amount=b.paid_amount,
-            balance_amount=b.balance_amount,
-            clinical_notes=b.clinical_notes,
-            items=[
-                BookingItemResponse(
-                    id=str(item.id),
-                    item_type=item.item_type,
-                    test_id=str(item.test_id) if item.test_id else None,
-                    package_id=str(item.package_id) if item.package_id else None,
-                    item_name=item.item_name,
-                    unit_price=item.unit_price,
-                    discount_amount=item.discount_amount,
-                    final_price=item.final_price,
-                )
-                for item in b.items
-            ],
-            created_at=b.created_at,
-            updated_at=b.updated_at,
-        ),
+        data=map_booking_to_response(b),
     )
 
 
@@ -498,7 +456,6 @@ async def update_booking_status(
     """Advance or update booking status."""
     res = await db.execute(
         select(Booking)
-        .options(selectinload(Booking.items))
         .where(Booking.id == booking_id)
     )
     b = res.scalar_one_or_none()
@@ -510,45 +467,21 @@ async def update_booking_status(
 
     b.status = payload.status
     await db.commit()
-    await db.refresh(b)
+
+    res = await db.execute(
+        select(Booking)
+        .options(
+            selectinload(Booking.items),
+            selectinload(Booking.patient),
+        )
+        .where(Booking.id == booking_id)
+    )
+    b = res.scalar_one()
 
     return APIResponse(
         success=True,
         message=f"Booking status updated to {b.status.value}.",
-        data=BookingResponse(
-            id=str(b.id),
-            lab_id=str(b.lab_id),
-            patient_id=str(b.patient_id),
-            booking_id_display=b.booking_id_display,
-            booking_date=b.booking_date,
-            appointment_date=b.appointment_date,
-            appointment_time=b.appointment_time,
-            referring_doctor=b.referring_doctor,
-            status=b.status,
-            payment_status=b.payment_status,
-            subtotal_amount=b.subtotal_amount,
-            discount_amount=b.discount_amount,
-            tax_amount=b.tax_amount,
-            grand_total=b.grand_total,
-            paid_amount=b.paid_amount,
-            balance_amount=b.balance_amount,
-            clinical_notes=b.clinical_notes,
-            items=[
-                BookingItemResponse(
-                    id=str(item.id),
-                    item_type=item.item_type,
-                    test_id=str(item.test_id) if item.test_id else None,
-                    package_id=str(item.package_id) if item.package_id else None,
-                    item_name=item.item_name,
-                    unit_price=item.unit_price,
-                    discount_amount=item.discount_amount,
-                    final_price=item.final_price,
-                )
-                for item in b.items
-            ],
-            created_at=b.created_at,
-            updated_at=b.updated_at,
-        ),
+        data=map_booking_to_response(b),
     )
 
 

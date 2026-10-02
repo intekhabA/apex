@@ -125,6 +125,7 @@ export const CreateBookingModal: React.FC<CreateBookingModalProps> = ({
         appointment_time: appointmentTime || undefined,
         referring_doctor: referringDoctor || undefined,
         clinical_notes: clinicalNotes || undefined,
+        status: 'CONFIRMED',
         discount_amount: discountAmount,
         tax_percentage: taxPercentage,
         paid_amount: paidAmount,

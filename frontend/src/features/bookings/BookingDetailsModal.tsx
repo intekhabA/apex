@@ -102,6 +102,49 @@ export const BookingDetailsModal: React.FC<BookingDetailsModalProps> = ({
           </div>
         </div>
 
+        {/* Patient Details Card */}
+        {booking.patient_name && (
+          <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div>
+              <span className="text-[11px] text-slate-500 uppercase font-semibold block">Patient</span>
+              <span className="text-sm font-bold text-slate-900">{booking.patient_name}</span>
+            </div>
+            {booking.patient_id_display && (
+              <div>
+                <span className="text-[11px] text-slate-500 uppercase font-semibold block">Patient ID</span>
+                <span className="font-mono text-slate-700 bg-white border border-slate-200 px-1.5 py-0.5 rounded">
+                  {booking.patient_id_display}
+                </span>
+              </div>
+            )}
+            {(booking.patient_gender || booking.patient_age_years != null) && (
+              <div>
+                <span className="text-[11px] text-slate-500 uppercase font-semibold block">Demographics</span>
+                <span className="text-slate-700 font-medium">
+                  {[
+                    booking.patient_gender
+                      ? booking.patient_gender === 'MALE'
+                        ? 'Male'
+                        : booking.patient_gender === 'FEMALE'
+                        ? 'Female'
+                        : booking.patient_gender
+                      : null,
+                    booking.patient_age_years != null ? `${booking.patient_age_years} yrs` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </span>
+              </div>
+            )}
+            {booking.patient_phone && (
+              <div>
+                <span className="text-[11px] text-slate-500 uppercase font-semibold block">Phone</span>
+                <span className="text-slate-700 font-medium">{booking.patient_phone}</span>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Consolidated Report Download Banner */}
         <div className="flex items-center justify-between bg-teal-50 border border-teal-200 rounded-lg p-3">
           <div className="flex items-center gap-2.5">

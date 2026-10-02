@@ -23,6 +23,11 @@ export interface Booking {
   id: string;
   lab_id: string;
   patient_id: string;
+  patient_name?: string | null;
+  patient_id_display?: string | null;
+  patient_phone?: string | null;
+  patient_gender?: string | null;
+  patient_age_years?: number | null;
   booking_id_display: string;
   booking_date: string;
   appointment_date: string;
@@ -53,6 +58,7 @@ export interface BookingCreatePayload {
   appointment_time?: string;
   referring_doctor?: string;
   clinical_notes?: string;
+  status?: BookingStatus;
   discount_amount?: number;
   tax_percentage?: number;
   paid_amount?: number;

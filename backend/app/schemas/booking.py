@@ -31,6 +31,7 @@ class BookingCreate(BaseModel):
     appointment_time: Optional[str] = None
     referring_doctor: Optional[str] = None
     clinical_notes: Optional[str] = None
+    status: Optional[BookingStatus] = BookingStatus.CONFIRMED
     discount_amount: Decimal = Field(default=Decimal("0.00"), ge=0)
     tax_percentage: Decimal = Field(default=Decimal("0.00"), ge=0, le=100)
     paid_amount: Decimal = Field(default=Decimal("0.00"), ge=0)
@@ -45,6 +46,11 @@ class BookingResponse(BaseModel):
     id: str
     lab_id: str
     patient_id: str
+    patient_name: Optional[str] = None
+    patient_id_display: Optional[str] = None
+    patient_phone: Optional[str] = None
+    patient_gender: Optional[str] = None
+    patient_age_years: Optional[int] = None
     booking_id_display: str
     booking_date: date
     appointment_date: date
@@ -67,3 +73,4 @@ class BookingResponse(BaseModel):
 
     class Config:
         from_attributes = True
+

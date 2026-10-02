@@ -91,7 +91,7 @@ export const BookingsPage: React.FC = () => {
           <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
           <input
             type="text"
-            placeholder="Search by Booking ID (e.g. BK-2026-000001) or referring doctor..."
+            placeholder="Search by patient name, patient ID, phone, booking ID, or doctor..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
@@ -133,6 +133,7 @@ export const BookingsPage: React.FC = () => {
               <thead className="bg-slate-50 text-slate-600 font-semibold text-xs uppercase tracking-wider">
                 <tr>
                   <th className="px-4 py-3 text-left">Order ID</th>
+                  <th className="px-4 py-3 text-left">Patient</th>
                   <th className="px-4 py-3 text-left">Appointment</th>
                   <th className="px-4 py-3 text-left">Items</th>
                   <th className="px-4 py-3 text-left">Order Status</th>
@@ -147,6 +148,37 @@ export const BookingsPage: React.FC = () => {
                   <tr key={b.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-3.5 font-mono font-bold text-xs text-brand-700 whitespace-nowrap">
                       {b.booking_id_display}
+                    </td>
+                    <td className="px-4 py-3.5 whitespace-nowrap">
+                      <div className="font-semibold text-slate-900 text-sm">
+                        {b.patient_name || 'Patient'}
+                      </div>
+                      <div className="text-xs text-slate-500 flex items-center gap-1.5 mt-0.5">
+                        {b.patient_id_display && (
+                          <span className="font-mono text-slate-600 bg-slate-100 px-1 py-0.5 rounded text-[11px]">
+                            {b.patient_id_display}
+                          </span>
+                        )}
+                        {(b.patient_gender || b.patient_age_years != null) && (
+                          <span>
+                            {[
+                              b.patient_gender
+                                ? b.patient_gender === 'MALE'
+                                  ? 'M'
+                                  : b.patient_gender === 'FEMALE'
+                                  ? 'F'
+                                  : b.patient_gender
+                                : null,
+                              b.patient_age_years != null ? `${b.patient_age_years}y` : null,
+                            ]
+                              .filter(Boolean)
+                              .join('/')}
+                          </span>
+                        )}
+                        {b.patient_phone && (
+                          <span className="text-slate-400">· {b.patient_phone}</span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3.5 text-slate-700 whitespace-nowrap">
                       <span className="font-medium">{b.appointment_date}</span>
