@@ -132,8 +132,7 @@ export const BookingsPage: React.FC = () => {
             <table className="min-w-full divide-y divide-slate-200 text-sm">
               <thead className="bg-slate-50 text-slate-600 font-semibold text-xs uppercase tracking-wider">
                 <tr>
-                  <th className="px-4 py-3 text-left">Order ID</th>
-                  <th className="px-4 py-3 text-left">Patient</th>
+                  <th className="px-4 py-3 text-left">Order & Patient</th>
                   <th className="px-4 py-3 text-left">Appointment</th>
                   <th className="px-4 py-3 text-left">Items</th>
                   <th className="px-4 py-3 text-left">Order Status</th>
@@ -146,39 +145,41 @@ export const BookingsPage: React.FC = () => {
               <tbody className="divide-y divide-slate-100 bg-white">
                 {bookings.map((b) => (
                   <tr key={b.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-4 py-3.5 font-mono font-bold text-xs text-brand-700 whitespace-nowrap">
-                      {b.booking_id_display}
-                    </td>
                     <td className="px-4 py-3.5 whitespace-nowrap">
-                      <div className="font-semibold text-slate-900 text-sm">
-                        {b.patient_name || 'Patient'}
+                      <div className="font-mono font-bold text-xs text-brand-700">
+                        {b.booking_id_display}
                       </div>
-                      <div className="text-xs text-slate-500 flex items-center gap-1.5 mt-0.5">
-                        {b.patient_id_display && (
-                          <span className="font-mono text-slate-600 bg-slate-100 px-1 py-0.5 rounded text-[11px]">
-                            {b.patient_id_display}
-                          </span>
-                        )}
-                        {(b.patient_gender || b.patient_age_years != null) && (
-                          <span>
-                            {[
-                              b.patient_gender
-                                ? b.patient_gender === 'MALE'
-                                  ? 'M'
-                                  : b.patient_gender === 'FEMALE'
-                                  ? 'F'
-                                  : b.patient_gender
-                                : null,
-                              b.patient_age_years != null ? `${b.patient_age_years}y` : null,
-                            ]
-                              .filter(Boolean)
-                              .join('/')}
-                          </span>
-                        )}
-                        {b.patient_phone && (
-                          <span className="text-slate-400">· {b.patient_phone}</span>
-                        )}
+                      <div className="font-semibold text-slate-900 text-sm mt-0.5 capitalize">
+                        {b.patient_name || '—'}
                       </div>
+                      {(b.patient_id_display || b.patient_phone || b.patient_gender || b.patient_age_years != null) && (
+                        <div className="text-xs text-slate-500 flex items-center gap-1.5 mt-0.5">
+                          {b.patient_id_display && (
+                            <span className="font-mono text-slate-600 bg-slate-100 px-1 py-0.5 rounded text-[11px]">
+                              {b.patient_id_display}
+                            </span>
+                          )}
+                          {(b.patient_gender || b.patient_age_years != null) && (
+                            <span>
+                              {[
+                                b.patient_gender
+                                  ? b.patient_gender === 'MALE'
+                                    ? 'M'
+                                    : b.patient_gender === 'FEMALE'
+                                    ? 'F'
+                                    : b.patient_gender
+                                  : null,
+                                b.patient_age_years != null ? `${b.patient_age_years}y` : null,
+                              ]
+                                .filter(Boolean)
+                                .join('/')}
+                            </span>
+                          )}
+                          {b.patient_phone && (
+                            <span className="text-slate-400">· {b.patient_phone}</span>
+                          )}
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3.5 text-slate-700 whitespace-nowrap">
                       <span className="font-medium">{b.appointment_date}</span>
