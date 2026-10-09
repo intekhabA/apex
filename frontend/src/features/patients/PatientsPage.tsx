@@ -1,18 +1,21 @@
 import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Users, Search, Plus, History } from 'lucide-react';
+import { Users, Search, Plus, History, Receipt } from 'lucide-react';
 import { Card, Button, Badge } from '@/components/ui';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { patientService } from '@/api/patientService';
 import { Patient } from '@/types';
 import { AddPatientModal } from './AddPatientModal';
 import { PatientTimelineModal } from './PatientTimelineModal';
+import { CreateBookingModal } from '@/features/bookings/CreateBookingModal';
 
 export const PatientsPage: React.FC = () => {
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddPatientOpen, setIsAddPatientOpen] = useState(false);
   const [selectedTimelinePatient, setSelectedTimelinePatient] = useState<Patient | null>(null);
+  const [selectedPatientForBooking, setSelectedPatientForBooking] = useState<Patient | null>(null);
+  const [isBillingModalOpen, setIsBillingModalOpen] = useState(false);
 
   const { data: patients = [], isLoading } = useQuery<Patient[]>({
     queryKey: ['patients', searchQuery],
@@ -21,6 +24,14 @@ export const PatientsPage: React.FC = () => {
 
   const handleRefresh = () => {
     queryClient.invalidateQueries({ queryKey: ['patients'] });
+  };
+
+  const handlePatientAdded = (patient?: Patient) => {
+    handleRefresh();
+    if (patient) {
+      setSelectedPatientForBooking(patient);
+      setIsBillingModalOpen(true);
+    }
   };
 
   return (
@@ -113,15 +124,29 @@ export const PatientsPage: React.FC = () => {
                       {patient.referring_doctor || 'Self / Walk-in'}
                     </td>
                     <td className="px-4 py-3.5 text-right whitespace-nowrap">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setSelectedTimelinePatient(patient)}
-                        className="text-xs flex items-center gap-1 ml-auto"
-                      >
-                        <History className="w-3.5 h-3.5" />
-                        Timeline
-                      </Button>
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedPatientForBooking(patient);
+                            setIsBillingModalOpen(true);
+                          }}
+                          className="text-xs flex items-center gap-1 shadow-sm"
+                        >
+                          <Receipt className="w-3.5 h-3.5" />
+                          Bill / Order
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setSelectedTimelinePatient(patient)}
+                          className="text-xs flex items-center gap-1"
+                        >
+                          <History className="w-3.5 h-3.5" />
+                          Timeline
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -135,7 +160,20 @@ export const PatientsPage: React.FC = () => {
       <AddPatientModal
         isOpen={isAddPatientOpen}
         onClose={() => setIsAddPatientOpen(false)}
-        onSuccess={handleRefresh}
+        onSuccess={handlePatientAdded}
+      />
+
+      <CreateBookingModal
+        isOpen={isBillingModalOpen}
+        onClose={() => {
+          setIsBillingModalOpen(false);
+          setSelectedPatientForBooking(null);
+        }}
+        onSuccess={() => {
+          handleRefresh();
+          queryClient.invalidateQueries({ queryKey: ['bookings'] });
+        }}
+        initialPatient={selectedPatientForBooking}
       />
 
       <PatientTimelineModal

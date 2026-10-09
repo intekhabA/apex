@@ -307,24 +307,41 @@ async def download_payment_receipt(
 
     verify_tenant_access(current_user, inv.lab_id)
 
-    if not inv.payments:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No payments recorded on this invoice to generate a receipt.",
-        )
-
-    target_payment = None
-    if payment_id:
-        target_payment = next((p for p in inv.payments if str(p.id) == payment_id), None)
-    if not target_payment:
-        target_payment = inv.payments[-1]  # latest payment
-
     lab_res = await db.execute(select(Laboratory).where(Laboratory.id == inv.lab_id))
     lab = lab_res.scalar_one()
 
-    receipt_filename = f"{target_payment.receipt_id_display}.pdf"
-    rel_receipt_path = f"receipts/{inv.id}/{receipt_filename}"
-    output_pdf_path = storage_service.get_local_staging_path(rel_receipt_path)
+    if inv.payments:
+        target_payment = None
+        if payment_id:
+            target_payment = next((p for p in inv.payments if str(p.id) == payment_id), None)
+        if not target_payment:
+            target_payment = inv.payments[-1]  # latest payment
+
+        receipt_filename = f"{target_payment.receipt_id_display}.pdf"
+        rel_receipt_path = f"receipts/{inv.id}/{receipt_filename}"
+        output_pdf_path = storage_service.get_local_staging_path(rel_receipt_path)
+
+        payment_info = {
+            "receipt_id_display": target_payment.receipt_id_display,
+            "amount": target_payment.amount,
+            "payment_method": target_payment.payment_method.value,
+            "transaction_reference": target_payment.transaction_reference,
+            "received_by_name": target_payment.received_by_user.full_name if target_payment.received_by_user else "Cashier",
+            "date": target_payment.created_at.strftime("%d-%b-%Y %I:%M %p"),
+        }
+    else:
+        receipt_filename = f"BILL-{inv.invoice_id_display}.pdf"
+        rel_receipt_path = f"receipts/{inv.id}/{receipt_filename}"
+        output_pdf_path = storage_service.get_local_staging_path(rel_receipt_path)
+
+        payment_info = {
+            "receipt_id_display": f"BILL-{inv.invoice_id_display}",
+            "amount": Decimal("0.00"),
+            "payment_method": "BALANCE DUE",
+            "transaction_reference": "Diagnostic Booking Slip",
+            "received_by_name": current_user.full_name if current_user else "Reception Desk",
+            "date": inv.created_at.strftime("%d-%b-%Y %I:%M %p") if inv.created_at else datetime.datetime.now().strftime("%d-%b-%Y %I:%M %p"),
+        }
 
     lab_info = {
         "name": lab.name,
@@ -336,14 +353,6 @@ async def download_payment_receipt(
         "name": inv.patient.full_name if inv.patient else "Patient",
         "id_display": inv.patient.patient_id_display if inv.patient else "N/A",
         "booking_id_display": inv.booking.booking_id_display if inv.booking else "N/A",
-    }
-    payment_info = {
-        "receipt_id_display": target_payment.receipt_id_display,
-        "amount": target_payment.amount,
-        "payment_method": target_payment.payment_method.value,
-        "transaction_reference": target_payment.transaction_reference,
-        "received_by_name": target_payment.received_by_user.full_name if target_payment.received_by_user else "Cashier",
-        "date": target_payment.created_at.strftime("%d-%b-%Y %I:%M %p"),
     }
     invoice_summary = {
         "invoice_id_display": inv.invoice_id_display,

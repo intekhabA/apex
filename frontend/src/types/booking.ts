@@ -45,6 +45,8 @@ export interface Booking {
 
   clinical_notes?: string | null;
   items: BookingItem[];
+  invoice_id?: string | null;
+  invoice_id_display?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -62,6 +64,7 @@ export interface BookingCreatePayload {
   discount_amount?: number;
   tax_percentage?: number;
   paid_amount?: number;
+  payment_method?: string;
   items: {
     item_type: 'TEST' | 'PACKAGE';
     test_id?: string;

@@ -1,6 +1,7 @@
 import { apiClient } from './client';
 import { APIResponse } from '@/types/api';
 import { InvoiceResponse, PaymentResponse, PaymentCreate } from '@/types/invoice';
+import { printReceiptFromInvoice } from '@/utils/receiptPrinter';
 
 export const invoiceService = {
   async getInvoices(params?: {
@@ -40,5 +41,16 @@ export const invoiceService = {
     link.click();
     link.parentNode?.removeChild(link);
     window.URL.revokeObjectURL(url);
+  },
+
+  async printReceipt(invoiceId: string, labName?: string): Promise<void> {
+    try {
+      const inv = await invoiceService.getInvoice(invoiceId);
+      printReceiptFromInvoice(inv, labName);
+    } catch (err) {
+      console.error('Failed to retrieve invoice for receipt print:', err);
+      // Fallback: download PDF
+      await invoiceService.downloadReceiptPdf(invoiceId);
+    }
   },
 };

@@ -35,6 +35,7 @@ class BookingCreate(BaseModel):
     discount_amount: Decimal = Field(default=Decimal("0.00"), ge=0)
     tax_percentage: Decimal = Field(default=Decimal("0.00"), ge=0, le=100)
     paid_amount: Decimal = Field(default=Decimal("0.00"), ge=0)
+    payment_method: Optional[str] = "CASH"
     items: List[BookingItemCreate] = Field(..., min_length=1)
 
 
@@ -68,6 +69,8 @@ class BookingResponse(BaseModel):
 
     clinical_notes: Optional[str] = None
     items: List[BookingItemResponse] = []
+    invoice_id: Optional[str] = None
+    invoice_id_display: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 

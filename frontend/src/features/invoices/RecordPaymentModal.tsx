@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Modal, Button, Input, Alert, Badge } from '@/components/ui';
 import { invoiceService } from '@/api/invoiceService';
 import { InvoiceResponse, PaymentMethod } from '@/types/invoice';
-import { DollarSign, Download, CheckCircle, CreditCard, Receipt } from 'lucide-react';
+import { DollarSign, Download, CheckCircle, CreditCard, Receipt, Printer } from 'lucide-react';
 
 interface RecordPaymentModalProps {
   isOpen: boolean;
@@ -79,9 +79,11 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
         notes: notes.trim() || undefined,
       });
 
-      setSuccess(`Payment of ₹${amount.toFixed(2)} successfully recorded.`);
+      setSuccess(`Payment of ₹${amount.toFixed(2)} successfully recorded. Receipt printing triggered.`);
       setTransactionReference('');
       setNotes('');
+      // Trigger instant receipt print
+      invoiceService.printReceipt(currentInvoice.id).catch(() => {});
       await refreshInvoice();
       onSuccess();
     } catch (err: unknown) {
@@ -93,6 +95,15 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
       );
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handlePrintReceipt = async () => {
+    if (!currentInvoice) return;
+    try {
+      await invoiceService.printReceipt(currentInvoice.id);
+    } catch {
+      setError('Failed to trigger receipt printing.');
     }
   };
 
@@ -292,16 +303,27 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
               Payment Ledger & Receipts ({currentInvoice.payments.length})
             </h4>
             {currentInvoice.payments.length > 0 && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleDownloadReceipt}
-                isLoading={downloadingReceipt}
-              >
-                <Download className="w-4 h-4 mr-1" />
-                Download PDF Receipt
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  onClick={handlePrintReceipt}
+                >
+                  <Printer className="w-4 h-4 mr-1" />
+                  Print Receipt
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleDownloadReceipt()}
+                  isLoading={downloadingReceipt}
+                >
+                  <Download className="w-4 h-4 mr-1" />
+                  Download PDF
+                </Button>
+              </div>
             )}
           </div>
 

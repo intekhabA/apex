@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Modal, Input, Button, Alert } from '@/components/ui';
 import { patientService } from '@/api/patientService';
+import { Patient } from '@/types';
 
 const patientSchema = z.object({
   first_name: z.string().min(1, 'First name is required').max(100),
@@ -29,7 +30,7 @@ type FormData = z.infer<typeof patientSchema>;
 export interface AddPatientModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (patient?: Patient) => void;
 }
 
 export const AddPatientModal: React.FC<AddPatientModalProps> = ({ isOpen, onClose, onSuccess }) => {
@@ -54,12 +55,12 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ isOpen, onClos
     setErrorMessage(null);
     setIsSubmitting(true);
     try {
-      await patientService.createPatient({
+      const createdPatient = await patientService.createPatient({
         ...data,
         email: data.email || undefined,
       });
       reset();
-      onSuccess();
+      onSuccess(createdPatient);
       onClose();
     } catch (err: any) {
       setErrorMessage(err?.response?.data?.message || 'Failed to register patient.');

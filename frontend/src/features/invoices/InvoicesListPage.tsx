@@ -12,6 +12,7 @@ import {
   TrendingUp,
   AlertCircle,
   CheckCircle,
+  Printer,
 } from 'lucide-react';
 import { RecordPaymentModal } from './RecordPaymentModal';
 
@@ -301,17 +302,26 @@ export const InvoicesListPage: React.FC = () => {
                         <CreditCard className="w-3.5 h-3.5 mr-1" />
                         Ledger
                       </Button>
-                      {Number(inv.paid_amount) > 0 && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={(e) => handleDownloadReceipt(inv, e)}
-                          isLoading={downloadingId === inv.id}
-                          title="Download Receipt PDF"
-                        >
-                          <Download className="w-3.5 h-3.5 text-slate-600" />
-                        </Button>
-                      )}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          invoiceService.printReceipt(inv.id);
+                        }}
+                        title="Print Receipt Only"
+                      >
+                        <Printer className="w-3.5 h-3.5 text-slate-600" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={(e) => handleDownloadReceipt(inv, e)}
+                        isLoading={downloadingId === inv.id}
+                        title="Download Receipt PDF"
+                      >
+                        <Download className="w-3.5 h-3.5 text-slate-600" />
+                      </Button>
                     </td>
                   </tr>
                 ))}

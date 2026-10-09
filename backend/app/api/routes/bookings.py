@@ -43,7 +43,11 @@ from app.services.notification_service import NotificationService
 router = APIRouter(prefix="/bookings", tags=["Bookings & Orders"])
 
 
-def map_booking_to_response(b: Booking) -> BookingResponse:
+def map_booking_to_response(
+    b: Booking,
+    invoice_id: Optional[str] = None,
+    invoice_id_display: Optional[str] = None,
+) -> BookingResponse:
     p = b.patient
     return BookingResponse(
         id=str(b.id),
@@ -81,6 +85,8 @@ def map_booking_to_response(b: Booking) -> BookingResponse:
             )
             for item in b.items
         ],
+        invoice_id=invoice_id,
+        invoice_id_display=invoice_id_display,
         created_at=b.created_at,
         updated_at=b.updated_at,
     )
@@ -355,10 +361,16 @@ async def create_booking(
     # Record initial payment receipt if paid_amount > 0
     if booking.paid_amount > 0:
         receipt_id_display = await generate_receipt_id(db, current_user.lab_id)
+        pm = PaymentMethod.CASH
+        if payload.payment_method:
+            try:
+                pm = PaymentMethod[payload.payment_method.upper()]
+            except KeyError:
+                pm = PaymentMethod.CASH
         init_payment = Payment(
             invoice_id=invoice.id,
             lab_id=current_user.lab_id,
-            payment_method=PaymentMethod.CASH,
+            payment_method=pm,
             amount=booking.paid_amount,
             receipt_id_display=receipt_id_display,
             received_by=current_user.id,
@@ -413,7 +425,11 @@ async def create_booking(
     return APIResponse(
         success=True,
         message=f"Order {created_booking.booking_id_display} created successfully.",
-        data=map_booking_to_response(created_booking),
+        data=map_booking_to_response(
+            created_booking,
+            invoice_id=str(invoice.id),
+            invoice_id_display=invoice.invoice_id_display,
+        ),
     )
 
 
@@ -439,10 +455,16 @@ async def get_booking(
     if current_user.role.value != "SUPER_ADMIN" and b.lab_id != current_user.lab_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access forbidden.")
 
+    # Find linked invoice if exists
+    inv_res = await db.execute(select(Invoice).where(Invoice.booking_id == booking_id))
+    inv = inv_res.scalar_one_or_none()
+    inv_id = str(inv.id) if inv else None
+    inv_disp = inv.invoice_id_display if inv else None
+
     return APIResponse(
         success=True,
         message="Booking retrieved.",
-        data=map_booking_to_response(b),
+        data=map_booking_to_response(b, invoice_id=inv_id, invoice_id_display=inv_disp),
     )
 
 
