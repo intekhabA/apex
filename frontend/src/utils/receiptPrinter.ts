@@ -325,6 +325,33 @@ export function printReceiptOnly(data: ReceiptPrintData): void {
   }
 }
 
+export function formatIndianDateTime(val?: string | Date | null): string {
+  if (!val) {
+    return new Date().toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+  }
+  const str = typeof val === 'string' ? val : val.toISOString();
+  const normalized = str.includes('T') && !str.endsWith('Z') && !str.includes('+') ? str + 'Z' : str;
+  const d = new Date(normalized);
+  if (isNaN(d.getTime())) return String(val);
+  return d.toLocaleString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
+}
+
 export function printReceiptFromBooking(
   booking: Booking,
   patient?: Patient | null,
@@ -343,7 +370,7 @@ export function printReceiptFromBooking(
     receiptNumber: booking.invoice_id_display || `REC-${booking.booking_id_display}`,
     invoiceNumber: booking.invoice_id_display || undefined,
     bookingNumber: booking.booking_id_display,
-    dateStr: new Date().toLocaleString(),
+    dateStr: formatIndianDateTime(),
     patientName: booking.patient_name || patient?.full_name || 'Patient',
     patientId: booking.patient_id_display || patient?.patient_id_display || 'N/A',
     gender: booking.patient_gender || patient?.gender,
@@ -391,7 +418,7 @@ export function printReceiptFromInvoice(
     receiptNumber: latestPayment?.receipt_id_display || `BILL-${inv.invoice_id_display}`,
     invoiceNumber: inv.invoice_id_display,
     bookingNumber: inv.booking_id_display,
-    dateStr: latestPayment ? new Date(latestPayment.created_at).toLocaleString() : inv.invoice_date,
+    dateStr: latestPayment ? formatIndianDateTime(latestPayment.created_at) : formatIndianDateTime(inv.invoice_date),
     patientName: inv.patient_name,
     patientId: inv.patient_id_display,
     gender: booking?.patient_gender || undefined,

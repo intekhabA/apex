@@ -284,6 +284,18 @@ async def record_invoice_payment(
     return await get_invoice(invoice_id=invoice_id, db=db, current_user=current_user)
 
 
+IST_TZ = datetime.timezone(datetime.timedelta(hours=5, minutes=30), name="IST")
+
+
+def format_datetime_ist(dt: Optional[datetime.datetime]) -> str:
+    """Format datetime in Indian Standard Time (IST, UTC+05:30)."""
+    if not dt:
+        dt = datetime.datetime.now(datetime.timezone.utc)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=datetime.timezone.utc)
+    return dt.astimezone(IST_TZ).strftime("%d-%b-%Y %I:%M %p")
+
+
 @router.get("/{invoice_id}/receipt")
 async def download_payment_receipt(
     invoice_id: str,
@@ -327,7 +339,7 @@ async def download_payment_receipt(
             "payment_method": target_payment.payment_method.value if hasattr(target_payment.payment_method, "value") else str(target_payment.payment_method),
             "transaction_reference": target_payment.transaction_reference,
             "received_by_name": target_payment.received_by_user.full_name if target_payment.received_by_user else "Cashier",
-            "date": target_payment.created_at.strftime("%d-%b-%Y %I:%M %p") if target_payment.created_at else datetime.datetime.now().strftime("%d-%b-%Y %I:%M %p"),
+            "date": format_datetime_ist(target_payment.created_at),
         }
     else:
         receipt_filename = f"BILL-{inv.invoice_id_display}.pdf"
@@ -340,7 +352,7 @@ async def download_payment_receipt(
             "payment_method": "BALANCE DUE",
             "transaction_reference": "Diagnostic Booking Slip",
             "received_by_name": current_user.full_name if current_user else "Reception Desk",
-            "date": inv.created_at.strftime("%d-%b-%Y %I:%M %p") if inv.created_at else datetime.datetime.now().strftime("%d-%b-%Y %I:%M %p"),
+            "date": format_datetime_ist(inv.created_at),
         }
 
     lab_info = {

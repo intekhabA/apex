@@ -1,4 +1,5 @@
 import os
+import datetime
 from decimal import Decimal
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -6,6 +7,17 @@ from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 from sqlalchemy.orm import selectinload
+
+IST_TZ = datetime.timezone(datetime.timedelta(hours=5, minutes=30), name="IST")
+
+
+def format_datetime_ist(dt: Optional[datetime.datetime]) -> str:
+    """Format datetime in Indian Standard Time (IST, UTC+05:30)."""
+    if not dt:
+        dt = datetime.datetime.now(datetime.timezone.utc)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=datetime.timezone.utc)
+    return dt.astimezone(IST_TZ).strftime("%d-%b-%Y %I:%M %p")
 
 from app.core.config import settings
 from app.core.database import get_db
@@ -882,7 +894,7 @@ async def download_patient_invoice_receipt(
         "payment_method": target_payment.payment_method.value if hasattr(target_payment.payment_method, "value") else str(target_payment.payment_method),
         "transaction_reference": target_payment.transaction_reference,
         "received_by_name": target_payment.received_by_user.full_name if target_payment.received_by_user else "Cashier",
-        "date": target_payment.created_at.strftime("%d-%b-%Y %I:%M %p") if target_payment.created_at else "N/A",
+        "date": format_datetime_ist(target_payment.created_at),
     }
     invoice_summary = {
         "invoice_id_display": inv.invoice_id_display,

@@ -1,4 +1,5 @@
 import os
+import datetime
 import io
 import base64
 import logging
@@ -598,7 +599,25 @@ def generate_payment_receipt_pdf(
 
     receipt_title = "PAYMENT RECEIPT / BILL"
     receipt_num = payment_info.get("receipt_id_display") or invoice_summary.get("invoice_id_display") or "REC"
-    date_str = payment_info.get("date") or "N/A"
+    ist_tz = datetime.timezone(datetime.timedelta(hours=5, minutes=30), name="IST")
+    raw_date = payment_info.get("date")
+    if not raw_date or raw_date == "N/A":
+        date_str = datetime.datetime.now(ist_tz).strftime("%d-%b-%Y %I:%M %p")
+    elif isinstance(raw_date, datetime.datetime):
+        if raw_date.tzinfo is None:
+            raw_date = raw_date.replace(tzinfo=datetime.timezone.utc)
+        date_str = raw_date.astimezone(ist_tz).strftime("%d-%b-%Y %I:%M %p")
+    elif isinstance(raw_date, str) and ("T" in raw_date or raw_date.endswith("Z")):
+        try:
+            clean_str = raw_date.replace("Z", "+00:00")
+            parsed_dt = datetime.datetime.fromisoformat(clean_str)
+            if parsed_dt.tzinfo is None:
+                parsed_dt = parsed_dt.replace(tzinfo=datetime.timezone.utc)
+            date_str = parsed_dt.astimezone(ist_tz).strftime("%d-%b-%Y %I:%M %p")
+        except Exception:
+            date_str = raw_date
+    else:
+        date_str = str(raw_date)
 
     header_table = Table(
         [
