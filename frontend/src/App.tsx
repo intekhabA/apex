@@ -29,6 +29,7 @@ import { PublicVerificationPage } from '@/features/reports/PublicVerificationPag
 import { AuditLogPage } from '@/features/audit/AuditLogPage';
 import { NotificationsLogPage } from '@/features/notifications/NotificationsLogPage';
 import { DoctorCommissionsPage } from '@/features/commissions/DoctorCommissionsPage';
+import { DailyExpensesPage } from '@/features/expenses';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -71,6 +72,14 @@ export const App: React.FC = () => {
             <Route path="/results" element={<ResultsWorklistPage />} />
             <Route path="/reports" element={<ReportsListPage />} />
             <Route path="/invoices" element={<InvoicesListPage />} />
+            <Route
+              path="/expenses"
+              element={
+                <ProtectedRoute allowedRoles={['LAB_ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'LAB_ASSISTANT', 'PATHOLOGIST']}>
+                  <DailyExpensesPage />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="/doctor-commissions"
               element={

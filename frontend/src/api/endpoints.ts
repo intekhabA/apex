@@ -55,4 +55,10 @@ export const API_ENDPOINTS = {
   COMMISSIONS: {
     REPORT: '/commissions/report',
   },
+  EXPENSES: {
+    BASE: '/expenses',
+    SUMMARY: '/expenses/summary',
+    PRESETS: '/expenses/categories/presets',
+    DETAIL: (id: string) => `/expenses/${id}`,
+  },
 } as const;

@@ -2,6 +2,7 @@ export interface APIResponse<T = any> {
   success: boolean;
   message: string;
   data?: T;
+  meta?: any;
   errors?: Record<string, string>;
 }
 

@@ -15,6 +15,7 @@ import {
   Bell,
   User,
   Percent,
+  Wallet,
 } from 'lucide-react';
 import { usePermissions } from '@/hooks/usePermissions';
 import { clsx } from 'clsx';
@@ -27,6 +28,7 @@ export const Sidebar: React.FC = () => {
       return [
         { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { to: '/admin/laboratories', label: 'Laboratories', icon: Building2 },
+        { to: '/expenses', label: 'Daily Expenses', icon: Wallet },
         { to: '/tests/catalog', label: 'Master Test Catalog', icon: TestTubes },
         { to: '/notifications', label: 'Global Notifications', icon: Bell },
         { to: '/audit/logs', label: 'Platform Audit Logs', icon: ShieldCheck },
@@ -51,6 +53,7 @@ export const Sidebar: React.FC = () => {
       { to: '/results', label: 'Results Entry (LFT/KFT/CBC)', icon: FileSpreadsheet },
       { to: '/reports', label: 'Reports & Approvals', icon: FileCheck2 },
       { to: '/invoices', label: 'Billing & Invoices', icon: Receipt },
+      { to: '/expenses', label: 'Daily Expenses', icon: Wallet },
       { to: '/doctor-commissions', label: 'Doctor Commissions', icon: Percent },
       { to: '/notifications', label: 'Patient Alerts & Logs', icon: Bell },
       { to: '/tests/catalog', label: 'Test Catalog & Pricing', icon: TestTubes },

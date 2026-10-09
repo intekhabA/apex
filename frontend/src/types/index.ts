@@ -15,3 +15,4 @@ export * from './dashboard';
 export * from './audit';
 export * from './notification';
 export * from './doctor';
+export * from './expense';

@@ -22,6 +22,7 @@ from app.models.invoice import Invoice, Payment, PaymentMethod
 from app.models.audit import AuditLog
 from app.models.notification import NotificationLog, NotificationEventType, NotificationChannel, NotificationStatus
 from app.models.doctor import Doctor, DoctorTestCommission
+from app.models.expense import Expense, ExpenseCategory
 
 __all__ = [
     "Base",
@@ -61,4 +62,6 @@ __all__ = [
     "Payment",
     "PaymentMethod",
     "AuditLog",
+    "Expense",
+    "ExpenseCategory",
 ]
