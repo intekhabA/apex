@@ -22,6 +22,7 @@ export interface LabDashboardData {
   revenue_today: number | string;
   revenue_total: number | string;
   outstanding_receivables: number | string;
+  doctor_commission_today?: number | string;
   sample_status_breakdown: StatusCount[];
   report_status_breakdown: StatusCount[];
   daily_trends: DailyTrendPoint[];

@@ -122,6 +122,20 @@ class DashboardService:
         ).scalar() or Decimal("0.00")
         revenue_today = Decimal(str(today_pay_res))
 
+        # Doctor commissions for today
+        try:
+            from app.services.commission_service import get_doctor_commission_report
+            comm_report = await get_doctor_commission_report(
+                db=db,
+                lab_id=lab_id,
+                period_type="daily",
+                start_date=today,
+                end_date=today,
+            )
+            doctor_commission_today = comm_report.total_commission
+        except Exception:
+            doctor_commission_today = Decimal("0.00")
+
         # 5. Last 7 Days Daily Trends
         daily_trends: List[DailyTrendPoint] = []
         for i in range(6, -1, -1):
@@ -250,6 +264,7 @@ class DashboardService:
             revenue_today=revenue_today,
             revenue_total=revenue_total,
             outstanding_receivables=outstanding_receivables,
+            doctor_commission_today=doctor_commission_today,
             sample_status_breakdown=sample_status_breakdown,
             report_status_breakdown=report_status_breakdown,
             daily_trends=daily_trends,

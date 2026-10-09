@@ -13,6 +13,7 @@ import {
   ArrowRight,
   ShieldCheck,
   FileSpreadsheet,
+  Percent,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -105,7 +106,7 @@ export const LabAdminDashboardView: React.FC = () => {
       </div>
 
       {/* Operational KPI Counters */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         {/* Bookings */}
         <Card className="p-4 bg-white border border-slate-200">
           <div className="flex items-center justify-between">
@@ -182,6 +183,30 @@ export const LabAdminDashboardView: React.FC = () => {
             </div>
             <div className="p-3 bg-purple-50 text-purple-600 rounded-lg">
               <Receipt className="w-6 h-6" />
+            </div>
+          </div>
+        </Card>
+
+        {/* Doctor Commission Today (Beside Collections Today) */}
+        <Card className="p-4 bg-white border border-slate-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                Doctor Commission
+              </p>
+              <h3 className="text-2xl font-bold text-emerald-600 mt-1">
+                ₹{Number(data?.doctor_commission_today || 0).toFixed(2)}
+              </h3>
+              <Link
+                to="/doctor-commissions"
+                className="text-xs text-brand-600 hover:text-brand-700 font-medium mt-0.5 inline-flex items-center gap-1 group"
+              >
+                <span>View Payouts</span>
+                <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+              </Link>
+            </div>
+            <div className="p-3 bg-emerald-50 text-emerald-600 rounded-lg">
+              <Percent className="w-6 h-6" />
             </div>
           </div>
         </Card>

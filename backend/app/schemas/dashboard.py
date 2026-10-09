@@ -27,6 +27,7 @@ class LabDashboardResponse(BaseModel):
     revenue_today: Decimal
     revenue_total: Decimal
     outstanding_receivables: Decimal
+    doctor_commission_today: Decimal = Decimal("0.00")
     sample_status_breakdown: List[StatusCount] = []
     report_status_breakdown: List[StatusCount] = []
     daily_trends: List[DailyTrendPoint] = []
