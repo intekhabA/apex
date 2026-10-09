@@ -365,9 +365,25 @@ export function printReceiptFromBooking(
 
 export function printReceiptFromInvoice(
   inv: InvoiceResponse,
-  labName?: string | null
+  labName?: string | null,
+  booking?: Booking | null
 ): void {
   const latestPayment = inv.payments && inv.payments.length > 0 ? inv.payments[inv.payments.length - 1] : null;
+
+  const items: ReceiptItem[] =
+    booking && booking.items && booking.items.length > 0
+      ? booking.items.map((it) => ({
+          name: it.item_name,
+          type: it.item_type,
+          price: Number(it.final_price ?? it.unit_price),
+        }))
+      : [
+          {
+            name: `Diagnostic Order Services (${inv.booking_id_display})`,
+            type: 'ORDER',
+            price: Number(inv.subtotal),
+          },
+        ];
 
   const data: ReceiptPrintData = {
     labName: labName || 'DiagnoLab Diagnostics',
@@ -378,14 +394,11 @@ export function printReceiptFromInvoice(
     dateStr: latestPayment ? new Date(latestPayment.created_at).toLocaleString() : inv.invoice_date,
     patientName: inv.patient_name,
     patientId: inv.patient_id_display,
-    referringDoctor: 'Self / Walk-in',
-    items: [
-      {
-        name: `Diagnostic Order Services (${inv.booking_id_display})`,
-        type: 'ORDER',
-        price: Number(inv.subtotal),
-      },
-    ],
+    gender: booking?.patient_gender || undefined,
+    age: booking?.patient_age_years ?? undefined,
+    phone: booking?.patient_phone || undefined,
+    referringDoctor: booking?.referring_doctor || 'Self / Walk-in',
+    items,
     subtotal: Number(inv.subtotal),
     discount: Number(inv.discount_amount),
     tax: Number(inv.tax_amount),
@@ -397,3 +410,4 @@ export function printReceiptFromInvoice(
 
   printReceiptOnly(data);
 }
+

@@ -538,116 +538,162 @@ def generate_payment_receipt_pdf(
     payment_info: dict,
     invoice_summary: dict,
     output_path: str,
+    items: Optional[List[dict]] = None,
 ) -> str:
-    """Renders a printable Payment Receipt PDF using ReportLab."""
+    """Renders a printable Payment Receipt PDF matching the print receipt format using ReportLab."""
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
     doc = SimpleDocTemplate(
         output_path,
         pagesize=A4,
-        leftMargin=54,
-        rightMargin=54,
-        topMargin=54,
-        bottomMargin=54,
+        leftMargin=36,
+        rightMargin=36,
+        topMargin=36,
+        bottomMargin=36,
     )
 
     styles = getSampleStyleSheet()
-    brand_dark = colors.HexColor("#115E59")
+    brand_dark = colors.HexColor("#0F766E")
     brand_color = colors.HexColor("#0D9488")
-    slate_dark = colors.HexColor("#1E293B")
+    slate_dark = colors.HexColor("#0F172A")
+    slate_body = colors.HexColor("#1E293B")
     slate_muted = colors.HexColor("#64748B")
     slate_light = colors.HexColor("#F8FAFC")
+    border_color = colors.HexColor("#CBD5E1")
+    inner_border = colors.HexColor("#E2E8F0")
+    rose_red = colors.HexColor("#E11D48")
 
-    title_style = ParagraphStyle(
-        "ReceiptLabTitle",
+    label_style = ParagraphStyle(
+        "RecLabel",
         parent=styles["Normal"],
         fontName="Helvetica-Bold",
-        fontSize=16,
-        leading=20,
-        textColor=brand_dark,
+        fontSize=8,
+        leading=10.5,
+        textColor=slate_muted,
     )
-    subtitle_style = ParagraphStyle(
-        "ReceiptSubtitle",
+    val_style = ParagraphStyle(
+        "RecVal",
         parent=styles["Normal"],
         fontName="Helvetica",
         fontSize=8.5,
         leading=11,
-        textColor=slate_muted,
-    )
-    section_heading = ParagraphStyle(
-        "ReceiptSectionHeading",
-        parent=styles["Normal"],
-        fontName="Helvetica-Bold",
-        fontSize=12,
-        leading=15,
-        textColor=brand_dark,
-    )
-    label_style = ParagraphStyle(
-        "ReceiptLabel",
-        parent=styles["Normal"],
-        fontName="Helvetica-Bold",
-        fontSize=9,
-        leading=12,
-        textColor=slate_muted,
-    )
-    val_style = ParagraphStyle(
-        "ReceiptVal",
-        parent=styles["Normal"],
-        fontName="Helvetica",
-        fontSize=9,
-        leading=12,
         textColor=slate_dark,
+    )
+    val_right_style = ParagraphStyle(
+        "RecValRight",
+        parent=val_style,
+        alignment=2,
     )
 
     story = []
 
-    # Header
-    lab_text = f"<b>{lab_info.get('name', 'DiagnoLab Diagnostics')}</b>"
+    # 1. Header: Laboratory details on left, Receipt badge & date on right
+    lab_text = f"<b>{lab_info.get('name', 'DiagnoLab Diagnostics').upper()}</b>"
+    lab_phone = lab_info.get("phone")
+    phone_part = f"Phone: {lab_phone} | " if lab_phone and lab_phone != "N/A" else ""
     lab_details = (
-        f"{lab_info.get('address', '')}<br/>"
-        f"Phone: {lab_info.get('phone', 'N/A')} | Reg: {lab_info.get('license', 'Accredited Lab')}"
+        f"{lab_info.get('address', 'Accredited Pathology & Diagnostic Healthcare Center')}<br/>"
+        f"{phone_part}Reg / License: {lab_info.get('license', 'Accredited Laboratory')}"
     )
-    receipt_header = Table(
+
+    receipt_title = "PAYMENT RECEIPT / BILL"
+    receipt_num = payment_info.get("receipt_id_display") or invoice_summary.get("invoice_id_display") or "REC"
+    date_str = payment_info.get("date") or "N/A"
+
+    header_table = Table(
         [
             [
-                Paragraph(lab_text, title_style),
                 Paragraph(
-                    f"<b>PAYMENT RECEIPT</b><br/>"
-                    f"<font color='#0D9488'><b>#{payment_info.get('receipt_id_display', '')}</b></font><br/>"
-                    f"Date: {payment_info.get('date', 'N/A')}",
-                    ParagraphStyle("RecRef", parent=styles["Normal"], alignment=2, fontSize=9, leading=12),
+                    lab_text,
+                    ParagraphStyle(
+                        "RecLabTitle",
+                        parent=styles["Normal"],
+                        fontName="Helvetica-Bold",
+                        fontSize=15,
+                        leading=18,
+                        textColor=brand_dark,
+                    ),
+                ),
+                Paragraph(
+                    f"<b>{receipt_title}</b><br/>"
+                    f"<font color='#0F172A'><b>#{receipt_num}</b></font><br/>"
+                    f"<font color='#64748B'>{date_str}</font>",
+                    ParagraphStyle(
+                        "RecBadge",
+                        parent=styles["Normal"],
+                        fontName="Helvetica",
+                        alignment=2,
+                        fontSize=8.5,
+                        leading=12,
+                        textColor=brand_dark,
+                    ),
                 ),
             ],
-            [Paragraph(lab_details, subtitle_style), ""],
+            [
+                Paragraph(
+                    lab_details,
+                    ParagraphStyle(
+                        "RecLabMeta",
+                        parent=styles["Normal"],
+                        fontName="Helvetica",
+                        fontSize=8,
+                        leading=10.5,
+                        textColor=slate_muted,
+                    ),
+                ),
+                "",
+            ],
         ],
-        colWidths=[320, 160],
+        colWidths=[332, 190],
     )
-    story.append(receipt_header)
-    story.append(Spacer(1, 8))
-    story.append(HRFlowable(width="100%", thickness=1.5, color=brand_color, spaceAfter=12))
+    header_table.setStyle(
+        TableStyle(
+            [
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("TOPPADDING", (0, 0), (-1, -1), 0),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+            ]
+        )
+    )
+    story.append(header_table)
+    story.append(HRFlowable(width="100%", thickness=2, color=brand_color, spaceBefore=4, spaceAfter=8))
 
-    # Patient & Invoice Reference Card
-    ref_data = [
+    # 2. Patient Details Card (2-column layout)
+    gender_str = patient_info.get("gender") or "—"
+    age_val = patient_info.get("age")
+    age_str = f"{age_val}y" if age_val else "—"
+    gender_age_str = f"{gender_str} / {age_str}"
+
+    patient_card_data = [
         [
-            Paragraph("PATIENT NAME:", label_style),
+            Paragraph("Patient Name:", label_style),
             Paragraph(f"<b>{patient_info.get('name', 'N/A')}</b>", val_style),
-            Paragraph("PATIENT ID:", label_style),
-            Paragraph(patient_info.get("id_display", "N/A"), val_style),
+            Paragraph("Phone:", label_style),
+            Paragraph(f"<b>{patient_info.get('phone', 'N/A')}</b>", val_style),
         ],
         [
-            Paragraph("INVOICE ID:", label_style),
-            Paragraph(invoice_summary.get("invoice_id_display", "N/A"), val_style),
-            Paragraph("BOOKING ID:", label_style),
-            Paragraph(patient_info.get("booking_id_display", "N/A"), val_style),
+            Paragraph("Patient ID:", label_style),
+            Paragraph(f"<b>{patient_info.get('id_display', 'N/A')}</b>", val_style),
+            Paragraph("Booking Ref:", label_style),
+            Paragraph(f"<b>{patient_info.get('booking_id_display', 'N/A')}</b>", val_style),
+        ],
+        [
+            Paragraph("Gender / Age:", label_style),
+            Paragraph(f"<b>{gender_age_str}</b>", val_style),
+            Paragraph("Ref. Doctor:", label_style),
+            Paragraph(f"<b>{patient_info.get('referring_doctor', 'Self / Walk-in')}</b>", val_style),
         ],
     ]
-    ref_table = Table(ref_data, colWidths=[95, 145, 95, 145])
+    ref_table = Table(patient_card_data, colWidths=[85, 176, 85, 176])
     ref_table.setStyle(
         TableStyle(
             [
                 ("BACKGROUND", (0, 0), (-1, -1), slate_light),
-                ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
-                ("INNERGRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#E2E8F0")),
+                ("BOX", (0, 0), (-1, -1), 0.5, border_color),
+                ("INNERGRID", (0, 0), (-1, -1), 0.5, inner_border),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                 ("TOPPADDING", (0, 0), (-1, -1), 4),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
                 ("LEFTPADDING", (0, 0), (-1, -1), 6),
@@ -656,84 +702,238 @@ def generate_payment_receipt_pdf(
         )
     )
     story.append(ref_table)
-    story.append(Spacer(1, 14))
+    story.append(Spacer(1, 8))
 
-    # Transaction Table
-    story.append(Paragraph("<b>TRANSACTION DETAILS</b>", section_heading))
-    story.append(Spacer(1, 6))
+    # 3. Itemized Ordered Tests & Packages Table
+    th_style = ParagraphStyle(
+        "RecTH",
+        parent=styles["Normal"],
+        fontName="Helvetica-Bold",
+        fontSize=8,
+        leading=10,
+        textColor=colors.white,
+    )
+    th_center_style = ParagraphStyle("RecTHCenter", parent=th_style, alignment=1)
+    th_right_style = ParagraphStyle("RecTHRight", parent=th_style, alignment=2)
 
-    txn_rows = [
+    td_style = ParagraphStyle(
+        "RecTD",
+        parent=styles["Normal"],
+        fontName="Helvetica",
+        fontSize=8.5,
+        leading=11,
+        textColor=slate_body,
+    )
+    td_center_style = ParagraphStyle("RecTDCenter", parent=td_style, alignment=1, textColor=slate_muted)
+    td_right_style = ParagraphStyle("RecTDRight", parent=td_style, alignment=2, fontName="Helvetica-Bold", textColor=slate_dark)
+    td_type_style = ParagraphStyle("RecTDType", parent=td_style, fontSize=7.5, leading=9.5, textColor=colors.HexColor("#475569"))
+
+    table_rows = [
         [
-            Paragraph("<b>PARTICULAR</b>", ParagraphStyle("TH1", parent=styles["Normal"], fontName="Helvetica-Bold", fontSize=8.5, textColor=colors.white)),
-            Paragraph("<b>DETAILS</b>", ParagraphStyle("TH2", parent=styles["Normal"], fontName="Helvetica-Bold", fontSize=8.5, textColor=colors.white)),
-        ],
-        [
-            Paragraph("Amount Paid This Transaction", label_style),
-            Paragraph(f"<b>₹ {float(payment_info.get('amount', 0)):.2f}</b>", ParagraphStyle("Amt", parent=val_style, fontName="Helvetica-Bold", textColor=brand_dark, fontSize=11)),
-        ],
-        [
-            Paragraph("Payment Method", label_style),
-            Paragraph(str(payment_info.get("payment_method", "CASH")), val_style),
-        ],
-        [
-            Paragraph("Transaction Reference / Txn ID", label_style),
-            Paragraph(str(payment_info.get("transaction_reference") or "Cash Desk"), val_style),
-        ],
-        [
-            Paragraph("Received By Staff", label_style),
-            Paragraph(str(payment_info.get("received_by_name", "Laboratory Cashier")), val_style),
-        ],
+            Paragraph("#", th_center_style),
+            Paragraph("TEST / INVESTIGATION DESCRIPTION", th_style),
+            Paragraph("TYPE", th_style),
+            Paragraph("PRICE (Rs.)", th_right_style),
+        ]
     ]
-    txn_table = Table(txn_rows, colWidths=[200, 280])
-    txn_table.setStyle(
+
+    if items and len(items) > 0:
+        for idx, it in enumerate(items, 1):
+            name = it.get("name", "Diagnostic Investigation")
+            itype = it.get("type", "TEST")
+            price = float(it.get("price", 0))
+            table_rows.append(
+                [
+                    Paragraph(str(idx), td_center_style),
+                    Paragraph(f"<b>{name}</b>", td_style),
+                    Paragraph(f"{itype}", td_type_style),
+                    Paragraph(f"Rs. {price:.2f}", td_right_style),
+                ]
+            )
+    else:
+        table_rows.append(
+            [
+                Paragraph("1", td_center_style),
+                Paragraph("<b>Diagnostic investigation services rendered</b>", td_style),
+                Paragraph("ORDER", td_type_style),
+                Paragraph(f"Rs. {float(invoice_summary.get('subtotal', 0)):.2f}", td_right_style),
+            ]
+        )
+
+    items_table = Table(table_rows, colWidths=[32, 310, 80, 100])
+    items_table.setStyle(
         TableStyle(
             [
                 ("BACKGROUND", (0, 0), (-1, 0), brand_dark),
-                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#E2E8F0")),
-                ("TOPPADDING", (0, 0), (-1, -1), 5),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-                ("LEFTPADDING", (0, 0), (-1, -1), 8),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
-                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, slate_light]),
-            ]
-        )
-    )
-    story.append(txn_table)
-    story.append(Spacer(1, 14))
-
-    # Ledger Financial Balance Summary
-    story.append(Paragraph("<b>ACCOUNT BALANCE LEDGER</b>", section_heading))
-    story.append(Spacer(1, 6))
-
-    summary_rows = [
-        [Paragraph("Invoice Grand Total:", label_style), Paragraph(f"₹ {float(invoice_summary.get('grand_total', 0)):.2f}", val_style)],
-        [Paragraph("Total Amount Paid to Date:", label_style), Paragraph(f"<font color='#0D9488'><b>₹ {float(invoice_summary.get('paid_amount', 0)):.2f}</b></font>", val_style)],
-        [Paragraph("Outstanding Balance Due:", label_style), Paragraph(f"<font color='#E11D48'><b>₹ {float(invoice_summary.get('balance_amount', 0)):.2f}</b></font>", val_style)],
-        [Paragraph("Payment Status:", label_style), Paragraph(f"<b>{invoice_summary.get('payment_status', 'PENDING')}</b>", val_style)],
-    ]
-    summary_table = Table(summary_rows, colWidths=[200, 280])
-    summary_table.setStyle(
-        TableStyle(
-            [
-                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
-                ("BACKGROUND", (0, 0), (-1, -1), slate_light),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                 ("TOPPADDING", (0, 0), (-1, -1), 4),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-                ("LEFTPADDING", (0, 0), (-1, -1), 8),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, slate_light]),
+                ("GRID", (0, 0), (-1, -1), 0.5, inner_border),
             ]
         )
     )
-    story.append(summary_table)
-    story.append(Spacer(1, 24))
+    story.append(items_table)
+    story.append(Spacer(1, 8))
 
-    # Receipt Footer
-    footer_text = (
-        "<i>This is an official computer-generated receipt issued by DiagnoLab Healthcare Platform. "
-        "Retain this receipt for insurance claims and booking reference.</i>"
+    # 4. Payment Transaction Ledger & Financial Summary Box
+    pay_rows = [
+        [
+            Paragraph(
+                "<b>PAYMENT TRANSACTION DETAILS</b>",
+                ParagraphStyle("PayH", parent=styles["Normal"], fontName="Helvetica-Bold", fontSize=8, leading=10, textColor=brand_dark),
+            ),
+            "",
+        ],
+        [Paragraph("Payment Method:", label_style), Paragraph(f"<b>{payment_info.get('payment_method', 'CASH')}</b>", val_style)],
+        [Paragraph("Transaction Ref:", label_style), Paragraph(str(payment_info.get("transaction_reference") or "Cash Desk"), val_style)],
+        [Paragraph("Desk Staff:", label_style), Paragraph(str(payment_info.get("received_by_name") or "Laboratory Cashier"), val_style)],
+        [Paragraph("Payment Status:", label_style), Paragraph(f"<b>{invoice_summary.get('payment_status', 'PENDING')}</b>", val_style)],
+    ]
+    pay_subtable = Table(pay_rows, colWidths=[90, 144])
+    pay_subtable.setStyle(
+        TableStyle(
+            [
+                ("SPAN", (0, 0), (1, 0)),
+                ("BACKGROUND", (0, 0), (-1, -1), slate_light),
+                ("BOX", (0, 0), (-1, -1), 0.5, border_color),
+                ("INNERGRID", (0, 0), (-1, -1), 0.5, inner_border),
+                ("TOPPADDING", (0, 0), (-1, -1), 3),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+            ]
+        )
     )
-    story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#CBD5E1"), spaceAfter=8))
-    story.append(Paragraph(footer_text, subtitle_style))
+
+    subtotal = float(invoice_summary.get("subtotal", 0))
+    discount = float(invoice_summary.get("discount_amount", 0))
+    tax = float(invoice_summary.get("tax_amount", 0))
+    grand_total = float(invoice_summary.get("grand_total", 0))
+    paid_amount = float(invoice_summary.get("paid_amount", 0))
+    balance_amount = float(invoice_summary.get("balance_amount", 0))
+    pay_method = payment_info.get("payment_method", "CASH")
+
+    tot_rows = [
+        [Paragraph("Subtotal:", label_style), Paragraph(f"Rs. {subtotal:.2f}", val_right_style)],
+    ]
+    if discount > 0:
+        tot_rows.append(
+            [
+                Paragraph("Discount:", ParagraphStyle("TotDiscL", parent=label_style, textColor=brand_dark)),
+                Paragraph(f"-Rs. {discount:.2f}", ParagraphStyle("TotDiscV", parent=val_right_style, textColor=brand_dark, fontName="Helvetica-Bold")),
+            ]
+        )
+    if tax > 0:
+        tot_rows.append(
+            [
+                Paragraph("Tax:", label_style),
+                Paragraph(f"Rs. {tax:.2f}", val_right_style),
+            ]
+        )
+
+    tot_rows.extend(
+        [
+            [
+                Paragraph("<b>Grand Total:</b>", ParagraphStyle("TotGTL", parent=label_style, fontSize=9, leading=11, textColor=slate_dark)),
+                Paragraph(f"<b>Rs. {grand_total:.2f}</b>", ParagraphStyle("TotGTV", parent=val_right_style, fontSize=9.5, leading=11, textColor=slate_dark, fontName="Helvetica-Bold")),
+            ],
+            [
+                Paragraph(f"<b>Amount Paid ({pay_method}):</b>", ParagraphStyle("TotPaidL", parent=label_style, textColor=brand_dark)),
+                Paragraph(f"<b>Rs. {paid_amount:.2f}</b>", ParagraphStyle("TotPaidV", parent=val_right_style, textColor=brand_dark, fontName="Helvetica-Bold")),
+            ],
+            [
+                Paragraph("<b>Balance Due:</b>", ParagraphStyle("TotBalL", parent=label_style, textColor=rose_red)),
+                Paragraph(f"<b>Rs. {balance_amount:.2f}</b>", ParagraphStyle("TotBalV", parent=val_right_style, textColor=rose_red, fontName="Helvetica-Bold")),
+            ],
+        ]
+    )
+
+    tot_subtable = Table(tot_rows, colWidths=[160, 126])
+    tot_subtable.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), slate_light),
+                ("BOX", (0, 0), (-1, -1), 0.5, border_color),
+                ("INNERGRID", (0, 0), (-1, -1), 0.5, inner_border),
+                ("TOPPADDING", (0, 0), (-1, -1), 3),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ("LINEABOVE", (0, len(tot_rows) - 3), (1, len(tot_rows) - 3), 1, border_color),
+            ]
+        )
+    )
+
+    bottom_table = Table(
+        [[pay_subtable, tot_subtable]],
+        colWidths=[236, 286],
+    )
+    bottom_table.setStyle(
+        TableStyle(
+            [
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("TOPPADDING", (0, 0), (-1, -1), 0),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+            ]
+        )
+    )
+    story.append(bottom_table)
+    story.append(Spacer(1, 10))
+
+    # 5. Footer & Authorized Sign
+    story.append(HRFlowable(width="100%", thickness=0.5, color=border_color, spaceBefore=4, spaceAfter=6))
+
+    sign_subtable = Table(
+        [
+            [""],
+            [Paragraph("<b>Authorized Cashier / Desk Sign</b>", ParagraphStyle("SignLabel", parent=styles["Normal"], alignment=2, fontSize=8, leading=10, textColor=slate_muted))],
+        ],
+        colWidths=[180],
+        rowHeights=[28, 12],
+    )
+    sign_subtable.setStyle(
+        TableStyle(
+            [
+                ("LINEABOVE", (0, 1), (0, 1), 1, colors.HexColor("#94A3B8")),
+                ("VALIGN", (0, 0), (-1, -1), "BOTTOM"),
+                ("TOPPADDING", (0, 0), (-1, -1), 1),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+            ]
+        )
+    )
+
+    footer_table = Table(
+        [
+            [
+                Paragraph(
+                    "<i>Official computer-generated receipt issued by DiagnoLab Healthcare.</i><br/>"
+                    "<font color='#94A3B8'>Retain this receipt for insurance claims and specimen tracking.</font>",
+                    ParagraphStyle("FootText", parent=styles["Normal"], fontSize=8, leading=11, textColor=slate_muted),
+                ),
+                sign_subtable,
+            ]
+        ],
+        colWidths=[332, 190],
+    )
+    footer_table.setStyle(
+        TableStyle(
+            [
+                ("VALIGN", (0, 0), (-1, -1), "BOTTOM"),
+                ("TOPPADDING", (0, 0), (-1, -1), 0),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+            ]
+        )
+    )
+    story.append(footer_table)
 
     doc.build(story)
     return output_path

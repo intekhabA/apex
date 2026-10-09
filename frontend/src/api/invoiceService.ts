@@ -46,7 +46,16 @@ export const invoiceService = {
   async printReceipt(invoiceId: string, labName?: string): Promise<void> {
     try {
       const inv = await invoiceService.getInvoice(invoiceId);
-      printReceiptFromInvoice(inv, labName);
+      let bookingData = null;
+      if (inv.booking_id) {
+        try {
+          const bRes = await apiClient.get<APIResponse<any>>(`/bookings/${inv.booking_id}`);
+          bookingData = bRes.data.data;
+        } catch {
+          // Ignore error fetching booking
+        }
+      }
+      printReceiptFromInvoice(inv, labName, bookingData);
     } catch (err) {
       console.error('Failed to retrieve invoice for receipt print:', err);
       // Fallback: download PDF

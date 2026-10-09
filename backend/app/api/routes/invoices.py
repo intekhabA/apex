@@ -291,11 +291,11 @@ async def download_payment_receipt(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_lab_staff),
 ):
-    """Generate and download official PDF payment receipt for an invoice."""
+    """Generate and download official PDF payment receipt matching print format for an invoice."""
     res = await db.execute(
         select(Invoice)
         .options(
-            selectinload(Invoice.booking),
+            selectinload(Invoice.booking).selectinload(Booking.items),
             selectinload(Invoice.patient),
             selectinload(Invoice.payments).selectinload(Payment.received_by_user),
         )
@@ -324,10 +324,10 @@ async def download_payment_receipt(
         payment_info = {
             "receipt_id_display": target_payment.receipt_id_display,
             "amount": target_payment.amount,
-            "payment_method": target_payment.payment_method.value,
+            "payment_method": target_payment.payment_method.value if hasattr(target_payment.payment_method, "value") else str(target_payment.payment_method),
             "transaction_reference": target_payment.transaction_reference,
             "received_by_name": target_payment.received_by_user.full_name if target_payment.received_by_user else "Cashier",
-            "date": target_payment.created_at.strftime("%d-%b-%Y %I:%M %p"),
+            "date": target_payment.created_at.strftime("%d-%b-%Y %I:%M %p") if target_payment.created_at else datetime.datetime.now().strftime("%d-%b-%Y %I:%M %p"),
         }
     else:
         receipt_filename = f"BILL-{inv.invoice_id_display}.pdf"
@@ -349,18 +349,59 @@ async def download_payment_receipt(
         "phone": lab.phone or "N/A",
         "license": lab.registration_number or "Accredited Laboratory",
     }
+
+    patient_gender = (
+        inv.patient.gender.value
+        if (inv.patient and hasattr(inv.patient.gender, "value"))
+        else (str(inv.patient.gender) if inv.patient and inv.patient.gender else None)
+    )
+    patient_age = inv.patient.age_years if inv.patient else None
+    patient_phone = inv.patient.phone if inv.patient else "N/A"
+    referring_doctor = (
+        (inv.booking.referring_doctor if inv.booking and inv.booking.referring_doctor else None)
+        or (inv.patient.referring_doctor if inv.patient and inv.patient.referring_doctor else None)
+        or "Self / Walk-in"
+    )
+
     patient_info = {
         "name": inv.patient.full_name if inv.patient else "Patient",
         "id_display": inv.patient.patient_id_display if inv.patient else "N/A",
+        "gender": patient_gender,
+        "age": patient_age,
+        "phone": patient_phone,
         "booking_id_display": inv.booking.booking_id_display if inv.booking else "N/A",
+        "referring_doctor": referring_doctor,
     }
     invoice_summary = {
         "invoice_id_display": inv.invoice_id_display,
-        "grand_total": inv.grand_total,
-        "paid_amount": inv.paid_amount,
-        "balance_amount": inv.balance_amount,
+        "subtotal": float(inv.subtotal),
+        "discount_amount": float(inv.discount_amount),
+        "tax_amount": float(inv.tax_amount),
+        "grand_total": float(inv.grand_total),
+        "paid_amount": float(inv.paid_amount),
+        "balance_amount": float(inv.balance_amount),
         "payment_status": inv.payment_status,
     }
+
+    # Extract itemized investigations from booking
+    items_data = []
+    if inv.booking and inv.booking.items:
+        items_data = [
+            {
+                "name": it.item_name,
+                "type": it.item_type,
+                "price": float(it.final_price if it.final_price is not None else it.unit_price),
+            }
+            for it in inv.booking.items
+        ]
+    elif inv.booking:
+        items_data = [
+            {
+                "name": f"Diagnostic Order Services ({inv.booking.booking_id_display})",
+                "type": "ORDER",
+                "price": float(inv.subtotal),
+            }
+        ]
 
     generate_payment_receipt_pdf(
         lab_info=lab_info,
@@ -368,6 +409,7 @@ async def download_payment_receipt(
         payment_info=payment_info,
         invoice_summary=invoice_summary,
         output_path=output_pdf_path,
+        items=items_data,
     )
     await storage_service.persist_file(output_pdf_path, rel_receipt_path, content_type="application/pdf")
 
