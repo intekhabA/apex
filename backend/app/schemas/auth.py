@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel, EmailStr, Field
 from app.models.user import UserRole
 
@@ -34,6 +34,7 @@ class UserProfileResponse(BaseModel):
     lab_id: Optional[str] = None
     lab_name: Optional[str] = None
     is_active: bool
+    permissions: Optional[List[str]] = None
 
     class Config:
         from_attributes = True

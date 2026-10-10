@@ -76,6 +76,7 @@ class AuthService:
             lab_id=str(user.lab_id) if user.lab_id else None,
             lab_name=lab_name,
             is_active=user.is_active,
+            permissions=user.permissions,
         )
 
         tokens = TokenResponse(

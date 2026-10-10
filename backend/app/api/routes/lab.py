@@ -6,7 +6,14 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
-from app.core.permissions import require_lab_admin, require_lab_staff, verify_tenant_access
+from app.core.permissions import (
+    require_lab_admin,
+    require_lab_staff,
+    require_permission,
+    verify_tenant_access,
+    AVAILABLE_MODULES,
+    DEFAULT_ROLE_PERMISSIONS,
+)
 from app.core.security import get_password_hash
 from app.models.laboratory import Laboratory, LaboratorySettings
 from app.models.user import User, UserRole
@@ -17,7 +24,13 @@ from app.schemas.laboratory import (
     LaboratorySettingsResponse,
     LaboratorySettingsUpdate,
 )
-from app.schemas.user import UserCreate, UserUpdate, UserResponse, UserStatusUpdate
+from app.schemas.user import (
+    UserCreate,
+    UserUpdate,
+    UserResponse,
+    UserStatusUpdate,
+    UserPermissionsUpdate,
+)
 from app.schemas.dashboard import LabDashboardResponse
 from app.services.audit_service import AuditService
 from app.services.dashboard_service import DashboardService
@@ -267,6 +280,9 @@ async def create_lab_staff(
         )
 
     # Force tenancy scoping to caller's laboratory
+    role_key = payload.role.value if hasattr(payload.role, "value") else str(payload.role)
+    user_perms = payload.permissions if payload.permissions is not None else DEFAULT_ROLE_PERMISSIONS.get(role_key, None)
+
     new_user = User(
         lab_id=current_user.lab_id,
         email=payload.email,
@@ -275,6 +291,7 @@ async def create_lab_staff(
         last_name=payload.last_name,
         phone=payload.phone,
         role=payload.role,
+        permissions=user_perms,
         medical_license_number=payload.medical_license_number,
         qualifications=payload.qualifications,
         is_active=True,
@@ -402,10 +419,75 @@ async def update_lab_staff_status(
     )
 
 
+@router.get("/permissions/modules")
+async def get_permission_modules(
+    current_user: User = Depends(require_lab_staff),
+):
+    """List available system functional modules and role defaults for access assignment."""
+    return APIResponse(
+        success=True,
+        message="Available permission modules retrieved.",
+        data={
+            "modules": AVAILABLE_MODULES,
+            "role_defaults": DEFAULT_ROLE_PERMISSIONS,
+        },
+    )
+
+
+@router.put("/users/{user_id}/permissions", response_model=APIResponse[UserResponse])
+async def update_lab_staff_permissions(
+    user_id: str,
+    payload: UserPermissionsUpdate,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_lab_admin),
+):
+    """Assign or modify functional module access for a staff member."""
+    res = await db.execute(
+        select(User).where(User.id == user_id, User.deleted_at.is_(None))
+    )
+    user = res.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Staff user not found.")
+
+    verify_tenant_access(current_user, user.lab_id)
+
+    # Disallow lab admins from locking themselves out of all access
+    if str(user.id) == str(current_user.id) and not payload.permissions:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot revoke all permissions from the current administrative user.",
+        )
+
+    user.permissions = payload.permissions
+    await db.commit()
+    await db.refresh(user)
+
+    await AuditService.log_event(
+        db=db,
+        action="UPDATE_STAFF_PERMISSIONS",
+        entity_name="users",
+        entity_id=user.id,
+        lab_id=current_user.lab_id,
+        user_id=current_user.id,
+        user_email=current_user.email,
+        user_role=current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role),
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+        after_state={"user_id": user.id, "permissions": user.permissions},
+    )
+
+    return APIResponse(
+        success=True,
+        message=f"Access permissions updated successfully for {user.full_name}.",
+        data=UserResponse.model_validate(user),
+    )
+
+
 @router.get("/dashboard", response_model=APIResponse[LabDashboardResponse])
 async def get_lab_dashboard(
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_lab_staff),
+    current_user: User = Depends(require_permission("dashboard")),
 ):
     """Retrieve operational KPIs, sample throughput, pending reports, and daily financial metrics for the active laboratory."""
     if not current_user.lab_id:

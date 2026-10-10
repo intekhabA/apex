@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Users, Plus, Search, Power, Mail, FileBadge } from 'lucide-react';
+import { Users, Plus, Search, Power, Mail, FileBadge, Shield } from 'lucide-react';
 import { labApi } from '@/api/labService';
 import { useAuthStore } from '@/store/authStore';
 import { Button, Input, Badge, Card, LoadingSpinner } from '@/components/ui';
 import { AddStaffModal } from './AddStaffModal';
+import { StaffPermissionsModal } from './StaffPermissionsModal';
+import { UserResponse } from '@/types';
 
 
 export const StaffManagementPage: React.FC = () => {
@@ -12,6 +14,8 @@ export const StaffManagementPage: React.FC = () => {
   const currentUser = useAuthStore((state) => state.user);
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [selectedStaffForPerms, setSelectedStaffForPerms] = useState<UserResponse | null>(null);
+  const [isPermissionsModalOpen, setIsPermissionsModalOpen] = useState(false);
 
   const { data: staff = [], isLoading } = useQuery({
     queryKey: ['labStaffList'],
@@ -105,6 +109,7 @@ export const StaffManagementPage: React.FC = () => {
                 <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 font-semibold text-xs uppercase tracking-wider">
                   <th className="py-3.5 px-6">Staff Member</th>
                   <th className="py-3.5 px-6">Work Role</th>
+                  <th className="py-3.5 px-6">Module Permissions</th>
                   <th className="py-3.5 px-6">Medical License</th>
                   <th className="py-3.5 px-6">Contact Phone</th>
                   <th className="py-3.5 px-6">Account Status</th>
@@ -134,6 +139,22 @@ export const StaffManagementPage: React.FC = () => {
                       <td className="py-4 px-6">
                         <Badge variant={getRoleBadgeVariant(u.role)}>{u.role}</Badge>
                       </td>
+                      <td className="py-4 px-6">
+                        {u.role === 'LAB_ADMIN' ? (
+                          <span className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 bg-brand-50 px-2 py-0.5 rounded">
+                            <Shield className="w-3 h-3" /> Full Administrator
+                          </span>
+                        ) : u.permissions && Array.isArray(u.permissions) ? (
+                          <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">
+                            <Shield className="w-3 h-3 text-brand-600" />
+                            {u.permissions.length} modules
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 bg-slate-50 px-2 py-0.5 rounded border border-slate-200/60">
+                            Role Default
+                          </span>
+                        )}
+                      </td>
                       <td className="py-4 px-6 text-slate-600">
                         {u.medical_license_number ? (
                           <span className="flex items-center gap-1 font-mono text-xs">
@@ -151,26 +172,42 @@ export const StaffManagementPage: React.FC = () => {
                         </Badge>
                       </td>
                       <td className="py-4 px-6 text-right">
-                        {!isCurrent ? (
-                          <button
-                            onClick={() =>
-                              toggleStatusMutation.mutate({
-                                userId: u.id,
-                                isActive: !u.is_active,
-                              })
-                            }
-                            className={`p-1.5 rounded-lg transition-colors ${
-                              u.is_active
-                                ? 'text-slate-400 hover:text-rose-600 hover:bg-rose-50'
-                                : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'
-                            }`}
-                            title={u.is_active ? 'Deactivate Access' : 'Activate Access'}
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedStaffForPerms(u);
+                              setIsPermissionsModalOpen(true);
+                            }}
+                            leftIcon={<Shield className="w-3.5 h-3.5 text-brand-600" />}
+                            className="text-xs py-1 px-2.5 h-8 font-medium"
+                            title="Configure Module Access Permissions"
                           >
-                            <Power className="w-4 h-4" />
-                          </button>
-                        ) : (
-                          <span className="text-xs text-slate-400 italic">Protected</span>
-                        )}
+                            Permissions
+                          </Button>
+
+                          {!isCurrent ? (
+                            <button
+                              onClick={() =>
+                                toggleStatusMutation.mutate({
+                                  userId: u.id,
+                                  isActive: !u.is_active,
+                                })
+                              }
+                              className={`p-1.5 rounded-lg transition-colors ${
+                                u.is_active
+                                  ? 'text-slate-400 hover:text-rose-600 hover:bg-rose-50'
+                                  : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'
+                              }`}
+                              title={u.is_active ? 'Deactivate Access' : 'Activate Access'}
+                            >
+                              <Power className="w-4 h-4" />
+                            </button>
+                          ) : (
+                            <span className="text-xs text-slate-400 italic px-1">Protected</span>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -184,6 +221,16 @@ export const StaffManagementPage: React.FC = () => {
       <AddStaffModal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: ['labStaffList'] })}
+      />
+
+      <StaffPermissionsModal
+        isOpen={isPermissionsModalOpen}
+        onClose={() => {
+          setIsPermissionsModalOpen(false);
+          setSelectedStaffForPerms(null);
+        }}
+        staffUser={selectedStaffForPerms}
         onSuccess={() => queryClient.invalidateQueries({ queryKey: ['labStaffList'] })}
       />
     </div>

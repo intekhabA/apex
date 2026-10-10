@@ -65,17 +65,66 @@ export const App: React.FC = () => {
           >
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/tests/catalog" element={<TestCatalogPage />} />
-            <Route path="/patients" element={<PatientsPage />} />
-            <Route path="/bookings" element={<BookingsPage />} />
-            <Route path="/samples" element={<PhlebotomyWorklistPage />} />
-            <Route path="/results" element={<ResultsWorklistPage />} />
-            <Route path="/reports" element={<ReportsListPage />} />
-            <Route path="/invoices" element={<InvoicesListPage />} />
+            <Route
+              path="/tests/catalog"
+              element={
+                <ProtectedRoute requiredPermission="tests">
+                  <TestCatalogPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/patients"
+              element={
+                <ProtectedRoute requiredPermission="patients">
+                  <PatientsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/bookings"
+              element={
+                <ProtectedRoute requiredPermission="bookings">
+                  <BookingsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/samples"
+              element={
+                <ProtectedRoute requiredPermission="samples">
+                  <PhlebotomyWorklistPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/results"
+              element={
+                <ProtectedRoute requiredPermission="results">
+                  <ResultsWorklistPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/reports"
+              element={
+                <ProtectedRoute requiredPermission="reports">
+                  <ReportsListPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/invoices"
+              element={
+                <ProtectedRoute requiredPermission="invoices">
+                  <InvoicesListPage />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="/expenses"
               element={
-                <ProtectedRoute allowedRoles={['LAB_ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'LAB_ASSISTANT', 'PATHOLOGIST']}>
+                <ProtectedRoute requiredPermission="expenses">
                   <DailyExpensesPage />
                 </ProtectedRoute>
               }
@@ -83,7 +132,7 @@ export const App: React.FC = () => {
             <Route
               path="/doctor-commissions"
               element={
-                <ProtectedRoute allowedRoles={['LAB_ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST']}>
+                <ProtectedRoute requiredPermission="doctor_commissions">
                   <DoctorCommissionsPage />
                 </ProtectedRoute>
               }
@@ -143,7 +192,7 @@ export const App: React.FC = () => {
             <Route
               path="/notifications"
               element={
-                <ProtectedRoute allowedRoles={['LAB_ADMIN', 'SUPER_ADMIN', 'PATHOLOGIST', 'LAB_ASSISTANT', 'RECEPTIONIST']}>
+                <ProtectedRoute requiredPermission="notifications">
                   <NotificationsLogPage />
                 </ProtectedRoute>
               }

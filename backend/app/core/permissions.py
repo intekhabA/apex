@@ -49,3 +49,110 @@ def verify_tenant_access(current_user, resource_lab_id: Optional[str]) -> None:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access forbidden: You cannot access data outside your assigned laboratory."
         )
+
+
+AVAILABLE_MODULES = [
+    {
+        "key": "dashboard",
+        "name": "Dashboard & Overview",
+        "description": "View laboratory operational KPIs, sample throughput, and summary statistics.",
+        "icon": "LayoutDashboard",
+    },
+    {
+        "key": "patients",
+        "name": "Patients Directory",
+        "description": "View and manage patient profiles, medical history, and demographics.",
+        "icon": "Users",
+    },
+    {
+        "key": "bookings",
+        "name": "Bookings & Orders",
+        "description": "Create, schedule, view, and manage patient test orders and appointments.",
+        "icon": "CalendarDays",
+    },
+    {
+        "key": "samples",
+        "name": "Phlebotomy & Samples",
+        "description": "Collect samples, generate barcodes, print labels, and track tube status.",
+        "icon": "Pipette",
+    },
+    {
+        "key": "results",
+        "name": "Results Entry",
+        "description": "Enter, update, and manage technical lab values (CBC, LFT, KFT, Lipid, etc.).",
+        "icon": "FileSpreadsheet",
+    },
+    {
+        "key": "reports",
+        "name": "Reports & Doctor Approvals",
+        "description": "Review diagnostic findings, verify lab reports, and perform clinical digital signing.",
+        "icon": "FileCheck2",
+    },
+    {
+        "key": "invoices",
+        "name": "Billing & Invoices",
+        "description": "Generate invoices, record payments, manage dues, and print official receipts.",
+        "icon": "Receipt",
+    },
+    {
+        "key": "expenses",
+        "name": "Daily Expenses",
+        "description": "Track lab petty cash, vendor payments, clinic operational costs, and vouchers.",
+        "icon": "Wallet",
+    },
+    {
+        "key": "doctor_commissions",
+        "name": "Doctor Referral Commissions",
+        "description": "Track referring physicians, calculate commission cuts, and manage doctor settlements.",
+        "icon": "Percent",
+    },
+    {
+        "key": "tests",
+        "name": "Test Catalog & Pricing",
+        "description": "View laboratory test catalog, normal reference intervals, and lab pricing.",
+        "icon": "TestTubes",
+    },
+    {
+        "key": "notifications",
+        "name": "Patient Alerts & SMS/WhatsApp",
+        "description": "View dispatched notifications, SMS/WhatsApp delivery status, and communication logs.",
+        "icon": "Bell",
+    },
+]
+
+DEFAULT_ROLE_PERMISSIONS = {
+    "SUPER_ADMIN": [m["key"] for m in AVAILABLE_MODULES],
+    "LAB_ADMIN": [m["key"] for m in AVAILABLE_MODULES],
+    "RECEPTIONIST": ["dashboard", "patients", "bookings", "samples", "invoices", "expenses", "notifications"],
+    "LAB_ASSISTANT": ["patients", "samples", "results", "expenses"],
+    "PATHOLOGIST": ["results", "reports", "tests"],
+    "RADIOLOGIST": ["results", "reports", "tests"],
+    "PATIENT": [],
+}
+
+
+def user_has_permission(user, permission_key: str) -> bool:
+    """Check whether a user has access to a specific functional module."""
+    user_role = user.role.value if hasattr(user.role, "value") else str(user.role)
+    if user_role in ("SUPER_ADMIN", "LAB_ADMIN"):
+        return True
+
+    # If explicit permissions list is assigned to user
+    if getattr(user, "permissions", None) is not None:
+        return permission_key in user.permissions
+
+    # Fallback to role defaults
+    return permission_key in DEFAULT_ROLE_PERMISSIONS.get(user_role, [])
+
+
+def require_permission(permission_key: str):
+    """FastAPI route dependency ensuring current user has access to a specific functional module."""
+    def checker(current_user = Depends(require_lab_staff)):
+        if not user_has_permission(current_user, permission_key):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Access denied: You do not have permission to access the '{permission_key}' module.",
+            )
+        return current_user
+    return checker
+

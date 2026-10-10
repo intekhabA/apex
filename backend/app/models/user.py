@@ -1,5 +1,5 @@
 import enum
-from sqlalchemy import Column, String, Boolean, DateTime, Text, ForeignKey, Enum as SQLEnum
+from sqlalchemy import Column, String, Boolean, DateTime, Text, ForeignKey, Enum as SQLEnum, JSON
 from sqlalchemy.orm import relationship
 from app.core.database import Base, UUIDMixin, TimestampMixin
 
@@ -31,6 +31,7 @@ class User(Base, UUIDMixin, TimestampMixin):
     is_active = Column(Boolean, default=True, nullable=False, index=True)
     is_verified = Column(Boolean, default=False, nullable=False)
     last_login_at = Column(DateTime(timezone=True), nullable=True)
+    permissions = Column(JSON, nullable=True)
 
     # Relationships
     laboratory = relationship("Laboratory", back_populates="users")

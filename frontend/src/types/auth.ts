@@ -22,6 +22,7 @@ export interface UserProfile {
   lab_id?: string | null;
   lab_name?: string | null;
   is_active: boolean;
+  permissions?: string[] | null;
 }
 
 export interface TokenResponse {

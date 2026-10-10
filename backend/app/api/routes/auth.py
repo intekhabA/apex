@@ -95,6 +95,7 @@ async def get_me(
         lab_id=str(current_user.lab_id) if current_user.lab_id else None,
         lab_name=lab_name,
         is_active=current_user.is_active,
+        permissions=current_user.permissions,
     )
 
     return APIResponse(

@@ -134,6 +134,9 @@ export const AddStaffModal: React.FC<AddStaffModalProps> = ({
             <option value="RECEPTIONIST">Billing & Frontdesk Receptionist</option>
             <option value="LAB_ADMIN">Laboratory Administrator</option>
           </select>
+          <p className="mt-1 text-xs text-slate-500">
+            Smart role defaults are pre-applied. You can easily customize module permissions anytime.
+          </p>
           {errors.role && <p className="mt-1.5 text-xs text-rose-600">{errors.role.message}</p>}
         </div>
 

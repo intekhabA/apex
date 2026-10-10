@@ -21,7 +21,7 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { clsx } from 'clsx';
 
 export const Sidebar: React.FC = () => {
-  const { isSuperAdmin, isPatient, role } = usePermissions();
+  const { isSuperAdmin, isPatient, role, hasPermission } = usePermissions();
 
   const getNavLinks = () => {
     if (isSuperAdmin) {
@@ -45,27 +45,35 @@ export const Sidebar: React.FC = () => {
     }
 
     // Lab Staff (Lab Admin, Pathologist, Radiologist, Lab Assistant, Receptionist)
-    return [
-      { to: '/dashboard', label: 'Overview', icon: LayoutDashboard },
-      { to: '/patients', label: 'Patients', icon: Users },
-      { to: '/bookings', label: 'Bookings & Orders', icon: CalendarDays },
-      { to: '/samples', label: 'Phlebotomy / Samples', icon: Pipette },
-      { to: '/results', label: 'Results Entry (LFT/KFT/CBC)', icon: FileSpreadsheet },
-      { to: '/reports', label: 'Reports & Approvals', icon: FileCheck2 },
-      { to: '/invoices', label: 'Billing & Invoices', icon: Receipt },
-      { to: '/expenses', label: 'Daily Expenses', icon: Wallet },
-      { to: '/doctor-commissions', label: 'Doctor Commissions', icon: Percent },
-      { to: '/notifications', label: 'Patient Alerts & Logs', icon: Bell },
-      { to: '/tests/catalog', label: 'Test Catalog & Pricing', icon: TestTubes },
-      ...(role === 'LAB_ADMIN'
+    const baseStaffLinks = [
+      { to: '/dashboard', label: 'Overview', icon: LayoutDashboard, permission: 'dashboard' },
+      { to: '/patients', label: 'Patients', icon: Users, permission: 'patients' },
+      { to: '/bookings', label: 'Bookings & Orders', icon: CalendarDays, permission: 'bookings' },
+      { to: '/samples', label: 'Phlebotomy / Samples', icon: Pipette, permission: 'samples' },
+      { to: '/results', label: 'Results Entry (LFT/KFT/CBC)', icon: FileSpreadsheet, permission: 'results' },
+      { to: '/reports', label: 'Reports & Approvals', icon: FileCheck2, permission: 'reports' },
+      { to: '/invoices', label: 'Billing & Invoices', icon: Receipt, permission: 'invoices' },
+      { to: '/expenses', label: 'Daily Expenses', icon: Wallet, permission: 'expenses' },
+      { to: '/doctor-commissions', label: 'Doctor Commissions', icon: Percent, permission: 'doctor_commissions' },
+      { to: '/notifications', label: 'Patient Alerts & Logs', icon: Bell, permission: 'notifications' },
+      { to: '/tests/catalog', label: 'Test Catalog & Pricing', icon: TestTubes, permission: 'tests' },
+    ];
+
+    const accessibleLinks = baseStaffLinks.filter(
+      (link) => !link.permission || hasPermission(link.permission)
+    );
+
+    const adminLinks =
+      role === 'LAB_ADMIN'
         ? [
             { to: '/settings/lab', label: 'Laboratory Profile', icon: Building2 },
             { to: '/settings/staff', label: 'Staff Management', icon: Users },
             { to: '/settings/reports', label: 'Report Settings', icon: Settings },
             { to: '/audit/logs', label: 'Lab Audit Logs', icon: ShieldCheck },
           ]
-        : []),
-    ];
+        : [];
+
+    return [...accessibleLinks, ...adminLinks];
   };
 
   const navLinks = getNavLinks();

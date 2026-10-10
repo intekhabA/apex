@@ -2,15 +2,22 @@ import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { UserRole } from '@/types';
+import { usePermissions } from '@/hooks/usePermissions';
 import { LoadingSpinner } from './LoadingSpinner';
 
 export interface ProtectedRouteProps {
   children?: React.ReactNode;
   allowedRoles?: UserRole[];
+  requiredPermission?: string;
 }
 
-export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles }) => {
+export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
+  children,
+  allowedRoles,
+  requiredPermission,
+}) => {
   const { isAuthenticated, isLoading, user } = useAuthStore();
+  const { hasPermission } = usePermissions();
   const location = useLocation();
 
   if (isLoading) {
@@ -26,6 +33,10 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
   }
 
   if (allowedRoles && user && !allowedRoles.includes(user.role)) {
+    return <Navigate to="/unauthorized" replace />;
+  }
+
+  if (requiredPermission && !hasPermission(requiredPermission)) {
     return <Navigate to="/unauthorized" replace />;
   }
 

@@ -10,7 +10,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.permissions import require_lab_staff, require_lab_admin, verify_tenant_access
+from app.core.permissions import require_lab_staff, require_lab_admin, require_permission, verify_tenant_access
 from app.core.security import get_current_user
 from app.models.user import User
 from app.models.laboratory import Laboratory
@@ -98,7 +98,7 @@ async def list_bookings(
     patient_id: Optional[str] = Query(None),
     search: Optional[str] = Query(None, description="Search by booking ID, patient name/ID, phone, or referring doctor"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_lab_staff),
+    current_user: User = Depends(require_permission("bookings")),
 ):
     """List diagnostic bookings with status, patient, and search filters."""
     if not current_user.lab_id and current_user.role.value != "SUPER_ADMIN":
@@ -149,7 +149,7 @@ async def list_bookings(
 async def create_booking(
     payload: BookingCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_lab_staff),
+    current_user: User = Depends(require_permission("bookings")),
 ):
     """Create test order booking, compute taxes/discounts, and auto-accession specimen records."""
     if not current_user.lab_id:
@@ -473,7 +473,7 @@ async def update_booking_status(
     booking_id: str,
     payload: BookingStatusUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_lab_staff),
+    current_user: User = Depends(require_permission("bookings")),
 ):
     """Advance or update booking status."""
     res = await db.execute(

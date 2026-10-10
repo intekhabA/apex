@@ -1,6 +1,48 @@
 import { useAuthStore } from '@/store/authStore';
 import { UserRole } from '@/types';
 
+export const ROLE_DEFAULT_PERMISSIONS: Record<string, string[]> = {
+  SUPER_ADMIN: [
+    'dashboard',
+    'patients',
+    'bookings',
+    'samples',
+    'results',
+    'reports',
+    'invoices',
+    'expenses',
+    'doctor_commissions',
+    'tests',
+    'notifications',
+  ],
+  LAB_ADMIN: [
+    'dashboard',
+    'patients',
+    'bookings',
+    'samples',
+    'results',
+    'reports',
+    'invoices',
+    'expenses',
+    'doctor_commissions',
+    'tests',
+    'notifications',
+  ],
+  RECEPTIONIST: [
+    'dashboard',
+    'patients',
+    'bookings',
+    'samples',
+    'invoices',
+    'expenses',
+    'notifications',
+  ],
+  LAB_ASSISTANT: ['patients', 'samples', 'results', 'expenses'],
+  PATHOLOGIST: ['results', 'reports', 'tests'],
+  RADIOLOGIST: ['results', 'reports', 'tests'],
+  PATIENT: [],
+};
+
 export const usePermissions = () => {
   const user = useAuthStore((state) => state.user);
   const role = user?.role;
@@ -27,16 +69,34 @@ export const usePermissions = () => {
     'RECEPTIONIST',
   ].includes(role || '');
 
+  const hasPermission = (permissionKey: string): boolean => {
+    if (!role) return false;
+    if (isSuperAdmin || isLabAdmin) return true;
+    if (user?.permissions && Array.isArray(user.permissions)) {
+      return user.permissions.includes(permissionKey);
+    }
+    const defaults = ROLE_DEFAULT_PERMISSIONS[role] || [];
+    return defaults.includes(permissionKey);
+  };
+
   const canManageLab = isSuperAdmin || isLabAdmin;
-  const canEnterResults = isSuperAdmin || isLabAdmin || isLabAssistant || isPathologist;
-  const canVerifyReports = isSuperAdmin || isLabAdmin || isPathologist || isRadiologist;
-  const canAccessPhlebotomy = isSuperAdmin || isLabAdmin || isLabAssistant || isReceptionist;
-  const canManageBilling = isSuperAdmin || isLabAdmin || isReceptionist;
+  const canAccessDashboard = hasPermission('dashboard');
+  const canAccessBookings = hasPermission('bookings');
+  const canAccessPatients = hasPermission('patients');
+  const canAccessPhlebotomy = hasPermission('samples');
+  const canEnterResults = hasPermission('results');
+  const canVerifyReports = hasPermission('reports');
+  const canManageBilling = hasPermission('invoices');
+  const canAccessExpenses = hasPermission('expenses');
+  const canAccessDoctorCommissions = hasPermission('doctor_commissions');
+  const canAccessTests = hasPermission('tests');
+  const canAccessNotifications = hasPermission('notifications');
 
   return {
     user,
     role,
     hasRole,
+    hasPermission,
     isSuperAdmin,
     isLabAdmin,
     isPathologist,
@@ -46,9 +106,16 @@ export const usePermissions = () => {
     isPatient,
     isLabStaff,
     canManageLab,
+    canAccessDashboard,
+    canAccessBookings,
+    canAccessPatients,
+    canAccessPhlebotomy,
     canEnterResults,
     canVerifyReports,
-    canAccessPhlebotomy,
     canManageBilling,
+    canAccessExpenses,
+    canAccessDoctorCommissions,
+    canAccessTests,
+    canAccessNotifications,
   };
 };

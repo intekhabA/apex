@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_, desc
 
 from app.core.database import get_db
-from app.core.permissions import require_lab_staff, require_lab_admin
+from app.core.permissions import require_lab_staff, require_lab_admin, require_permission
 from app.core.security import get_current_user
 from app.models.user import User
 from app.models.patient import Patient
@@ -27,7 +27,7 @@ router = APIRouter(prefix="/patients", tags=["Patients"])
 async def list_patients(
     search: Optional[str] = Query(None, description="Search by name, phone, or patient ID"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_lab_staff),
+    current_user: User = Depends(require_permission("patients")),
 ):
     """Search and list patients strictly within current laboratory tenant."""
     if not current_user.lab_id and current_user.role.value != "SUPER_ADMIN":
@@ -63,7 +63,7 @@ async def list_patients(
 async def create_patient(
     payload: PatientCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_lab_staff),
+    current_user: User = Depends(require_permission("patients")),
 ):
     """Register a new patient and allocate unique sequential ID (PAT-YYYY-XXXXXX)."""
     if not current_user.lab_id:

@@ -15,6 +15,7 @@ export interface UserResponse {
   qualifications?: string | null;
   is_active: boolean;
   is_verified: boolean;
+  permissions?: string[] | null;
   last_login_at?: string | null;
   created_at: string;
   updated_at: string;
@@ -29,6 +30,7 @@ export interface UserCreatePayload {
   role: UserRole;
   medical_license_number?: string;
   qualifications?: string;
+  permissions?: string[];
 }
 
 export interface UserUpdatePayload {
@@ -39,4 +41,18 @@ export interface UserUpdatePayload {
   medical_license_number?: string;
   qualifications?: string;
   is_active?: boolean;
+  permissions?: string[];
 }
+
+export interface PermissionModule {
+  key: string;
+  name: string;
+  description: string;
+  icon: string;
+}
+
+export interface PermissionModulesResponse {
+  modules: PermissionModule[];
+  role_defaults: Record<string, string[]>;
+}
+

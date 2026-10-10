@@ -8,6 +8,7 @@ import {
   UserResponse,
   UserCreatePayload,
   UserUpdatePayload,
+  PermissionModulesResponse,
 } from '@/types';
 
 export const labApi = {
@@ -103,6 +104,28 @@ export const labApi = {
     const res = await apiClient.delete<APIResponse<LaboratorySettings>>('/lab/signature');
     if (!res.data.success || !res.data.data) {
       throw new Error(res.data.message || 'Failed to remove signatory signature');
+    }
+    return res.data.data;
+  },
+
+  getPermissionModules: async (): Promise<PermissionModulesResponse> => {
+    const res = await apiClient.get<APIResponse<PermissionModulesResponse>>('/lab/permissions/modules');
+    if (!res.data.success || !res.data.data) {
+      throw new Error(res.data.message || 'Failed to fetch permission modules');
+    }
+    return res.data.data;
+  },
+
+  updateStaffPermissions: async (
+    userId: string,
+    permissions: string[]
+  ): Promise<UserResponse> => {
+    const res = await apiClient.put<APIResponse<UserResponse>>(
+      `/lab/users/${userId}/permissions`,
+      { permissions }
+    );
+    if (!res.data.success || !res.data.data) {
+      throw new Error(res.data.message || 'Failed to update staff permissions');
     }
     return res.data.data;
   },
