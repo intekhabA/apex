@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Button, Input, Alert, Badge } from '@/components/ui';
+import { Modal, Button, Input, Alert, Badge, toast } from '@/components/ui';
 import { invoiceService } from '@/api/invoiceService';
 import { InvoiceResponse, PaymentMethod } from '@/types/invoice';
 import { DollarSign, Download, CheckCircle, CreditCard, Receipt, Printer } from 'lucide-react';
@@ -79,6 +79,7 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
         notes: notes.trim() || undefined,
       });
 
+      toast.success(`Payment of ₹${amount.toFixed(2)} successfully recorded for ${currentInvoice.invoice_id_display}.`);
       setSuccess(`Payment of ₹${amount.toFixed(2)} successfully recorded. Receipt printing triggered.`);
       setTransactionReference('');
       setNotes('');
@@ -88,11 +89,12 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
       onSuccess();
     } catch (err: unknown) {
       const errorObj = err as { response?: { data?: { detail?: string; message?: string } } };
-      setError(
+      const msg =
         errorObj.response?.data?.detail ||
         errorObj.response?.data?.message ||
-        'Failed to record payment.'
-      );
+        'Failed to record payment.';
+      toast.error(msg);
+      setError(msg);
     } finally {
       setSubmitting(false);
     }
@@ -102,7 +104,9 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
     if (!currentInvoice) return;
     try {
       await invoiceService.printReceipt(currentInvoice.id);
+      toast.info('Receipt sent to printer.');
     } catch {
+      toast.error('Failed to trigger receipt printing.');
       setError('Failed to trigger receipt printing.');
     }
   };
@@ -115,7 +119,9 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
         currentInvoice.id,
         `Receipt_${currentInvoice.invoice_id_display}.pdf`
       );
+      toast.success('Receipt PDF downloaded successfully.');
     } catch {
+      toast.error('Failed to download receipt PDF.');
       setError('Failed to download receipt PDF.');
     } finally {
       setDownloadingReceipt(false);

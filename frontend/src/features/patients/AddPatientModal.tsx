@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Modal, Input, Button, Alert } from '@/components/ui';
+import { Modal, Input, Button, Alert, toast } from '@/components/ui';
 import { patientService } from '@/api/patientService';
 import { Patient } from '@/types';
 
@@ -59,11 +59,14 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ isOpen, onClos
         ...data,
         email: data.email || undefined,
       });
+      toast.success(`Patient "${createdPatient.first_name} ${createdPatient.last_name}" (${createdPatient.patient_id_display}) registered successfully.`);
       reset();
       onSuccess(createdPatient);
       onClose();
     } catch (err: any) {
-      setErrorMessage(err?.response?.data?.message || 'Failed to register patient.');
+      const msg = err?.response?.data?.message || 'Failed to register patient.';
+      toast.error(msg);
+      setErrorMessage(msg);
     } finally {
       setIsSubmitting(false);
     }

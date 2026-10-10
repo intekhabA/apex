@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Modal, Input, Button, Alert } from '@/components/ui';
+import { Modal, Input, Button, Alert, toast } from '@/components/ui';
 import { testService } from '@/api/testService';
 import { DiagnosticTest, TestCategory } from '@/types';
 
@@ -89,12 +89,14 @@ export const EditTestModal: React.FC<EditTestModalProps> = ({
         code: data.code.toUpperCase().trim(),
         name: data.name.trim(),
       });
+      toast.success(`Diagnostic test "${data.name.trim()}" updated successfully.`);
       onSuccess();
       onClose();
     } catch (err: any) {
-      setErrorMessage(
-        err?.response?.data?.message || err?.message || 'Failed to update diagnostic test.'
-      );
+      const msg =
+        err?.response?.data?.message || err?.message || 'Failed to update diagnostic test.';
+      setErrorMessage(msg);
+      toast.error(msg);
     } finally {
       setIsSubmitting(false);
     }

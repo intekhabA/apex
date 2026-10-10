@@ -3,7 +3,7 @@ import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Plus, Trash2 } from 'lucide-react';
-import { Modal, Input, Button, Alert } from '@/components/ui';
+import { Modal, Input, Button, Alert, toast } from '@/components/ui';
 import { testService } from '@/api/testService';
 import { TestCategory } from '@/types';
 
@@ -101,11 +101,14 @@ export const AddTestModal: React.FC<AddTestModalProps> = ({
         code: data.code.toUpperCase(),
         is_active: true,
       });
+      toast.success(`Diagnostic test "${data.name}" (${data.code.toUpperCase()}) created successfully.`);
       reset();
       onSuccess();
       onClose();
     } catch (err: any) {
-      setErrorMessage(err?.response?.data?.message || 'Failed to create test.');
+      const msg = err?.response?.data?.message || 'Failed to create test.';
+      toast.error(msg);
+      setErrorMessage(msg);
     } finally {
       setIsSubmitting(false);
     }

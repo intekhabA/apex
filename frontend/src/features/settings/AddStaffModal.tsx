@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Modal, Input, Button, Alert } from '@/components/ui';
+import { Modal, Input, Button, Alert, toast } from '@/components/ui';
 import { labApi } from '@/api/labService';
 import { UserCreatePayload } from '@/types';
 
@@ -61,13 +61,17 @@ export const AddStaffModal: React.FC<AddStaffModalProps> = ({
     setIsSubmitting(true);
     try {
       await labApi.createStaff(data as UserCreatePayload);
+      toast.success(
+        `Staff member '${data.first_name} ${data.last_name}' provisioned successfully.`
+      );
       reset();
       onSuccess();
       onClose();
     } catch (err: any) {
-      setErrorMessage(
-        err?.response?.data?.message || err?.message || 'Failed to provision staff member'
-      );
+      const msg =
+        err?.response?.data?.message || err?.message || 'Failed to provision staff member';
+      setErrorMessage(msg);
+      toast.error(msg);
     } finally {
       setIsSubmitting(false);
     }

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Modal, Button, Badge } from '@/components/ui';
+import { Modal, Button, Badge, toast, confirmDialog } from '@/components/ui';
 import { bookingService } from '@/api/bookingService';
 import { Booking, BookingStatus } from '@/types';
 import { Download, FileText } from 'lucide-react';
@@ -29,8 +29,9 @@ export const BookingDetailsModal: React.FC<BookingDetailsModalProps> = ({
         booking.id,
         `Booking_${booking.booking_id_display}_All_Reports.pdf`
       );
+      toast.success('Consolidated reports PDF downloaded successfully.');
     } catch (err: any) {
-      alert(err?.response?.data?.message || 'Failed to download consolidated reports PDF.');
+      toast.error(err?.response?.data?.message || 'Failed to download consolidated reports PDF.');
     } finally {
       setIsDownloadingPdf(false);
     }
@@ -40,24 +41,34 @@ export const BookingDetailsModal: React.FC<BookingDetailsModalProps> = ({
     setIsUpdating(true);
     try {
       await bookingService.updateBookingStatus(booking.id, newStatus);
+      toast.success(`Booking status updated to ${newStatus}.`);
       onSuccess();
       onClose();
     } catch (err: any) {
-      alert(err?.response?.data?.message || 'Failed to update status.');
+      toast.error(err?.response?.data?.message || 'Failed to update status.');
     } finally {
       setIsUpdating(false);
     }
   };
 
   const handleCancel = async () => {
-    if (!window.confirm('Are you sure you want to cancel this booking?')) return;
+    const confirmed = await confirmDialog({
+      title: 'Cancel Diagnostic Booking?',
+      message: `Are you sure you want to cancel booking order ${booking.booking_id_display}? This will mark the order as cancelled.`,
+      confirmText: 'Yes, Cancel Booking',
+      cancelText: 'Keep Booking',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
+
     setIsUpdating(true);
     try {
       await bookingService.cancelBooking(booking.id);
+      toast.success(`Booking ${booking.booking_id_display} cancelled successfully.`);
       onSuccess();
       onClose();
     } catch (err: any) {
-      alert(err?.response?.data?.message || 'Failed to cancel booking.');
+      toast.error(err?.response?.data?.message || 'Failed to cancel booking.');
     } finally {
       setIsUpdating(false);
     }

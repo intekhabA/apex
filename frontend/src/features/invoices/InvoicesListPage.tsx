@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Button, Input, Badge, Alert, Card } from '@/components/ui';
+import { Button, Input, Badge, Alert, Card, toast } from '@/components/ui';
 import { invoiceService } from '@/api/invoiceService';
 import { InvoiceResponse, InvoicePaymentStatus } from '@/types/invoice';
 import {
@@ -94,8 +94,9 @@ export const InvoicesListPage: React.FC = () => {
         inv.id,
         `Receipt_${inv.invoice_id_display}.pdf`
       );
+      toast.success('Receipt PDF downloaded successfully.');
     } catch {
-      alert('Receipt PDF is not available yet.');
+      toast.error('Receipt PDF is not available yet.');
     } finally {
       setDownloadingId(null);
     }

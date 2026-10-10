@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { FileCheck, Save, ShieldCheck, QrCode, PenTool, Upload, Trash2 } from 'lucide-react';
 import { labApi } from '@/api/labService';
-import { Input, Button, Card, CardHeader, CardTitle, CardContent, Alert, LoadingSpinner } from '@/components/ui';
+import { Input, Button, Card, CardHeader, CardTitle, CardContent, Alert, LoadingSpinner, toast, confirmDialog } from '@/components/ui';
 import { LaboratorySettingsUpdatePayload } from '@/types';
 
 const settingsSchema = z.object({
@@ -67,12 +67,13 @@ export const ReportSettingsPage: React.FC = () => {
     mutationFn: (payload: LaboratorySettingsUpdatePayload) => labApi.updateSettings(payload),
     onSuccess: (updated) => {
       setSuccessMessage('Report templates and signatory specifications saved.');
+      toast.success('Report templates and signatory specifications saved.');
       queryClient.setQueryData(['labSettings'], updated);
     },
     onError: (err: any) => {
-      setErrorMessage(
-        err?.response?.data?.message || err?.message || 'Failed to update settings'
-      );
+      const msg = err?.response?.data?.message || err?.message || 'Failed to update settings';
+      setErrorMessage(msg);
+      toast.error(msg);
     },
   });
 
@@ -91,8 +92,11 @@ export const ReportSettingsPage: React.FC = () => {
       const updated = await labApi.uploadSignature(file);
       queryClient.setQueryData(['labSettings'], updated);
       setSuccessMessage('Laboratory certified signature image uploaded successfully.');
+      toast.success('Laboratory certified signature image uploaded successfully.');
     } catch (err: any) {
-      setErrorMessage(err?.response?.data?.detail || err?.message || 'Failed to upload signature image');
+      const msg = err?.response?.data?.detail || err?.message || 'Failed to upload signature image';
+      setErrorMessage(msg);
+      toast.error(msg);
     } finally {
       setIsUploadingSig(false);
       e.target.value = '';
@@ -100,15 +104,26 @@ export const ReportSettingsPage: React.FC = () => {
   };
 
   const handleSigDelete = async () => {
-    if (!window.confirm('Reset signature to the standard certified signature?')) return;
+    const confirmed = await confirmDialog({
+      title: 'Remove Certified Signature?',
+      message: 'Are you sure you want to delete this custom signature? It will revert to the default standard certified signature.',
+      confirmText: 'Yes, Delete',
+      cancelText: 'Cancel',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
+
     setIsUploadingSig(true);
     setErrorMessage(null);
     try {
       const updated = await labApi.deleteSignature();
       queryClient.setQueryData(['labSettings'], updated);
       setSuccessMessage('Signature reset to standard certified signature.');
+      toast.success('Signature deleted and reset to standard certified signature.');
     } catch (err: any) {
-      setErrorMessage(err?.response?.data?.detail || err?.message || 'Failed to reset signature');
+      const msg = err?.response?.data?.detail || err?.message || 'Failed to reset signature';
+      setErrorMessage(msg);
+      toast.error(msg);
     } finally {
       setIsUploadingSig(false);
     }

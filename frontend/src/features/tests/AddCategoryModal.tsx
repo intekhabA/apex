@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Modal, Input, Button, Alert } from '@/components/ui';
+import { Modal, Input, Button, Alert, toast } from '@/components/ui';
 import { testService } from '@/api/testService';
 
 const categorySchema = z.object({
@@ -47,11 +47,14 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({ isOpen, onCl
         display_order: data.display_order,
         is_active: true,
       });
+      toast.success(`Category "${data.name}" (${data.code.toUpperCase()}) created successfully.`);
       reset();
       onSuccess();
       onClose();
     } catch (err: any) {
-      setErrorMessage(err?.response?.data?.message || 'Failed to create category.');
+      const msg = err?.response?.data?.message || 'Failed to create category.';
+      toast.error(msg);
+      setErrorMessage(msg);
     } finally {
       setIsSubmitting(false);
     }

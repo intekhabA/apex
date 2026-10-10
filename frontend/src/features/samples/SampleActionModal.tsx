@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Modal, Input, Button, Alert } from '@/components/ui';
+import { Modal, Input, Button, Alert, toast, confirmDialog } from '@/components/ui';
 import { sampleService } from '@/api/sampleService';
 import { SpecimenSample } from '@/types';
 
@@ -52,6 +52,18 @@ export const SampleActionModal: React.FC<SampleActionModalProps> = ({
           setIsSubmitting(false);
           return;
         }
+
+        const confirmed = await confirmDialog({
+          title: 'Reject Specimen Sample',
+          message: `Are you sure you want to reject sample "${sample.sample_id_display}" (${sample.sample_type.replace(/_/g, ' ')})? Reason: ${rejectionReason}. This will record the sample as rejected.`,
+          confirmText: 'Reject Specimen',
+          variant: 'danger',
+        });
+        if (!confirmed) {
+          setIsSubmitting(false);
+          return;
+        }
+
         await sampleService.rejectSample({
           sample_id: sample.id,
           rejection_reason: rejectionReason,
@@ -59,10 +71,14 @@ export const SampleActionModal: React.FC<SampleActionModalProps> = ({
         });
       }
 
+      const actionLabel = actionType === 'collect' ? 'collected' : actionType === 'receive' ? 'received' : 'rejected';
+      toast.success(`Specimen sample ${sample.sample_id_display} ${actionLabel} successfully.`);
       onSuccess();
       onClose();
     } catch (err: any) {
-      setErrorMessage(err?.response?.data?.message || `Failed to ${actionType} specimen.`);
+      const msg = err?.response?.data?.message || `Failed to ${actionType} specimen.`;
+      toast.error(msg);
+      setErrorMessage(msg);
     } finally {
       setIsSubmitting(false);
     }

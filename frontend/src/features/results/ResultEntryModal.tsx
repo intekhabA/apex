@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Button, Alert, Badge } from '@/components/ui';
+import { Modal, Button, Alert, Badge, toast, confirmDialog } from '@/components/ui';
 import { resultService } from '@/api/resultService';
 import { ResultSheetResponse, ResultFlag } from '@/types';
 
@@ -82,6 +82,17 @@ export const ResultEntryModal: React.FC<ResultEntryModalProps> = ({
 
   const handleSave = async (submitForReview: boolean) => {
     if (!reportId) return;
+
+    if (submitForReview) {
+      const confirmed = await confirmDialog({
+        title: 'Submit Laboratory Results for Sign-off',
+        message: 'Are you sure you want to submit these test values for Pathologist / Reviewer review and approval?',
+        confirmText: 'Submit for Sign-off',
+        variant: 'primary',
+      });
+      if (!confirmed) return;
+    }
+
     setIsSubmitting(true);
     setErrorMessage(null);
     setSuccessMessage(null);
@@ -112,17 +123,19 @@ export const ResultEntryModal: React.FC<ResultEntryModalProps> = ({
           flag: v.flag,
         }))
       );
-      setSuccessMessage(
-        submitForReview
-          ? 'Results submitted for Pathologist / Reviewer sign-off.'
-          : 'Draft results saved and reference ranges calculated.'
-      );
+      const msg = submitForReview
+        ? 'Results submitted for Pathologist / Reviewer sign-off.'
+        : 'Draft results saved and reference ranges calculated.';
+      toast.success(msg);
+      setSuccessMessage(msg);
       setTimeout(() => {
         onSuccess();
       }, 700);
     } catch (err: unknown) {
       const errorObj = err as { response?: { data?: { message?: string } } };
-      setErrorMessage(errorObj.response?.data?.message || 'Failed to save results.');
+      const msg = errorObj.response?.data?.message || 'Failed to save results.';
+      toast.error(msg);
+      setErrorMessage(msg);
     } finally {
       setIsSubmitting(false);
     }

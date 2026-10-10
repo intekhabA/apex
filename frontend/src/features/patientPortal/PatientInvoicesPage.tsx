@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Card, Button, Input, Badge, Alert } from '@/components/ui';
+import { Card, Button, Input, Badge, Alert, toast } from '@/components/ui';
 import { patientPortalService } from '@/api/patientPortalService';
 import { InvoiceResponse } from '@/types/invoice';
 import { Receipt, Download, Search } from 'lucide-react';
@@ -47,8 +47,9 @@ export const PatientInvoicesPage: React.FC = () => {
         inv.id,
         `Receipt_${inv.invoice_id_display}.pdf`
       );
+      toast.success('Payment receipt PDF downloaded successfully.');
     } catch {
-      alert('Payment receipt PDF could not be downloaded.');
+      toast.error('Payment receipt PDF could not be downloaded.');
     } finally {
       setDownloadingId(null);
     }

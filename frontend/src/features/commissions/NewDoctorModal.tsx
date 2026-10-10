@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Modal, Button, Input, Alert } from '@/components/ui';
+import { Modal, Button, Input, Alert, toast } from '@/components/ui';
 import { doctorService } from '@/api/doctorService';
 import { DoctorCreatePayload } from '@/types/doctor';
 
@@ -34,6 +34,7 @@ export const NewDoctorModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) 
     setError(null);
     try {
       await doctorService.createDoctor(formData);
+      toast.success(`Referring doctor "${formData.name}" added successfully.`);
       onSuccess();
       onClose();
       setFormData({
@@ -46,7 +47,9 @@ export const NewDoctorModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) 
         default_commission_percentage: 10,
       });
     } catch (err: any) {
-      setError(err?.response?.data?.detail || err?.response?.data?.message || 'Failed to create doctor.');
+      const msg = err?.response?.data?.detail || err?.response?.data?.message || 'Failed to create doctor.';
+      toast.error(msg);
+      setError(msg);
     } finally {
       setSaving(false);
     }

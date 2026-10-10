@@ -17,7 +17,7 @@ import {
   CheckCircle2,
   Info,
 } from 'lucide-react';
-import { Modal, Button, Badge, Alert } from '@/components/ui';
+import { Modal, Button, Badge, Alert, toast } from '@/components/ui';
 import { labApi } from '@/api/labService';
 import { UserResponse, PermissionModule } from '@/types';
 import { ROLE_DEFAULT_PERMISSIONS } from '@/hooks/usePermissions';
@@ -156,15 +156,21 @@ export const StaffPermissionsModal: React.FC<StaffPermissionsModalProps> = ({
     },
     onSuccess: () => {
       setSaveSuccess(true);
+      toast.success(
+        staffUser
+          ? `Access permissions updated for ${staffUser.first_name} ${staffUser.last_name}.`
+          : 'Access permissions updated successfully.'
+      );
       setTimeout(() => {
         onSuccess();
         onClose();
       }, 700);
     },
     onError: (err: any) => {
-      setErrorMessage(
-        err?.response?.data?.message || err?.message || 'Failed to update access permissions'
-      );
+      const msg =
+        err?.response?.data?.message || err?.message || 'Failed to update access permissions';
+      setErrorMessage(msg);
+      toast.error(msg);
     },
   });
 

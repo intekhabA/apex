@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Modal, Input, Button, Alert } from '@/components/ui';
+import { Modal, Input, Button, Alert, toast } from '@/components/ui';
 import { testService } from '@/api/testService';
 import { DiagnosticTest } from '@/types';
 
@@ -69,12 +69,15 @@ export const AddPackageModal: React.FC<AddPackageModalProps> = ({
         discount_percentage: data.discount_percentage,
         test_ids: selectedTestIds,
       });
+      toast.success(`Health package "${data.name}" (${data.code.toUpperCase()}) created successfully.`);
       reset();
       setSelectedTestIds([]);
       onSuccess();
       onClose();
     } catch (err: any) {
-      setErrorMessage(err?.response?.data?.message || 'Failed to create package.');
+      const msg = err?.response?.data?.message || 'Failed to create package.';
+      toast.error(msg);
+      setErrorMessage(msg);
     } finally {
       setIsSubmitting(false);
     }

@@ -16,7 +16,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 
-import { Card, Button, Badge } from '@/components/ui';
+import { Card, Button, Badge, toast, confirmDialog } from '@/components/ui';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { usePermissions } from '@/hooks/usePermissions';
 import { testService } from '@/api/testService';
@@ -92,18 +92,52 @@ export const TestCatalogPage: React.FC = () => {
   const assignTestMutation = useMutation({
     mutationFn: (testId: string) =>
       adminApi.assignTestsToLaboratory(selectedLabId, [testId]),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tests'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tests'] });
+      toast.success('Test assigned to laboratory successfully.');
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || 'Failed to assign test to laboratory.');
+    },
   });
 
   const unassignTestMutation = useMutation({
     mutationFn: (testId: string) =>
       adminApi.unassignTestsFromLaboratory(selectedLabId, [testId]),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tests'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tests'] });
+      toast.success('Test unassigned from laboratory successfully.');
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || 'Failed to unassign test from laboratory.');
+    },
   });
+
+  const handleUnassignTest = async (test: DiagnosticTest) => {
+    const confirmed = await confirmDialog({
+      title: 'Unassign Test?',
+      message: `Are you sure you want to remove "${test.name}" (${test.code}) from this laboratory? The lab will no longer be able to order this test.`,
+      confirmText: 'Yes, Unassign',
+      cancelText: 'Cancel',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
+    unassignTestMutation.mutate(test.id);
+  };
 
   const assignCommonMutation = useMutation({
     mutationFn: () => adminApi.assignCommonTestsToLaboratory(selectedLabId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tests'] }),
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ['tests'] });
+      toast.success(
+        data?.newly_assigned
+          ? `Successfully assigned ${data.newly_assigned} core common tests to this laboratory!`
+          : 'Core common tests are assigned to this laboratory.'
+      );
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || 'Failed to assign core common tests.');
+    },
   });
 
   return (
@@ -342,7 +376,7 @@ export const TestCatalogPage: React.FC = () => {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => unassignTestMutation.mutate(test.id)}
+                                onClick={() => handleUnassignTest(test)}
                                 isLoading={unassignTestMutation.isPending}
                                 className="text-xs text-rose-600 border-rose-200 hover:bg-rose-50"
                               >

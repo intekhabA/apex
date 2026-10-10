@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Button, Input, Badge, Alert } from '@/components/ui';
+import { Button, Input, Badge, Alert, toast } from '@/components/ui';
 import { reportService } from '@/api/reportService';
 import { ReportListItem, ReportStatus } from '@/types';
 import { Download, FileCheck2 } from 'lucide-react';
@@ -65,8 +65,9 @@ export const ReportsListPage: React.FC = () => {
         report.id,
         `${report.report_id_display}_v${report.current_version}.pdf`
       );
+      toast.success('Report PDF downloaded successfully.');
     } catch {
-      alert('PDF not available for this report.');
+      toast.error('PDF not available for this report.');
     }
   };
 

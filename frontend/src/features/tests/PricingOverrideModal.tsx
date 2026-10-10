@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Modal, Input, Button, Alert } from '@/components/ui';
+import { Modal, Input, Button, Alert, toast, confirmDialog } from '@/components/ui';
 import { testService } from '@/api/testService';
 import { DiagnosticTest } from '@/types';
 
@@ -61,24 +61,38 @@ export const PricingOverrideModal: React.FC<PricingOverrideModalProps> = ({
         discount_percentage: data.discount_percentage,
         is_available: data.is_available,
       });
+      toast.success('Custom lab pricing saved successfully.');
       onSuccess();
       onClose();
     } catch (err: any) {
-      setErrorMessage(err?.response?.data?.message || 'Failed to update custom price.');
+      const msg = err?.response?.data?.message || 'Failed to update custom price.';
+      setErrorMessage(msg);
+      toast.error(msg);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleResetToDefault = async () => {
-    if (!window.confirm('Reset this test to the global catalog default price?')) return;
+    const confirmed = await confirmDialog({
+      title: 'Reset Custom Price?',
+      message: `Are you sure you want to delete the custom price for "${test.name}" and revert back to the global default price of ₹${test.default_price}?`,
+      confirmText: 'Yes, Reset Price',
+      cancelText: 'Cancel',
+      variant: 'warning',
+    });
+    if (!confirmed) return;
+
     setIsSubmitting(true);
     try {
       await testService.removePriceOverride(test.id);
+      toast.success('Pricing reset to global catalog default price.');
       onSuccess();
       onClose();
     } catch (err: any) {
-      setErrorMessage(err?.response?.data?.message || 'Failed to reset price.');
+      const msg = err?.response?.data?.message || 'Failed to reset price.';
+      setErrorMessage(msg);
+      toast.error(msg);
     } finally {
       setIsSubmitting(false);
     }

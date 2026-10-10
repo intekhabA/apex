@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Button, Alert, Badge } from '@/components/ui';
+import { Modal, Button, Alert, Badge, toast, confirmDialog } from '@/components/ui';
 import { imagingService } from '@/api/imagingService';
 import { ImagingReport, ImagingTemplate } from '@/types';
 import { Upload, Trash2, FileImage, Sparkles } from 'lucide-react';
@@ -99,11 +99,14 @@ export const ImagingReportEditorModal: React.FC<ImagingReportEditorModalProps> =
       setReport(fresh);
       setSelectedFile(null);
       setCaption('');
+      toast.success('Scan attached successfully.');
       setSuccessMessage('Scan attached successfully.');
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err: unknown) {
       const errorObj = err as { response?: { data?: { message?: string } } };
-      setErrorMessage(errorObj.response?.data?.message || 'Failed to upload scan attachment.');
+      const msg = errorObj.response?.data?.message || 'Failed to upload scan attachment.';
+      toast.error(msg);
+      setErrorMessage(msg);
     } finally {
       setIsUploading(false);
     }
@@ -111,18 +114,41 @@ export const ImagingReportEditorModal: React.FC<ImagingReportEditorModalProps> =
 
   const handleDeleteAttachment = async (attachmentId: string) => {
     if (!reportId) return;
+
+    const confirmed = await confirmDialog({
+      title: 'Delete Scan Attachment',
+      message: 'Are you sure you want to delete this scan attachment? This action cannot be undone.',
+      confirmText: 'Delete Attachment',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
+
     try {
       await imagingService.deleteAttachment(reportId, attachmentId);
       const fresh = await imagingService.getImagingReport(reportId);
       setReport(fresh);
+      toast.success('Scan attachment deleted successfully.');
     } catch (err: unknown) {
       const errorObj = err as { response?: { data?: { message?: string } } };
-      setErrorMessage(errorObj.response?.data?.message || 'Failed to delete attachment.');
+      const msg = errorObj.response?.data?.message || 'Failed to delete attachment.';
+      toast.error(msg);
+      setErrorMessage(msg);
     }
   };
 
   const handleSave = async (submitForReview: boolean) => {
     if (!reportId) return;
+
+    if (submitForReview) {
+      const confirmed = await confirmDialog({
+        title: 'Submit Radiology Report for Sign-off',
+        message: 'Are you sure you want to submit this radiology report for Radiologist sign-off and approval?',
+        confirmText: 'Submit for Sign-off',
+        variant: 'primary',
+      });
+      if (!confirmed) return;
+    }
+
     setIsSubmitting(true);
     setErrorMessage(null);
     setSuccessMessage(null);
@@ -138,17 +164,19 @@ export const ImagingReportEditorModal: React.FC<ImagingReportEditorModalProps> =
     try {
       const updated = await imagingService.updateImagingReport(reportId, payload);
       setReport(updated);
-      setSuccessMessage(
-        submitForReview
-          ? 'Radiology report submitted for approval sign-off.'
-          : 'Radiology report draft saved successfully.'
-      );
+      const msg = submitForReview
+        ? 'Radiology report submitted for approval sign-off.'
+        : 'Radiology report draft saved successfully.';
+      toast.success(msg);
+      setSuccessMessage(msg);
       setTimeout(() => {
         onSuccess();
       }, 700);
     } catch (err: unknown) {
       const errorObj = err as { response?: { data?: { message?: string } } };
-      setErrorMessage(errorObj.response?.data?.message || 'Failed to update imaging report.');
+      const msg = errorObj.response?.data?.message || 'Failed to update imaging report.';
+      toast.error(msg);
+      setErrorMessage(msg);
     } finally {
       setIsSubmitting(false);
     }

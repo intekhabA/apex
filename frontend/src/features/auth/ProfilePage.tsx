@@ -15,7 +15,7 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { useAuthStore } from '@/store/authStore';
 import { authApi } from '@/api/authService';
-import { Input, Button, Card, CardHeader, CardTitle, CardContent, Badge, Alert } from '@/components/ui';
+import { Input, Button, Card, CardHeader, CardTitle, CardContent, Badge, Alert, toast, confirmDialog } from '@/components/ui';
 
 const passwordSchema = z
   .object({
@@ -57,13 +57,15 @@ export const ProfilePage: React.FC = () => {
         new_password: data.new_password,
       });
       setSuccessMessage('Password changed successfully! Keep your new password secure.');
+      toast.success('Password changed successfully! Keep your new password secure.');
       reset();
     } catch (err: any) {
-      setErrorMessage(
+      const msg =
         err?.response?.data?.message ||
-          err?.message ||
-          'Failed to update password. Please check your current password.'
-      );
+        err?.message ||
+        'Failed to update password. Please check your current password.';
+      setErrorMessage(msg);
+      toast.error(msg);
     }
   };
 
@@ -77,8 +79,11 @@ export const ProfilePage: React.FC = () => {
       const updated = await authApi.uploadSignature(file);
       updateUser(updated);
       setSigMessage('Personal diagnostic signature image uploaded successfully.');
+      toast.success('Personal diagnostic signature image uploaded successfully.');
     } catch (err: any) {
-      setSigError(err?.response?.data?.detail || err?.message || 'Failed to upload signature image');
+      const msg = err?.response?.data?.detail || err?.message || 'Failed to upload signature image';
+      setSigError(msg);
+      toast.error(msg);
     } finally {
       setIsUploadingSig(false);
       e.target.value = '';
@@ -86,7 +91,15 @@ export const ProfilePage: React.FC = () => {
   };
 
   const handleSigDelete = async () => {
-    if (!window.confirm('Remove your personal signature and revert to standard certified signature?')) return;
+    const confirmed = await confirmDialog({
+      title: 'Remove Personal Signature?',
+      message: 'Are you sure you want to delete your personal signature? It will revert to the standard certified signature.',
+      confirmText: 'Yes, Delete',
+      cancelText: 'Cancel',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
+
     setIsUploadingSig(true);
     setSigMessage(null);
     setSigError(null);
@@ -94,8 +107,11 @@ export const ProfilePage: React.FC = () => {
       const updated = await authApi.deleteSignature();
       updateUser(updated);
       setSigMessage('Personal signature removed.');
+      toast.success('Personal signature removed successfully.');
     } catch (err: any) {
-      setSigError(err?.response?.data?.detail || err?.message || 'Failed to remove signature');
+      const msg = err?.response?.data?.detail || err?.message || 'Failed to remove signature';
+      setSigError(msg);
+      toast.error(msg);
     } finally {
       setIsUploadingSig(false);
     }

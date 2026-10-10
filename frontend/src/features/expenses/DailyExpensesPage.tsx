@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Button, Card, Badge, Alert, Modal, Input } from '@/components/ui';
+import { Button, Card, Badge, Alert, Modal, Input, toast } from '@/components/ui';
 import { expenseService } from '@/api/expenseService';
 import {
   Expense,
@@ -209,8 +209,11 @@ export const DailyExpensesPage: React.FC = () => {
       await expenseService.deleteExpense(deleteExpenseId);
       setDeleteExpenseId(null);
       fetchExpenses();
+      toast.success('Expense voucher deleted successfully.');
     } catch (err: any) {
-      alert(err?.response?.data?.message || 'Failed to delete expense record.');
+      const msg = err?.response?.data?.message || 'Failed to delete expense record.';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setDeleting(false);
     }

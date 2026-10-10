@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Button, Input, Alert } from '@/components/ui';
+import { Modal, Button, Input, Alert, toast } from '@/components/ui';
 import { expenseService } from '@/api/expenseService';
 import { Expense, CategoryPresetItem } from '@/types';
 import { Calendar, User, FileText } from 'lucide-react';
@@ -129,10 +129,17 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
           notes: notes.trim() || undefined,
         });
       }
+      toast.success(
+        isEditing
+          ? 'Expense voucher updated successfully.'
+          : 'Expense voucher recorded successfully.'
+      );
       onSuccess();
       onClose();
     } catch (err: any) {
-      setError(err?.response?.data?.message || err?.message || 'Failed to save expense.');
+      const msg = err?.response?.data?.message || err?.message || 'Failed to save expense.';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }

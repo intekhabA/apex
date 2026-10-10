@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Modal, Button, Alert } from '@/components/ui';
+import { Modal, Button, Alert, toast, confirmDialog } from '@/components/ui';
 import { reportService } from '@/api/reportService';
 import { AlertCircle } from 'lucide-react';
 
@@ -33,14 +33,25 @@ export const ReportAmendModal: React.FC<ReportAmendModalProps> = ({
       return;
     }
 
+    const confirmed = await confirmDialog({
+      title: 'Amend Diagnostic Report',
+      message: `Are you sure you want to amend report ${reportDisplayId || ''}? This will snapshot Version ${currentVersion}.0 and initialize Version ${currentVersion + 1}.0 for laboratory modification.`,
+      confirmText: `Create Version ${currentVersion + 1}.0`,
+      variant: 'warning',
+    });
+    if (!confirmed) return;
+
     setIsSubmitting(true);
     setErrorMessage(null);
     try {
       await reportService.amendReport(reportId, reason.trim());
+      toast.success(`Report amendment initiated successfully. Version ${currentVersion + 1}.0 created.`);
       onSuccess();
     } catch (err: unknown) {
       const errorObj = err as { response?: { data?: { message?: string } } };
-      setErrorMessage(errorObj.response?.data?.message || 'Failed to initialize report amendment.');
+      const msg = errorObj.response?.data?.message || 'Failed to initialize report amendment.';
+      toast.error(msg);
+      setErrorMessage(msg);
     } finally {
       setIsSubmitting(false);
     }

@@ -30,6 +30,7 @@ import { AuditLogPage } from '@/features/audit/AuditLogPage';
 import { NotificationsLogPage } from '@/features/notifications/NotificationsLogPage';
 import { DoctorCommissionsPage } from '@/features/commissions/DoctorCommissionsPage';
 import { DailyExpensesPage } from '@/features/expenses';
+import { ToastContainer, ConfirmDialog } from '@/components/ui';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -49,6 +50,8 @@ export const App: React.FC = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
+        <ToastContainer />
+        <ConfirmDialog />
         <Routes>
           {/* Public Auth & Verification Routes */}
           <Route path="/login" element={<LoginPage />} />

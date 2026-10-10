@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CalendarDays, Search, Plus, Filter, ChevronRight, Download } from 'lucide-react';
-import { Card, Button, Badge } from '@/components/ui';
+import { Card, Button, Badge, toast } from '@/components/ui';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { bookingService } from '@/api/bookingService';
 import { Booking, BookingStatus } from '@/types';
@@ -24,8 +24,9 @@ export const BookingsPage: React.FC = () => {
         b.id,
         `Booking_${b.booking_id_display}_All_Reports.pdf`
       );
+      toast.success('Consolidated reports PDF downloaded successfully.');
     } catch (err: any) {
-      alert(err?.response?.data?.message || 'Failed to download consolidated reports PDF.');
+      toast.error(err?.response?.data?.message || 'Failed to download consolidated reports PDF.');
     } finally {
       setDownloadingBookingId(null);
     }

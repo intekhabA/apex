@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Card, Button, Input, Badge, Alert, Modal } from '@/components/ui';
+import { Card, Button, Input, Badge, Alert, Modal, toast } from '@/components/ui';
 import { patientPortalService } from '@/api/patientPortalService';
 import { ReportListItem, ReportDetail } from '@/types/report';
 import {
@@ -37,8 +37,9 @@ export const PatientReportsPage: React.FC = () => {
         bookingId,
         `Booking_${bookingDisplayId}_All_Reports.pdf`
       );
+      toast.success('Consolidated booking reports PDF downloaded successfully.');
     } catch {
-      alert('Consolidated booking report PDF could not be downloaded.');
+      toast.error('Consolidated booking report PDF could not be downloaded.');
     } finally {
       setDownloadingBookingId(null);
     }
@@ -85,8 +86,9 @@ export const PatientReportsPage: React.FC = () => {
         r.id,
         `${r.report_id_display}_${r.test_name.replace(/\s+/g, '_')}.pdf`
       );
+      toast.success('Report PDF downloaded successfully.');
     } catch {
-      alert('Report PDF could not be downloaded.');
+      toast.error('Report PDF could not be downloaded.');
     } finally {
       setDownloadingId(null);
     }
@@ -99,7 +101,7 @@ export const PatientReportsPage: React.FC = () => {
       const detail = await patientPortalService.getReportDetail(reportId);
       setDetailReport(detail);
     } catch {
-      alert('Unable to load report details.');
+      toast.error('Unable to load report details.');
       setIsModalOpen(false);
     } finally {
       setDetailLoading(false);

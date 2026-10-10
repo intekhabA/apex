@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Button, Alert, Badge } from '@/components/ui';
+import { Modal, Button, Alert, Badge, toast, confirmDialog } from '@/components/ui';
 import { reportService } from '@/api/reportService';
 import { ReportDetail, ResultFlag } from '@/types';
 import {
@@ -67,11 +67,14 @@ export const ReportDetailsModal: React.FC<ReportDetailsModalProps> = ({
     try {
       const updated = await reportService.approveReport(reportId);
       setReport(updated);
+      toast.success('Medical report approved by pathologist.');
       setSuccessMessage('Medical report approved by pathologist.');
       onSuccess();
     } catch (err: unknown) {
       const errorObj = err as { response?: { data?: { message?: string } } };
-      setErrorMessage(errorObj.response?.data?.message || 'Failed to approve report.');
+      const msg = errorObj.response?.data?.message || 'Failed to approve report.';
+      toast.error(msg);
+      setErrorMessage(msg);
     } finally {
       setIsActionLoading(false);
     }
@@ -79,16 +82,28 @@ export const ReportDetailsModal: React.FC<ReportDetailsModalProps> = ({
 
   const handleFinalize = async () => {
     if (!reportId) return;
+
+    const confirmed = await confirmDialog({
+      title: 'Finalize & Seal Diagnostic Report',
+      message: `Are you sure you want to finalize report ${report?.report_id_display || ''}? This locks all findings, generates the cryptographic HMAC stamp, and makes this report official. Future changes will require a formal amendment.`,
+      confirmText: 'Seal & Finalize Report',
+      variant: 'primary',
+    });
+    if (!confirmed) return;
+
     setIsActionLoading(true);
     setErrorMessage(null);
     try {
       const updated = await reportService.finalizeReport(reportId);
       setReport(updated);
+      toast.success(`Report ${report?.report_id_display || ''} sealed and cryptographically verified!`);
       setSuccessMessage('Report sealed! Cryptographic HMAC generated & PDF created.');
       onSuccess();
     } catch (err: unknown) {
       const errorObj = err as { response?: { data?: { message?: string } } };
-      setErrorMessage(errorObj.response?.data?.message || 'Failed to finalize report.');
+      const msg = errorObj.response?.data?.message || 'Failed to finalize report.';
+      toast.error(msg);
+      setErrorMessage(msg);
     } finally {
       setIsActionLoading(false);
     }
@@ -101,9 +116,12 @@ export const ReportDetailsModal: React.FC<ReportDetailsModalProps> = ({
         report.id,
         `${report.report_id_display}_v${report.current_version}.pdf`
       );
+      toast.success('Medical report PDF downloaded successfully.');
     } catch (err: unknown) {
       const errorObj = err as { response?: { data?: { message?: string } } };
-      setErrorMessage(errorObj.response?.data?.message || 'Failed to download report PDF.');
+      const msg = errorObj.response?.data?.message || 'Failed to download report PDF.';
+      toast.error(msg);
+      setErrorMessage(msg);
     }
   };
 

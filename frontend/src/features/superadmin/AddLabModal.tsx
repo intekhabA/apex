@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Building2, User } from 'lucide-react';
-import { Modal, Input, Button, Alert } from '@/components/ui';
+import { Modal, Input, Button, Alert, toast } from '@/components/ui';
 import { adminApi } from '@/api/adminService';
 import { LaboratoryCreatePayload } from '@/types';
 
@@ -57,13 +57,15 @@ export const AddLabModal: React.FC<AddLabModalProps> = ({ isOpen, onClose, onSuc
     setIsSubmitting(true);
     try {
       await adminApi.onboardLaboratory(data as LaboratoryCreatePayload);
+      toast.success(`Laboratory "${data.name}" onboarded successfully.`);
       reset();
       onSuccess();
       onClose();
     } catch (err: any) {
-      setErrorMessage(
-        err?.response?.data?.message || err?.message || 'Failed to onboard laboratory'
-      );
+      const msg =
+        err?.response?.data?.message || err?.message || 'Failed to onboard laboratory';
+      setErrorMessage(msg);
+      toast.error(msg);
     } finally {
       setIsSubmitting(false);
     }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Card, Button, Badge, Alert } from '@/components/ui';
+import { Card, Button, Badge, Alert, toast } from '@/components/ui';
 import { patientPortalService } from '@/api/patientPortalService';
 import { PatientDashboardData } from '@/types/patientPortal';
 import { ReportListItem } from '@/types/report';
@@ -50,8 +50,9 @@ export const PatientDashboardPage: React.FC = () => {
         report.id,
         `${report.report_id_display}_${report.test_name.replace(/\s+/g, '_')}.pdf`
       );
+      toast.success('Report PDF downloaded successfully.');
     } catch {
-      alert('Failed to download report PDF. Please try again.');
+      toast.error('Failed to download report PDF. Please try again.');
     } finally {
       setDownloadingReportId(null);
     }

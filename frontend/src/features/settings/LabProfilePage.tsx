@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Building2, Save } from 'lucide-react';
 import { labApi } from '@/api/labService';
-import { Input, Button, Card, CardHeader, CardTitle, CardContent, Alert, LoadingSpinner, Badge } from '@/components/ui';
+import { Input, Button, Card, CardHeader, CardTitle, CardContent, Alert, LoadingSpinner, Badge, toast } from '@/components/ui';
 import { LaboratoryUpdatePayload } from '@/types';
 
 const profileSchema = z.object({
@@ -65,12 +65,13 @@ export const LabProfilePage: React.FC = () => {
     mutationFn: (payload: LaboratoryUpdatePayload) => labApi.updateProfile(payload),
     onSuccess: (updated) => {
       setSuccessMessage('Laboratory profile updated successfully.');
+      toast.success('Laboratory organization profile updated successfully.');
       queryClient.setQueryData(['labProfile'], updated);
     },
     onError: (err: any) => {
-      setErrorMessage(
-        err?.response?.data?.message || err?.message || 'Failed to update profile'
-      );
+      const msg = err?.response?.data?.message || err?.message || 'Failed to update profile';
+      setErrorMessage(msg);
+      toast.error(msg);
     },
   });
 

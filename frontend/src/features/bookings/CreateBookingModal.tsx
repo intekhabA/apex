@@ -9,7 +9,7 @@ import {
   UserPlus,
   Receipt,
 } from 'lucide-react';
-import { Modal, Input, Button, Alert, Badge } from '@/components/ui';
+import { Modal, Input, Button, Alert, Badge, toast } from '@/components/ui';
 import { patientService } from '@/api/patientService';
 import { testService } from '@/api/testService';
 import { bookingService } from '@/api/bookingService';
@@ -213,6 +213,9 @@ export const CreateBookingModal: React.FC<CreateBookingModalProps> = ({
       handlePrintReceiptNow(created);
 
       setCreatedBookingResult(created);
+      toast.success(
+        `Diagnostic order ${created.booking_id_display || ''} booked successfully!`
+      );
     } catch (err: any) {
       const respData = err?.response?.data;
       let msg =
@@ -226,7 +229,9 @@ export const CreateBookingModal: React.FC<CreateBookingModalProps> = ({
           msg = msg ? `${msg} (${errorEntries})` : errorEntries;
         }
       }
-      setErrorMessage(msg || err?.message || 'Failed to create booking.');
+      const finalMsg = msg || err?.message || 'Failed to create booking.';
+      setErrorMessage(finalMsg);
+      toast.error(finalMsg);
     } finally {
       setIsSubmitting(false);
     }

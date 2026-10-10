@@ -11,7 +11,7 @@ import {
   CheckSquare,
   Square,
 } from 'lucide-react';
-import { Modal, Button, Badge, LoadingSpinner, Alert } from '@/components/ui';
+import { Modal, Button, Badge, LoadingSpinner, Alert, toast, confirmDialog } from '@/components/ui';
 import { adminApi } from '@/api/adminService';
 import { testService } from '@/api/testService';
 import { LabTestAssignmentItem, TestCategory, DiagnosticTest } from '@/types';
@@ -67,19 +67,21 @@ export const ManageLabTestsModal: React.FC<ManageLabTestsModalProps> = ({
     mutationFn: (testIds: string[]) =>
       adminApi.assignTestsToLaboratory(labId!, testIds),
     onSuccess: () => {
-
       queryClient.invalidateQueries({ queryKey: ['adminLabTests', labId] });
       queryClient.invalidateQueries({ queryKey: ['tests'] });
       setSelectedTestIds([]);
+      toast.success('Tests successfully assigned to this laboratory.');
       setFeedbackMessage({
         type: 'success',
         text: 'Tests successfully assigned to this laboratory.',
       });
     },
     onError: (err: any) => {
+      const msg = err?.response?.data?.message || 'Failed to assign tests.';
+      toast.error(msg);
       setFeedbackMessage({
         type: 'error',
-        text: err?.response?.data?.message || 'Failed to assign tests.',
+        text: msg,
       });
     },
   });
@@ -92,15 +94,18 @@ export const ManageLabTestsModal: React.FC<ManageLabTestsModalProps> = ({
       queryClient.invalidateQueries({ queryKey: ['adminLabTests', labId] });
       queryClient.invalidateQueries({ queryKey: ['tests'] });
       setSelectedTestIds([]);
+      toast.success('Tests successfully unassigned from this laboratory.');
       setFeedbackMessage({
         type: 'success',
         text: 'Tests unassigned from this laboratory.',
       });
     },
     onError: (err: any) => {
+      const msg = err?.response?.data?.message || 'Failed to unassign tests.';
+      toast.error(msg);
       setFeedbackMessage({
         type: 'error',
-        text: err?.response?.data?.message || 'Failed to unassign tests.',
+        text: msg,
       });
     },
   });
@@ -111,17 +116,21 @@ export const ManageLabTestsModal: React.FC<ManageLabTestsModalProps> = ({
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['adminLabTests', labId] });
       queryClient.invalidateQueries({ queryKey: ['tests'] });
+      const msg = data?.newly_assigned
+        ? `Successfully assigned ${data.newly_assigned} core common tests to this laboratory!`
+        : 'All core common tests are already assigned to this laboratory.';
+      toast.success(msg);
       setFeedbackMessage({
         type: 'success',
-        text: data?.newly_assigned
-          ? `Successfully assigned ${data.newly_assigned} core common tests to this laboratory!`
-          : 'All core common tests are already assigned to this laboratory.',
+        text: msg,
       });
     },
     onError: (err: any) => {
+      const msg = err?.response?.data?.message || 'Failed to assign common tests.';
+      toast.error(msg);
       setFeedbackMessage({
         type: 'error',
-        text: err?.response?.data?.message || 'Failed to assign common tests.',
+        text: msg,
       });
     },
   });
@@ -135,9 +144,18 @@ export const ManageLabTestsModal: React.FC<ManageLabTestsModalProps> = ({
       queryClient.invalidateQueries({ queryKey: ['tests'] });
       setEditingPriceTestId(null);
       setCustomPriceInput('');
+      toast.success('Custom test price updated for this laboratory.');
       setFeedbackMessage({
         type: 'success',
         text: 'Custom test price updated for this laboratory.',
+      });
+    },
+    onError: (err: any) => {
+      const msg = err?.response?.data?.message || 'Failed to update custom test price.';
+      toast.error(msg);
+      setFeedbackMessage({
+        type: 'error',
+        text: msg,
       });
     },
   });
@@ -177,6 +195,30 @@ export const ManageLabTestsModal: React.FC<ManageLabTestsModalProps> = ({
     setSelectedTestIds((prev) =>
       prev.includes(testId) ? prev.filter((id) => id !== testId) : [...prev, testId]
     );
+  };
+
+  const handleUnassignSingle = async (test: LabTestAssignmentItem) => {
+    const confirmed = await confirmDialog({
+      title: 'Unassign Test from Lab',
+      message: `Are you sure you want to unassign "${test.name}" (${test.code}) from ${labName || 'this laboratory'}? Patients will no longer be able to book this test at this lab.`,
+      confirmText: 'Unassign Test',
+      variant: 'danger',
+    });
+    if (confirmed) {
+      unassignMutation.mutate([test.test_id]);
+    }
+  };
+
+  const handleUnassignBulk = async () => {
+    const confirmed = await confirmDialog({
+      title: 'Unassign Selected Tests',
+      message: `Are you sure you want to unassign ${selectedTestIds.length} test(s) from ${labName || 'this laboratory'}?`,
+      confirmText: 'Unassign Tests',
+      variant: 'danger',
+    });
+    if (confirmed) {
+      unassignMutation.mutate(selectedTestIds);
+    }
   };
 
   const handleOpenMasterEdit = async (testId: string) => {
@@ -336,7 +378,7 @@ export const ManageLabTestsModal: React.FC<ManageLabTestsModalProps> = ({
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => unassignMutation.mutate(selectedTestIds)}
+                  onClick={handleUnassignBulk}
                   isLoading={unassignMutation.isPending}
                   className="text-xs h-7 px-3 text-rose-600 border-rose-300 hover:bg-rose-50"
                 >
@@ -534,7 +576,7 @@ export const ManageLabTestsModal: React.FC<ManageLabTestsModalProps> = ({
                             {/* Toggle Assignment Button */}
                             {test.is_assigned ? (
                               <button
-                                onClick={() => unassignMutation.mutate([test.test_id])}
+                                onClick={() => handleUnassignSingle(test)}
                                 className="px-2 py-1 text-[11px] font-semibold rounded bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 transition-colors"
                               >
                                 Unassign

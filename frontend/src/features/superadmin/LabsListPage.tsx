@@ -11,7 +11,7 @@ import {
   FlaskConical,
 } from 'lucide-react';
 import { adminApi } from '@/api/adminService';
-import { Button, Input, Badge, Card, CardContent, LoadingSpinner } from '@/components/ui';
+import { Button, Input, Badge, Card, CardContent, LoadingSpinner, toast, confirmDialog } from '@/components/ui';
 import { AddLabModal } from './AddLabModal';
 import { LabDetailsModal } from './LabDetailsModal';
 import { ManageLabTestsModal } from './ManageLabTestsModal';
@@ -41,12 +41,35 @@ export const LabsListPage: React.FC = () => {
   });
 
   const toggleStatusMutation = useMutation({
-    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean; labName: string }) =>
       adminApi.updateLaboratoryStatus(id, isActive),
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['adminLaboratories'] });
+      const action = variables.isActive ? 'activated' : 'suspended';
+      toast.success(`Laboratory '${variables.labName}' has been ${action} successfully.`);
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || err?.message || 'Failed to update laboratory status.');
     },
   });
+
+  const handleToggleLabStatus = async (lab: any) => {
+    if (lab.is_active) {
+      const confirmed = await confirmDialog({
+        title: 'Suspend Laboratory Tenant?',
+        message: `Are you sure you want to deactivate ${lab.name}? All affiliated staff and operations for this laboratory will be temporarily locked.`,
+        confirmText: 'Yes, Suspend Lab',
+        cancelText: 'Cancel',
+        variant: 'danger',
+      });
+      if (!confirmed) return;
+    }
+    toggleStatusMutation.mutate({
+      id: lab.id,
+      isActive: !lab.is_active,
+      labName: lab.name,
+    });
+  };
 
   const totalCount = labs.length;
   const activeCount = labs.filter((l) => l.is_active).length;
@@ -207,12 +230,7 @@ export const LabsListPage: React.FC = () => {
                         </button>
 
                         <button
-                          onClick={() =>
-                            toggleStatusMutation.mutate({
-                              id: lab.id,
-                              isActive: !lab.is_active,
-                            })
-                          }
+                          onClick={() => handleToggleLabStatus(lab)}
                           className={`p-1.5 rounded-lg transition-colors ${
                             lab.is_active
                               ? 'text-slate-400 hover:text-rose-600 hover:bg-rose-50'

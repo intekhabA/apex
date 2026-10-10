@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Button, Alert } from '@/components/ui';
+import { Modal, Button, Alert, toast } from '@/components/ui';
 import { doctorService } from '@/api/doctorService';
 import { Doctor, DoctorTestCommissionItem } from '@/types/doctor';
 import { Search } from 'lucide-react';
@@ -92,14 +92,17 @@ export const DoctorCommissionRatesModal: React.FC<Props> = ({
         commission_percentage: Number(t.commission_percentage),
       }));
       await doctorService.saveDoctorTestCommissions(doctor.id, payload);
+      toast.success(`Test commission rates saved successfully for ${doctor.name}.`);
       setSuccessMsg(`Test commission rates saved successfully for ${doctor.name}.`);
       setTimeout(() => {
         setSuccessMsg(null);
         onSuccess();
         onClose();
-      }, 1000);
+      }, 700);
     } catch (err: any) {
-      setError(err?.response?.data?.message || 'Failed to save commission rates.');
+      const msg = err?.response?.data?.message || 'Failed to save commission rates.';
+      toast.error(msg);
+      setError(msg);
     } finally {
       setSaving(false);
     }

@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Users, Plus, Search, Power, Mail, FileBadge, Shield } from 'lucide-react';
 import { labApi } from '@/api/labService';
 import { useAuthStore } from '@/store/authStore';
-import { Button, Input, Badge, Card, LoadingSpinner } from '@/components/ui';
+import { Button, Input, Badge, Card, LoadingSpinner, toast, confirmDialog } from '@/components/ui';
 import { AddStaffModal } from './AddStaffModal';
 import { StaffPermissionsModal } from './StaffPermissionsModal';
 import { UserResponse } from '@/types';
@@ -23,12 +23,36 @@ export const StaffManagementPage: React.FC = () => {
   });
 
   const toggleStatusMutation = useMutation({
-    mutationFn: ({ userId, isActive }: { userId: string; isActive: boolean }) =>
+    mutationFn: ({ userId, isActive }: { userId: string; isActive: boolean; fullName: string }) =>
       labApi.updateStaffStatus(userId, isActive),
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['labStaffList'] });
+      const action = variables.isActive ? 'activated' : 'deactivated';
+      toast.success(`Staff member '${variables.fullName}' has been ${action} successfully.`);
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || err?.message || 'Failed to update staff status.');
     },
   });
+
+  const handleToggleStatus = async (targetUser: UserResponse) => {
+    const willDeactivate = targetUser.is_active;
+    if (willDeactivate) {
+      const confirmed = await confirmDialog({
+        title: 'Deactivate Staff Access?',
+        message: `Are you sure you want to deactivate ${targetUser.first_name} ${targetUser.last_name}? They will be immediately blocked from logging in until reactivated.`,
+        confirmText: 'Yes, Deactivate',
+        cancelText: 'Cancel',
+        variant: 'danger',
+      });
+      if (!confirmed) return;
+    }
+    toggleStatusMutation.mutate({
+      userId: targetUser.id,
+      isActive: !targetUser.is_active,
+      fullName: `${targetUser.first_name} ${targetUser.last_name}`,
+    });
+  };
 
   const filteredStaff = staff.filter((u) => {
     const term = searchTerm.toLowerCase();
@@ -189,12 +213,7 @@ export const StaffManagementPage: React.FC = () => {
 
                           {!isCurrent ? (
                             <button
-                              onClick={() =>
-                                toggleStatusMutation.mutate({
-                                  userId: u.id,
-                                  isActive: !u.is_active,
-                                })
-                              }
+                              onClick={() => handleToggleStatus(u)}
                               className={`p-1.5 rounded-lg transition-colors ${
                                 u.is_active
                                   ? 'text-slate-400 hover:text-rose-600 hover:bg-rose-50'
