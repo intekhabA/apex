@@ -1,4 +1,5 @@
 import datetime
+import re
 from decimal import Decimal
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -67,10 +68,19 @@ async def list_doctors(
     res = await db.execute(query)
     doctors = res.scalars().all()
 
+    # Deduplicate doctors by normalized name to guarantee unique referring doctors
+    seen_names = set()
+    unique_doctors = []
+    for d in doctors:
+        norm = re.sub(r"\s+", " ", re.sub(r"\.", "", (d.name or "").strip().lower())).strip()
+        if norm and norm not in seen_names:
+            seen_names.add(norm)
+            unique_doctors.append(d)
+
     return APIResponse(
         success=True,
-        message=f"Retrieved {len(doctors)} doctors.",
-        data=[DoctorResponse.model_validate(d) for d in doctors],
+        message=f"Retrieved {len(unique_doctors)} doctors.",
+        data=[DoctorResponse.model_validate(d) for d in unique_doctors],
     )
 
 

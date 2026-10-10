@@ -28,6 +28,14 @@ import { PrintStatementModal } from './PrintStatementModal';
 type PeriodType = 'daily' | 'monthly' | 'custom';
 type ActiveTab = 'tests' | 'doctors' | 'ledger' | 'trends';
 
+const normalizeDoctorName = (name: string): string => {
+  return (name || '')
+    .toLowerCase()
+    .replace(/\./g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+};
+
 export const DoctorCommissionsPage: React.FC = () => {
   // Filters State
   const [periodType, setPeriodType] = useState<PeriodType>('monthly');
@@ -46,6 +54,17 @@ export const DoctorCommissionsPage: React.FC = () => {
 
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>('');
   const [doctorsList, setDoctorsList] = useState<Doctor[]>([]);
+
+  // Deduplicate doctors by normalized doctor name to guarantee unique options in dropdown
+  const uniqueDoctorsList = React.useMemo(() => {
+    const seen = new Set<string>();
+    return doctorsList.filter((doc) => {
+      const norm = normalizeDoctorName(doc.name);
+      if (!norm || seen.has(norm)) return false;
+      seen.add(norm);
+      return true;
+    });
+  }, [doctorsList]);
 
   // Report Data
   const [report, setReport] = useState<DoctorCommissionReport | null>(null);
@@ -69,7 +88,14 @@ export const DoctorCommissionsPage: React.FC = () => {
   const fetchDoctors = async () => {
     try {
       const data = await doctorService.getDoctors();
-      setDoctorsList(data);
+      const seen = new Set<string>();
+      const unique = (data || []).filter((doc) => {
+        const norm = normalizeDoctorName(doc.name);
+        if (!norm || seen.has(norm)) return false;
+        seen.add(norm);
+        return true;
+      });
+      setDoctorsList(unique);
     } catch (err) {
       console.error('Error fetching doctors:', err);
     }
@@ -304,7 +330,7 @@ export const DoctorCommissionsPage: React.FC = () => {
                 className="px-3 py-1.5 text-xs font-medium border border-slate-300 rounded-lg bg-white shadow-sm focus:ring-1 focus:ring-brand-500"
               >
                 <option value="">All Referring Doctors</option>
-                {doctorsList.map((doc) => (
+                {uniqueDoctorsList.map((doc) => (
                   <option key={doc.id} value={doc.id}>
                     {doc.name} {doc.specialization ? `(${doc.specialization})` : ''}
                   </option>
@@ -613,8 +639,11 @@ export const DoctorCommissionsPage: React.FC = () => {
                     const eff = Number(d.effective_percentage) || 0;
 
                     // Find doctor object
-                    const fullDoctorObj = doctorsList.find(
-                      (item) => item.id === d.doctor_id || item.name.toLowerCase() === d.doctor_name.toLowerCase()
+                    const fullDoctorObj = uniqueDoctorsList.find(
+                      (item) =>
+                        item.id === d.doctor_id ||
+                        item.name.toLowerCase() === d.doctor_name.toLowerCase() ||
+                        normalizeDoctorName(item.name) === normalizeDoctorName(d.doctor_name)
                     );
 
                     return (

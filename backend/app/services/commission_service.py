@@ -1,9 +1,10 @@
 import datetime
+import re
 from decimal import Decimal
 from typing import List, Dict, Optional, Tuple, Set
 from collections import defaultdict
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_, desc
+from sqlalchemy import select, and_, or_, desc, delete
 from sqlalchemy.orm import selectinload
 
 from app.models.laboratory import Laboratory
@@ -20,15 +21,44 @@ from app.schemas.doctor import (
 )
 
 
+def normalize_doctor_name(name: Optional[str]) -> str:
+    if not name:
+        return ""
+    cleaned = (name or "").strip().lower()
+    cleaned = re.sub(r"\.", "", cleaned)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned
+
+
 async def ensure_doctors_from_bookings(db: AsyncSession, lab_id: str):
     """
     Auto-discovers referring doctors from historical bookings and ensures they have
     a registered Doctor record so custom test commission overrides can be configured.
+    Also removes any duplicate records present for the laboratory.
     """
-    # 1. Get existing doctors in lab
-    res = await db.execute(select(Doctor).where(Doctor.lab_id == lab_id))
+    # 1. Get existing doctors in lab ordered by creation time
+    res = await db.execute(
+        select(Doctor)
+        .where(Doctor.lab_id == lab_id)
+        .order_by(Doctor.created_at.asc())
+    )
     existing_doctors = res.scalars().all()
-    existing_names = {d.name.strip().lower(): d for d in existing_doctors}
+    
+    existing_names: Dict[str, Doctor] = {}
+    duplicates_to_delete: List[Doctor] = []
+    for d in existing_doctors:
+        norm = normalize_doctor_name(d.name)
+        if not norm:
+            continue
+        if norm in existing_names:
+            duplicates_to_delete.append(d)
+        else:
+            existing_names[norm] = d
+
+    created_or_cleaned = False
+    for dup in duplicates_to_delete:
+        await db.delete(dup)
+        created_or_cleaned = True
 
     # 2. Get distinct referring doctors from bookings
     query = (
@@ -45,14 +75,24 @@ async def ensure_doctors_from_bookings(db: AsyncSession, lab_id: str):
     res = await db.execute(query)
     referring_names = res.scalars().all()
 
-    created_any = False
     for raw_name in referring_names:
         if not raw_name:
             continue
         cleaned = raw_name.strip()
-        if not cleaned or cleaned.lower() in ["self", "self / dr. consultation", "none", "n/a"]:
+        norm = normalize_doctor_name(cleaned)
+        if not norm or norm in [
+            "self",
+            "self / dr consultation",
+            "self / dr. consultation",
+            "none",
+            "na",
+            "n/a",
+            "walk in",
+            "self / walk in",
+            "self / walk-in",
+        ]:
             continue
-        if cleaned.lower() not in existing_names:
+        if norm not in existing_names:
             new_doc = Doctor(
                 lab_id=lab_id,
                 name=cleaned,
@@ -60,10 +100,10 @@ async def ensure_doctors_from_bookings(db: AsyncSession, lab_id: str):
                 is_active=True,
             )
             db.add(new_doc)
-            existing_names[cleaned.lower()] = new_doc
-            created_any = True
+            existing_names[norm] = new_doc
+            created_or_cleaned = True
 
-    if created_any:
+    if created_or_cleaned:
         await db.commit()
 
 
@@ -82,7 +122,7 @@ async def get_doctor_commission_report(
     doc_res = await db.execute(select(Doctor).where(Doctor.lab_id == lab_id))
     all_doctors = doc_res.scalars().all()
     doctor_by_id: Dict[str, Doctor] = {str(d.id): d for d in all_doctors}
-    doctor_by_name: Dict[str, Doctor] = {d.name.strip().lower(): d for d in all_doctors}
+    doctor_by_name: Dict[str, Doctor] = {normalize_doctor_name(d.name): d for d in all_doctors}
 
     target_doctor: Optional[Doctor] = None
     if doctor_id and doctor_id in doctor_by_id:
@@ -187,21 +227,33 @@ async def get_doctor_commission_report(
         raw_ref = (b.referring_doctor or "").strip()
         if not raw_ref:
             continue
-        if raw_ref.lower() in ["self", "self / dr. consultation", "none", "n/a"]:
+        norm_ref = normalize_doctor_name(raw_ref)
+        if not norm_ref or norm_ref in [
+            "self",
+            "self / dr consultation",
+            "self / dr. consultation",
+            "none",
+            "na",
+            "n/a",
+            "walk in",
+            "self / walk in",
+            "self / walk-in",
+        ]:
             continue
 
         # Match doctor
-        matched_doc = doctor_by_name.get(raw_ref.lower())
+        matched_doc = doctor_by_name.get(norm_ref)
         doc_id = str(matched_doc.id) if matched_doc else None
         doc_name = matched_doc.name if matched_doc else raw_ref
         default_pct = matched_doc.default_commission_percentage if matched_doc else Decimal("10.00")
 
         # If filtered by doctor, skip non-matching
         if target_doctor:
-            if doc_id != str(target_doctor.id) and doc_name.lower() != target_doctor.name.strip().lower():
+            target_norm = normalize_doctor_name(target_doctor.name)
+            if doc_id != str(target_doctor.id) and norm_ref != target_norm:
                 continue
 
-        doc_key = doc_id or doc_name.lower()
+        doc_key = doc_id or norm_ref
         d_stat = doctor_stats[doc_key]
         d_stat["doctor_id"] = doc_id
         d_stat["doctor_name"] = doc_name
