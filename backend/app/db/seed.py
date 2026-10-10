@@ -480,6 +480,11 @@ async def seed_database():
             session.add(TestPackageItem(package_id=pkg_full_body.id, test_id=t.id))
 
         await session.commit()
+
+        # Seed full comprehensive medical test catalog
+        from app.db.seed_all_tests import seed_all_tests
+        await seed_all_tests()
+
         print("✅ Database seeding completed successfully!")
         print("=================================================================")
         print("🔑 DEVELOPMENT ONLY CREDENTIALS:")
@@ -496,3 +501,4 @@ async def seed_database():
 
 if __name__ == "__main__":
     asyncio.run(seed_database())
+
