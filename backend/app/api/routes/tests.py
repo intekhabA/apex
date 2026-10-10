@@ -7,7 +7,7 @@ from sqlalchemy.orm import selectinload
 from app.core.database import get_db
 from app.core.permissions import require_super_admin, require_lab_admin
 from app.core.security import get_current_user
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.models.test import (
     TestCategory,
     Test,
@@ -326,10 +326,12 @@ async def remove_lab_price_override(
 async def list_tests(
     category_id: Optional[str] = Query(None, description="Filter by category ID"),
     search: Optional[str] = Query(None, description="Search by test code or name"),
+    lab_id: Optional[str] = Query(None, description="Filter by laboratory assignment (Super Admin or Lab context)"),
+    assigned_only: Optional[bool] = Query(None, description="Filter by assignment status: True=assigned, False=unassigned"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """List diagnostic tests with lab-specific custom price resolution."""
+    """List diagnostic tests with lab-specific custom price resolution and assignment status."""
     query = (
         select(Test)
         .options(
@@ -350,18 +352,41 @@ async def list_tests(
     res = await db.execute(query)
     tests = res.scalars().all()
 
-    # Pre-fetch custom pricing overrides for current user's laboratory
-    lab_prices = {}
-    if current_user.lab_id:
+    # Determine laboratory context
+    is_super_admin = (current_user.role == UserRole.SUPER_ADMIN or str(current_user.role) == "SUPER_ADMIN")
+    target_lab_id = lab_id if (is_super_admin and lab_id) else current_user.lab_id
+
+    # Pre-fetch custom pricing and assignments for target laboratory
+    lab_assignments = {}
+    if target_lab_id:
         price_res = await db.execute(
-            select(LabTestPrice).where(LabTestPrice.lab_id == current_user.lab_id)
+            select(LabTestPrice).where(LabTestPrice.lab_id == target_lab_id)
         )
         for lp in price_res.scalars().all():
-            lab_prices[lp.test_id] = lp.custom_price
+            lab_assignments[lp.test_id] = lp
 
     output = []
     for t in tests:
-        eff_price = lab_prices.get(t.id, t.default_price)
+        lp = lab_assignments.get(t.id) if target_lab_id else None
+        is_assigned = (lp is not None) if target_lab_id else None
+        is_available = lp.is_available if lp else True
+        eff_price = lp.custom_price if (lp and lp.custom_price is not None) else t.default_price
+        custom_price = lp.custom_price if lp else None
+
+        # Filter by assignment if requested:
+        # If target lab has assigned tests:
+        if target_lab_id and len(lab_assignments) > 0:
+            if not is_super_admin and assigned_only is None:
+                # Lab staff default to assigned & available tests
+                if not (is_assigned and is_available):
+                    continue
+            elif assigned_only is True:
+                if not (is_assigned and is_available):
+                    continue
+            elif assigned_only is False:
+                if is_assigned:
+                    continue
+
         t_resp = TestResponse(
             id=str(t.id),
             category_id=str(t.category_id),
@@ -376,6 +401,8 @@ async def list_tests(
             turnaround_hours=t.turnaround_hours,
             default_price=t.default_price,
             effective_price=eff_price,
+            custom_price=custom_price,
+            is_assigned=is_assigned,
             is_active=t.is_active,
             parameters=[
                 TestParameterResponse(
@@ -418,6 +445,7 @@ async def list_tests(
         message=f"Retrieved {len(output)} tests.",
         data=output,
     )
+
 
 
 @router.post("", response_model=APIResponse[TestResponse], status_code=status.HTTP_201_CREATED)
@@ -654,11 +682,28 @@ async def update_test(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Test not found.")
 
     update_data = payload.model_dump(exclude_unset=True)
+
+    # Validate code uniqueness if code is updated
+    if "code" in update_data and update_data["code"]:
+        new_code = update_data["code"].upper()
+        if new_code != test.code:
+            existing_code = await db.execute(
+                select(Test).where(Test.code == new_code, Test.id != test_id)
+            )
+            if existing_code.scalar_one_or_none():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Test with code '{new_code}' already exists.",
+                )
+            test.code = new_code
+        del update_data["code"]
+
     for field, val in update_data.items():
         setattr(test, field, val)
 
     await db.commit()
     await db.refresh(test)
+
 
     # Re-query test with relationships loaded
     res = await db.execute(

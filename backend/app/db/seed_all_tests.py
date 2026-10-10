@@ -900,7 +900,44 @@ async def seed_all_tests():
 
         await session.commit()
         print(f"🎉 Total Health Packages added: {pkgs_added}")
+
+        # 4. Assign Default Common Diagnostic Tests to all active laboratories
+        from app.models.laboratory import Laboratory
+        from app.models.test import LabTestPrice
+        from app.core.constants import COMMON_TEST_CODES
+
+        labs_res = await session.execute(select(Laboratory).where(Laboratory.deleted_at.is_(None)))
+        labs = labs_res.scalars().all()
+
+        common_tests_res = await session.execute(
+            select(Test).where(Test.code.in_(COMMON_TEST_CODES), Test.is_active == True)
+        )
+        common_tests = common_tests_res.scalars().all()
+
+        total_lab_assignments = 0
+        for lab in labs:
+            existing_res = await session.execute(
+                select(LabTestPrice.test_id).where(LabTestPrice.lab_id == lab.id)
+            )
+            existing_tids = set(existing_res.scalars().all())
+
+            for ct in common_tests:
+                if ct.id not in existing_tids:
+                    session.add(
+                        LabTestPrice(
+                            lab_id=lab.id,
+                            test_id=ct.id,
+                            custom_price=ct.default_price,
+                            discount_percentage=Decimal("0.00"),
+                            is_available=True,
+                        )
+                    )
+                    total_lab_assignments += 1
+
+        await session.commit()
+        print(f"🏥 Assigned common tests to {len(labs)} laboratories ({total_lab_assignments} new assignments).")
         print("✨ Database successfully seeded with all standard diagnostic laboratory tests!")
+
 
 if __name__ == "__main__":
     asyncio.run(seed_all_tests())

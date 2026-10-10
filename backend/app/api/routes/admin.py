@@ -1,16 +1,18 @@
 from typing import List, Optional
+from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, Query, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, or_
+from sqlalchemy import select, func, or_, delete
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.permissions import require_super_admin
 from app.core.security import get_password_hash
+from app.core.constants import COMMON_TEST_CODES
 from app.models.laboratory import Laboratory, LaboratorySettings
 from app.models.user import User, UserRole
 from app.models.patient import Patient
-from app.models.test import Test
+from app.models.test import Test, TestCategory, LabTestPrice
 from app.schemas.common import APIResponse
 from app.schemas.laboratory import (
     LaboratoryCreate,
@@ -22,8 +24,15 @@ from app.schemas.laboratory import (
 )
 from app.schemas.user import UserResponse
 from app.schemas.dashboard import SuperAdminDashboardResponse
+from app.schemas.test import (
+    LabAssignTestsPayload,
+    LabUnassignTestsPayload,
+    LabTestAssignmentItem,
+    LabTestAssignmentUpdate,
+)
 from app.services.audit_service import AuditService
 from app.services.dashboard_service import DashboardService
+
 
 router = APIRouter(prefix="/admin", tags=["Super Admin Platform Management"])
 
@@ -144,10 +153,26 @@ async def onboard_laboratory(
         is_verified=True,
     )
     db.add(admin_user)
+
+    # 6. Assign Default Common Diagnostic Tests to the Lab
+    common_tests_res = await db.execute(
+        select(Test).where(Test.code.in_(COMMON_TEST_CODES), Test.is_active == True)
+    )
+    for ct in common_tests_res.scalars().all():
+        db.add(
+            LabTestPrice(
+                lab_id=lab.id,
+                test_id=ct.id,
+                custom_price=ct.default_price,
+                discount_percentage=Decimal("0.00"),
+                is_available=True,
+            )
+        )
+
     await db.commit()
     await db.refresh(lab)
 
-    # 6. Audit Trail
+    # 7. Audit Trail
     await AuditService.log_event(
         db=db,
         action="ONBOARD_LABORATORY",
@@ -309,3 +334,287 @@ async def get_super_admin_dashboard(
         message="Super admin dashboard KPIs retrieved successfully.",
         data=data,
     )
+
+
+# =========================================================================
+# Laboratory Test Catalog Assignment & Custom Pricing (Super Admin)
+# =========================================================================
+
+@router.get("/laboratories/{lab_id}/tests", response_model=APIResponse[List[LabTestAssignmentItem]])
+async def list_laboratory_assigned_tests(
+    lab_id: str,
+    category_id: Optional[str] = Query(None, description="Filter by category ID"),
+    search: Optional[str] = Query(None, description="Filter by test code or name"),
+    assigned_only: Optional[bool] = Query(None, description="Filter by assignment status: True=assigned, False=unassigned"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_super_admin),
+):
+    """List diagnostic tests with lab assignment status and custom pricing for Super Admin management."""
+    # Verify laboratory exists
+    lab_res = await db.execute(select(Laboratory).where(Laboratory.id == lab_id, Laboratory.deleted_at.is_(None)))
+    lab = lab_res.scalar_one_or_none()
+    if not lab:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Laboratory not found.")
+
+    # 1. Fetch all active catalog tests
+    test_query = (
+        select(Test)
+        .options(selectinload(Test.category))
+        .where(Test.is_active == True)
+    )
+    if category_id:
+        test_query = test_query.where(Test.category_id == category_id)
+    if search:
+        term = f"%{search}%"
+        test_query = test_query.where(or_(Test.name.ilike(term), Test.code.ilike(term), Test.short_name.ilike(term)))
+
+    test_query = test_query.order_by(Test.name.asc())
+    tests_res = await db.execute(test_query)
+    tests = tests_res.scalars().all()
+
+    # 2. Fetch all assignments/overrides for this lab
+    lp_res = await db.execute(select(LabTestPrice).where(LabTestPrice.lab_id == lab_id))
+    lp_map = {lp.test_id: lp for lp in lp_res.scalars().all()}
+
+    output = []
+    for t in tests:
+        lp = lp_map.get(t.id)
+        is_assigned = lp is not None
+        if assigned_only is not None and is_assigned != assigned_only:
+            continue
+
+        item = LabTestAssignmentItem(
+            id=str(lp.id) if lp else str(t.id),
+            test_id=str(t.id),
+            code=t.code,
+            name=t.name,
+            short_name=t.short_name,
+            category_id=str(t.category_id),
+            category_name=t.category.name if t.category else None,
+            test_type=t.test_type,
+            sample_type=t.sample_type,
+            sample_container=t.sample_container,
+            turnaround_hours=t.turnaround_hours,
+            default_price=t.default_price,
+            custom_price=lp.custom_price if lp else None,
+            discount_percentage=lp.discount_percentage if lp else Decimal("0.00"),
+            is_assigned=is_assigned,
+            is_available=lp.is_available if lp else True,
+            is_common=t.code in COMMON_TEST_CODES,
+        )
+        output.append(item)
+
+    return APIResponse(
+        success=True,
+        message=f"Retrieved {len(output)} test items for laboratory '{lab.name}'.",
+        data=output,
+    )
+
+
+@router.post("/laboratories/{lab_id}/tests/assign", response_model=APIResponse[dict])
+async def assign_tests_to_laboratory(
+    lab_id: str,
+    payload: LabAssignTestsPayload,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_super_admin),
+):
+    """Assign one or more diagnostic tests to a laboratory (Super Admin only)."""
+    lab_res = await db.execute(select(Laboratory).where(Laboratory.id == lab_id, Laboratory.deleted_at.is_(None)))
+    lab = lab_res.scalar_one_or_none()
+    if not lab:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Laboratory not found.")
+
+    if not payload.test_ids:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No test IDs provided.")
+
+    # Fetch tests to assign
+    tests_res = await db.execute(select(Test).where(Test.id.in_(payload.test_ids)))
+    tests = {t.id: t for t in tests_res.scalars().all()}
+
+    # Fetch existing assignments
+    existing_res = await db.execute(
+        select(LabTestPrice).where(LabTestPrice.lab_id == lab_id, LabTestPrice.test_id.in_(payload.test_ids))
+    )
+    existing_map = {lp.test_id: lp for lp in existing_res.scalars().all()}
+
+    new_count = 0
+    updated_count = 0
+
+    for tid, test in tests.items():
+        price = payload.custom_price if payload.custom_price is not None else test.default_price
+        if tid in existing_map:
+            lp = existing_map[tid]
+            lp.is_available = True
+            if payload.custom_price is not None:
+                lp.custom_price = payload.custom_price
+            updated_count += 1
+        else:
+            db.add(
+                LabTestPrice(
+                    lab_id=lab_id,
+                    test_id=tid,
+                    custom_price=price,
+                    discount_percentage=Decimal("0.00"),
+                    is_available=True,
+                )
+            )
+            new_count += 1
+
+    await db.commit()
+
+    return APIResponse(
+        success=True,
+        message=f"Successfully assigned {new_count} tests ({updated_count} re-activated) to '{lab.name}'.",
+        data={"assigned_count": new_count + updated_count, "new_count": new_count},
+    )
+
+
+@router.post("/laboratories/{lab_id}/tests/unassign", response_model=APIResponse[dict])
+async def unassign_tests_from_laboratory(
+    lab_id: str,
+    payload: LabUnassignTestsPayload,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_super_admin),
+):
+    """Unassign one or more diagnostic tests from a laboratory (Super Admin only)."""
+    lab_res = await db.execute(select(Laboratory).where(Laboratory.id == lab_id, Laboratory.deleted_at.is_(None)))
+    lab = lab_res.scalar_one_or_none()
+    if not lab:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Laboratory not found.")
+
+    if not payload.test_ids:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No test IDs provided.")
+
+    del_res = await db.execute(
+        delete(LabTestPrice).where(
+            LabTestPrice.lab_id == lab_id,
+            LabTestPrice.test_id.in_(payload.test_ids),
+        )
+    )
+    await db.commit()
+
+    return APIResponse(
+        success=True,
+        message=f"Successfully unassigned tests from '{lab.name}'.",
+        data={"unassigned_count": del_res.rowcount},
+    )
+
+
+@router.post("/laboratories/{lab_id}/tests/assign-common", response_model=APIResponse[dict])
+async def assign_common_tests_to_laboratory(
+    lab_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_super_admin),
+):
+    """Assign all default common diagnostic tests to a laboratory (Super Admin only)."""
+    lab_res = await db.execute(select(Laboratory).where(Laboratory.id == lab_id, Laboratory.deleted_at.is_(None)))
+    lab = lab_res.scalar_one_or_none()
+    if not lab:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Laboratory not found.")
+
+    # Find common tests
+    common_res = await db.execute(
+        select(Test).where(Test.code.in_(COMMON_TEST_CODES), Test.is_active == True)
+    )
+    common_tests = common_res.scalars().all()
+
+    existing_res = await db.execute(
+        select(LabTestPrice.test_id).where(LabTestPrice.lab_id == lab_id)
+    )
+    existing_ids = set(existing_res.scalars().all())
+
+    assigned_count = 0
+    for ct in common_tests:
+        if ct.id not in existing_ids:
+            db.add(
+                LabTestPrice(
+                    lab_id=lab_id,
+                    test_id=ct.id,
+                    custom_price=ct.default_price,
+                    discount_percentage=Decimal("0.00"),
+                    is_available=True,
+                )
+            )
+            assigned_count += 1
+
+    await db.commit()
+
+    return APIResponse(
+        success=True,
+        message=f"Assigned {assigned_count} common tests to '{lab.name}' (Total common tests: {len(common_tests)}).",
+        data={"newly_assigned": assigned_count, "total_common": len(common_tests)},
+    )
+
+
+@router.put("/laboratories/{lab_id}/tests/{test_id}", response_model=APIResponse[LabTestAssignmentItem])
+async def update_laboratory_test_assignment(
+    lab_id: str,
+    test_id: str,
+    payload: LabTestAssignmentUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_super_admin),
+):
+    """Update custom pricing, discount, or availability for an assigned test in a laboratory."""
+    lab_res = await db.execute(select(Laboratory).where(Laboratory.id == lab_id, Laboratory.deleted_at.is_(None)))
+    lab = lab_res.scalar_one_or_none()
+    if not lab:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Laboratory not found.")
+
+    test_res = await db.execute(
+        select(Test).options(selectinload(Test.category)).where(Test.id == test_id)
+    )
+    test = test_res.scalar_one_or_none()
+    if not test:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Test not found.")
+
+    lp_res = await db.execute(
+        select(LabTestPrice).where(LabTestPrice.lab_id == lab_id, LabTestPrice.test_id == test_id)
+    )
+    lp = lp_res.scalar_one_or_none()
+
+    if not lp:
+        # Create assignment if updating
+        custom_price = payload.custom_price if payload.custom_price is not None else test.default_price
+        lp = LabTestPrice(
+            lab_id=lab_id,
+            test_id=test_id,
+            custom_price=custom_price,
+            discount_percentage=payload.discount_percentage if payload.discount_percentage is not None else Decimal("0.00"),
+            is_available=payload.is_available if payload.is_available is not None else True,
+        )
+        db.add(lp)
+    else:
+        if payload.custom_price is not None:
+            lp.custom_price = payload.custom_price
+        if payload.discount_percentage is not None:
+            lp.discount_percentage = payload.discount_percentage
+        if payload.is_available is not None:
+            lp.is_available = payload.is_available
+
+    await db.commit()
+    await db.refresh(lp)
+
+    return APIResponse(
+        success=True,
+        message=f"Updated test assignment for '{test.name}'.",
+        data=LabTestAssignmentItem(
+            id=str(lp.id),
+            test_id=str(test.id),
+            code=test.code,
+            name=test.name,
+            short_name=test.short_name,
+            category_id=str(test.category_id),
+            category_name=test.category.name if test.category else None,
+            test_type=test.test_type,
+            sample_type=test.sample_type,
+            sample_container=test.sample_container,
+            turnaround_hours=test.turnaround_hours,
+            default_price=test.default_price,
+            custom_price=lp.custom_price,
+            discount_percentage=lp.discount_percentage,
+            is_assigned=True,
+            is_available=lp.is_available,
+            is_common=test.code in COMMON_TEST_CODES,
+        ),
+    )
+

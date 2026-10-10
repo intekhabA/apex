@@ -117,6 +117,7 @@ class TestCreate(TestBase):
 
 class TestUpdate(BaseModel):
     category_id: Optional[str] = None
+    code: Optional[str] = None
     name: Optional[str] = None
     short_name: Optional[str] = None
     test_type: Optional[TestTypeEnum] = None
@@ -132,6 +133,8 @@ class TestResponse(TestBase):
     id: str
     category_name: Optional[str] = None
     effective_price: Optional[Decimal] = None  # Lab custom price if set, else default_price
+    custom_price: Optional[Decimal] = None
+    is_assigned: Optional[bool] = None
     parameters: List[TestParameterResponse] = []
     created_at: datetime
     updated_at: datetime
@@ -141,7 +144,7 @@ class TestResponse(TestBase):
 
 
 # ==========================================
-# Pricing Override Schemas
+# Pricing Override & Assignment Schemas
 # ==========================================
 
 class LabTestPriceCreate(BaseModel):
@@ -162,6 +165,42 @@ class LabTestPriceResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class LabAssignTestsPayload(BaseModel):
+    test_ids: List[str]
+    custom_price: Optional[Decimal] = None
+
+
+class LabUnassignTestsPayload(BaseModel):
+    test_ids: List[str]
+
+
+class LabTestAssignmentItem(BaseModel):
+    id: str
+    test_id: str
+    code: str
+    name: str
+    short_name: Optional[str] = None
+    category_id: str
+    category_name: Optional[str] = None
+    test_type: TestTypeEnum
+    sample_type: SampleTypeEnum
+    sample_container: Optional[str] = None
+    turnaround_hours: int
+    default_price: Decimal
+    custom_price: Optional[Decimal] = None
+    discount_percentage: Decimal = Decimal("0.00")
+    is_assigned: bool = False
+    is_available: bool = True
+    is_common: bool = False
+
+
+class LabTestAssignmentUpdate(BaseModel):
+    custom_price: Optional[Decimal] = None
+    discount_percentage: Optional[Decimal] = None
+    is_available: Optional[bool] = None
+
 
 
 # ==========================================

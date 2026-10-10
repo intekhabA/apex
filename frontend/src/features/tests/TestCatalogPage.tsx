@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   TestTubes,
   Search,
@@ -11,13 +11,19 @@ import {
   Sparkles,
   ChevronDown,
   ChevronUp,
+  Edit2,
+  Building2,
+  CheckCircle2,
 } from 'lucide-react';
+
 import { Card, Button, Badge } from '@/components/ui';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { usePermissions } from '@/hooks/usePermissions';
 import { testService } from '@/api/testService';
-import { DiagnosticTest, TestCategory, TestPackage } from '@/types';
+import { adminApi } from '@/api/adminService';
+import { DiagnosticTest, TestCategory, TestPackage, Laboratory } from '@/types';
 import { AddTestModal } from './AddTestModal';
+import { EditTestModal } from './EditTestModal';
 import { AddCategoryModal } from './AddCategoryModal';
 import { PricingOverrideModal } from './PricingOverrideModal';
 import { AddPackageModal } from './AddPackageModal';
@@ -29,13 +35,22 @@ export const TestCatalogPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'tests' | 'packages'>('tests');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
+  const [selectedLabId, setSelectedLabId] = useState<string>('ALL');
   const [expandedTestId, setExpandedTestId] = useState<string | null>(null);
 
   // Modals state
   const [isAddTestOpen, setIsAddTestOpen] = useState(false);
+  const [editingTest, setEditingTest] = useState<DiagnosticTest | null>(null);
   const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
   const [isAddPackageOpen, setIsAddPackageOpen] = useState(false);
   const [pricingTest, setPricingTest] = useState<DiagnosticTest | null>(null);
+
+  // Fetch Laboratories (for Super Admin filter & assignment)
+  const { data: laboratories = [] } = useQuery<Laboratory[]>({
+    queryKey: ['adminLaboratoriesList'],
+    queryFn: () => adminApi.listLaboratories(),
+    enabled: isSuperAdmin,
+  });
 
   // Fetch Categories
   const { data: categories = [] } = useQuery<TestCategory[]>({
@@ -48,13 +63,15 @@ export const TestCatalogPage: React.FC = () => {
     data: tests = [],
     isLoading: isTestsLoading,
   } = useQuery<DiagnosticTest[]>({
-    queryKey: ['tests', selectedCategory, searchQuery],
+    queryKey: ['tests', selectedCategory, searchQuery, selectedLabId],
     queryFn: () =>
       testService.getTests({
         category_id: selectedCategory === 'ALL' ? undefined : selectedCategory,
         search: searchQuery || undefined,
-      }),
+        ...(selectedLabId !== 'ALL' ? { lab_id: selectedLabId } : {}),
+      } as any),
   });
+
 
   // Fetch Packages
   const { data: packages = [], isLoading: isPackagesLoading } = useQuery<TestPackage[]>({
@@ -70,6 +87,24 @@ export const TestCatalogPage: React.FC = () => {
     queryClient.invalidateQueries({ queryKey: ['tests'] });
     queryClient.invalidateQueries({ queryKey: ['test-packages'] });
   };
+
+  // Lab assignment mutations for Super Admin
+  const assignTestMutation = useMutation({
+    mutationFn: (testId: string) =>
+      adminApi.assignTestsToLaboratory(selectedLabId, [testId]),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tests'] }),
+  });
+
+  const unassignTestMutation = useMutation({
+    mutationFn: (testId: string) =>
+      adminApi.unassignTestsFromLaboratory(selectedLabId, [testId]),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tests'] }),
+  });
+
+  const assignCommonMutation = useMutation({
+    mutationFn: () => adminApi.assignCommonTestsToLaboratory(selectedLabId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tests'] }),
+  });
 
   return (
     <div className="space-y-6">
@@ -151,8 +186,8 @@ export const TestCatalogPage: React.FC = () => {
       {activeTab === 'tests' ? (
         <>
           {/* Filters & Search Bar */}
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1">
+          <div className="flex flex-col sm:flex-row flex-wrap gap-3 items-stretch sm:items-center">
+            <div className="relative flex-1 min-w-[200px]">
               <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
               <input
                 type="text"
@@ -162,6 +197,8 @@ export const TestCatalogPage: React.FC = () => {
                 className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
               />
             </div>
+
+            {/* Category Filter */}
             <div className="flex items-center gap-2">
               <Filter className="w-4 h-4 text-slate-400" />
               <select
@@ -177,7 +214,42 @@ export const TestCatalogPage: React.FC = () => {
                 ))}
               </select>
             </div>
+
+            {/* Super Admin Laboratory Filter & Quick Common Assign */}
+            {isSuperAdmin && (
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-2">
+                  <Building2 className="w-4 h-4 text-slate-400" />
+                  <select
+                    value={selectedLabId}
+                    onChange={(e) => setSelectedLabId(e.target.value)}
+                    className="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 font-medium text-slate-700"
+                  >
+                    <option value="ALL">All Laboratories (Master Catalog)</option>
+                    {laboratories.map((lab) => (
+                      <option key={lab.id} value={lab.id}>
+                        Lab: {lab.name} ({lab.code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {selectedLabId !== 'ALL' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => assignCommonMutation.mutate()}
+                    isLoading={assignCommonMutation.isPending}
+                    leftIcon={<Sparkles className="w-3.5 h-3.5 text-amber-500" />}
+                    className="text-xs h-9 shadow-xs"
+                  >
+                    Assign Core Common Tests
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
+
 
           {/* Tests List */}
           {isTestsLoading ? (
@@ -214,6 +286,17 @@ export const TestCatalogPage: React.FC = () => {
                               {test.category_name}
                             </span>
                           )}
+                          {isSuperAdmin && selectedLabId !== 'ALL' && (
+                            test.is_assigned ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                                <CheckCircle2 className="w-3 h-3" /> Assigned
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full border border-slate-200">
+                                Not Assigned
+                              </span>
+                            )
+                          )}
                         </div>
 
                         <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 pt-1">
@@ -234,7 +317,7 @@ export const TestCatalogPage: React.FC = () => {
                       </div>
 
                       {/* Pricing & Actions */}
-                      <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0">
+                      <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 flex-wrap">
                         <div className="text-right">
                           <div className="flex items-baseline gap-1.5 justify-end">
                             <span className="text-lg font-bold text-slate-900">
@@ -254,6 +337,42 @@ export const TestCatalogPage: React.FC = () => {
                         </div>
 
                         <div className="flex items-center gap-2">
+                          {isSuperAdmin && selectedLabId !== 'ALL' && (
+                            test.is_assigned ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => unassignTestMutation.mutate(test.id)}
+                                isLoading={unassignTestMutation.isPending}
+                                className="text-xs text-rose-600 border-rose-200 hover:bg-rose-50"
+                              >
+                                Unassign
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="primary"
+                                size="sm"
+                                onClick={() => assignTestMutation.mutate(test.id)}
+                                isLoading={assignTestMutation.isPending}
+                                className="text-xs"
+                              >
+                                Assign
+                              </Button>
+                            )
+                          )}
+
+                          {isSuperAdmin && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setEditingTest(test)}
+                              className="text-xs flex items-center gap-1 text-slate-700 hover:text-brand-600 hover:border-brand-300"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                              Edit Test
+                            </Button>
+                          )}
+
                           {isLabAdmin && (
                             <Button
                               variant="outline"
@@ -279,6 +398,7 @@ export const TestCatalogPage: React.FC = () => {
                         </div>
                       </div>
                     </div>
+
 
                     {/* Expandable Parameters & Reference Ranges Table */}
                     {isExpanded && (
@@ -432,8 +552,16 @@ export const TestCatalogPage: React.FC = () => {
             onSuccess={handleRefresh}
             categories={categories}
           />
+          <EditTestModal
+            isOpen={!!editingTest}
+            onClose={() => setEditingTest(null)}
+            onSuccess={handleRefresh}
+            test={editingTest}
+            categories={categories}
+          />
         </>
       )}
+
 
       <PricingOverrideModal
         isOpen={!!pricingTest}

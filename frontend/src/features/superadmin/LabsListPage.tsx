@@ -8,11 +8,14 @@ import {
   Power,
   CheckCircle2,
   AlertCircle,
+  FlaskConical,
 } from 'lucide-react';
 import { adminApi } from '@/api/adminService';
 import { Button, Input, Badge, Card, CardContent, LoadingSpinner } from '@/components/ui';
 import { AddLabModal } from './AddLabModal';
 import { LabDetailsModal } from './LabDetailsModal';
+import { ManageLabTestsModal } from './ManageLabTestsModal';
+
 
 export const LabsListPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -20,6 +23,12 @@ export const LabsListPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'SUSPENDED'>('ALL');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedLabId, setSelectedLabId] = useState<string | null>(null);
+  const [managingLabTests, setManagingLabTests] = useState<{
+    id: string;
+    name: string;
+    code: string;
+  } | null>(null);
+
 
   const { data: labs = [], isLoading } = useQuery({
     queryKey: ['adminLaboratories', searchTerm, statusFilter],
@@ -176,6 +185,20 @@ export const LabsListPage: React.FC = () => {
                     <td className="py-4 px-6 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <button
+                          onClick={() =>
+                            setManagingLabTests({
+                              id: lab.id,
+                              name: lab.name,
+                              code: lab.code,
+                            })
+                          }
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-brand-600 hover:bg-brand-50 transition-colors"
+                          title="Assign & Manage Tests for Laboratory"
+                        >
+                          <FlaskConical className="w-4 h-4" />
+                        </button>
+
+                        <button
                           onClick={() => setSelectedLabId(lab.id)}
                           className="p-1.5 rounded-lg text-slate-500 hover:text-brand-600 hover:bg-brand-50 transition-colors"
                           title="View Specifications & Staff"
@@ -221,6 +244,15 @@ export const LabsListPage: React.FC = () => {
         isOpen={!!selectedLabId}
         onClose={() => setSelectedLabId(null)}
       />
+
+      <ManageLabTestsModal
+        labId={managingLabTests?.id || null}
+        labName={managingLabTests?.name}
+        labCode={managingLabTests?.code}
+        isOpen={!!managingLabTests}
+        onClose={() => setManagingLabTests(null)}
+      />
     </div>
   );
 };
+

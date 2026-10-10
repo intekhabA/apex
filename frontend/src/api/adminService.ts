@@ -84,4 +84,64 @@ export const adminApi = {
     }
     return res.data.data;
   },
+
+  // Laboratory Test Assignment & Pricing
+  getLaboratoryTests: async (
+    labId: string,
+    params?: { category_id?: string; search?: string; assigned_only?: boolean }
+  ) => {
+    const res = await apiClient.get<APIResponse<any[]>>(
+      `/admin/laboratories/${labId}/tests`,
+      { params }
+    );
+    return res.data.data || [];
+  },
+
+  assignTestsToLaboratory: async (
+    labId: string,
+    testIds: string[],
+    customPrice?: number
+  ) => {
+    const res = await apiClient.post<APIResponse<any>>(
+      `/admin/laboratories/${labId}/tests/assign`,
+      {
+        test_ids: testIds,
+        custom_price: customPrice,
+      }
+    );
+    return res.data.data;
+  },
+
+  unassignTestsFromLaboratory: async (
+    labId: string,
+    testIds: string[]
+  ) => {
+    const res = await apiClient.post<APIResponse<any>>(
+      `/admin/laboratories/${labId}/tests/unassign`,
+      {
+        test_ids: testIds,
+      }
+    );
+    return res.data.data;
+  },
+
+  assignCommonTestsToLaboratory: async (labId: string) => {
+    const res = await apiClient.post<APIResponse<any>>(
+      `/admin/laboratories/${labId}/tests/assign-common`
+    );
+    return res.data.data;
+  },
+
+  updateLaboratoryTestAssignment: async (
+    labId: string,
+    testId: string,
+    payload: { custom_price?: number; discount_percentage?: number; is_available?: boolean }
+  ) => {
+    const res = await apiClient.put<APIResponse<any>>(
+      `/admin/laboratories/${labId}/tests/${testId}`,
+      payload
+    );
+    return res.data.data;
+  },
 };
+

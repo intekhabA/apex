@@ -67,6 +67,8 @@ export interface DiagnosticTest {
   turnaround_hours: number;
   default_price: number;
   effective_price?: number;
+  custom_price?: number | null;
+  is_assigned?: boolean;
   is_active: boolean;
   parameters: TestParameter[];
   created_at: string;
@@ -82,6 +84,27 @@ export interface LabTestPriceOverride {
   is_available: boolean;
   created_at: string;
 }
+
+export interface LabTestAssignmentItem {
+  id: string;
+  test_id: string;
+  code: string;
+  name: string;
+  short_name?: string;
+  category_id: string;
+  category_name?: string;
+  test_type: TestType;
+  sample_type: SampleType;
+  sample_container?: string;
+  turnaround_hours: number;
+  default_price: number;
+  custom_price?: number | null;
+  discount_percentage: number;
+  is_assigned: boolean;
+  is_available: boolean;
+  is_common: boolean;
+}
+
 
 export interface TestPackageItem {
   test_id: string;
