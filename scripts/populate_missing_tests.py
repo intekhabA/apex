@@ -3,7 +3,8 @@ import os
 import sys
 from decimal import Decimal
 
-# Ensure backend root is on sys.path
+# Ensure backend root is on sys.path for both container (/app) and host execution
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "backend")))
 
 from sqlalchemy import select
