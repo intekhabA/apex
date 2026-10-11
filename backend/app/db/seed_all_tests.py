@@ -220,9 +220,76 @@ TESTS_DATA = [
         ]
     ),
 
+    (
+        "HEM", "COAGULATION", "Coagulation Profile (PT, INR, APTT, Fibrinogen)", "Coagulation Panel",
+        TestTypeEnum.PATHOLOGY, SampleTypeEnum.PLASMA_CITRATE, "Light Blue Top (Sodium Citrate)",
+        "Exact blood-to-anticoagulant ratio required. Process within 2 hours of collection.", 6, 850.00,
+        [
+            ("PT", "Patient Prothrombin Time", "seconds", 1, ResultValueTypeEnum.NUMBER, [(None, 11.0, 14.5, "11.0 - 14.5 seconds")]),
+            ("INR", "International Normalized Ratio (INR)", "ratio", 2, ResultValueTypeEnum.NUMBER, [(None, 0.80, 1.20, "0.80 - 1.20")]),
+            ("APTT", "Activated Partial Thromboplastin Time", "seconds", 1, ResultValueTypeEnum.NUMBER, [(None, 26.0, 38.0, "26.0 - 38.0 seconds")]),
+            ("FIBRINOGEN", "Plasma Fibrinogen", "mg/dL", 0, ResultValueTypeEnum.NUMBER, [(None, 200.0, 400.0, "200 - 400 mg/dL")]),
+        ]
+    ),
+
     # ----------------------------------------------------
     # BIOCHEMISTRY & ORGAN FUNCTION
     # ----------------------------------------------------
+    (
+        "BIO", "LIPID", "Lipid Profile", "Lipid",
+        TestTypeEnum.BIOCHEMISTRY, SampleTypeEnum.SERUM, "Gold Top (SST Vacutainer)",
+        "12 hours strict overnight fasting. Water permitted.", 12, 650.00,
+        [
+            ("CHOL", "Total Cholesterol", "mg/dL", 0, ResultValueTypeEnum.NUMBER, [(None, 125.0, 200.0, "Desirable: < 200 mg/dL")]),
+            ("TRIG", "Triglycerides", "mg/dL", 0, ResultValueTypeEnum.NUMBER, [(None, 50.0, 150.0, "Desirable: < 150 mg/dL")]),
+            ("HDL", "HDL Cholesterol (Good Cholesterol)", "mg/dL", 0, ResultValueTypeEnum.NUMBER, [
+                ("MALE", 40.0, 60.0, "> 40 mg/dL (Normal: 40 - 60)"),
+                ("FEMALE", 50.0, 70.0, "> 50 mg/dL (Normal: 50 - 70)"),
+            ]),
+            ("LDL", "LDL Cholesterol (Calculated)", "mg/dL", 0, ResultValueTypeEnum.NUMBER, [(None, 50.0, 100.0, "Optimal: < 100 mg/dL")]),
+            ("VLDL", "VLDL Cholesterol", "mg/dL", 0, ResultValueTypeEnum.NUMBER, [(None, 5.0, 30.0, "5.0 - 30.0 mg/dL")]),
+            ("CHOL_HDL", "Total Cholesterol / HDL Ratio", "ratio", 1, ResultValueTypeEnum.NUMBER, [(None, 3.0, 5.0, "3.0 - 5.0")]),
+            ("LDL_HDL", "LDL / HDL Ratio", "ratio", 1, ResultValueTypeEnum.NUMBER, [(None, 1.5, 3.5, "1.5 - 3.5")]),
+        ]
+    ),
+    (
+        "BIO", "ANEMIA-PROFILE", "Complete Anemia Profile (Iron, TIBC, Ferritin)", "Anemia Profile",
+        TestTypeEnum.BIOCHEMISTRY, SampleTypeEnum.SERUM, "Gold Top (SST Vacutainer)",
+        "Overnight fasting of 8-10 hours. Morning draw required.", 12, 1500.00,
+        [
+            ("FE", "Serum Iron", "ug/dL", 1, ResultValueTypeEnum.NUMBER, [
+                ("MALE", 65.0, 175.0, "65.0 - 175.0 ug/dL"),
+                ("FEMALE", 50.0, 170.0, "50.0 - 170.0 ug/dL"),
+            ]),
+            ("TIBC", "Total Iron Binding Capacity (TIBC)", "ug/dL", 1, ResultValueTypeEnum.NUMBER, [(None, 250.0, 450.0, "250.0 - 450.0 ug/dL")]),
+            ("UIBC", "Unsaturated Iron Binding Capacity (UIBC)", "ug/dL", 1, ResultValueTypeEnum.NUMBER, [(None, 110.0, 370.0, "110.0 - 370.0 ug/dL")]),
+            ("TF_SAT", "Transferrin Saturation", "%", 1, ResultValueTypeEnum.NUMBER, [(None, 20.0, 50.0, "20.0 - 50.0 %")]),
+            ("FERRITIN", "Serum Ferritin", "ng/mL", 1, ResultValueTypeEnum.NUMBER, [
+                ("MALE", 20.0, 300.0, "20.0 - 300.0 ng/mL"),
+                ("FEMALE", 10.0, 200.0, "10.0 - 200.0 ng/mL"),
+            ]),
+        ]
+    ),
+    (
+        "BIO", "BONE-MINERAL", "Bone Mineral & Calcium Profile", "Bone Profile",
+        TestTypeEnum.BIOCHEMISTRY, SampleTypeEnum.SERUM, "Gold Top (SST Vacutainer)",
+        "Fasting of 8-10 hours recommended.", 12, 800.00,
+        [
+            ("CAL_TOTAL", "Serum Calcium (Total)", "mg/dL", 2, ResultValueTypeEnum.NUMBER, [(None, 8.5, 10.5, "8.5 - 10.5 mg/dL")]),
+            ("CAL_ION", "Ionized Calcium", "mg/dL", 2, ResultValueTypeEnum.NUMBER, [(None, 4.5, 5.3, "4.5 - 5.3 mg/dL")]),
+            ("PHOS", "Inorganic Phosphorus", "mg/dL", 2, ResultValueTypeEnum.NUMBER, [(None, 2.5, 4.5, "2.5 - 4.5 mg/dL")]),
+            ("ALP", "Alkaline Phosphatase (ALP)", "U/L", 0, ResultValueTypeEnum.NUMBER, [(None, 44.0, 147.0, "44 - 147 U/L")]),
+        ]
+    ),
+    (
+        "BIO", "PANCREATIC-PANEL", "Pancreatic Profile (Amylase & Lipase)", "Pancreatic Panel",
+        TestTypeEnum.BIOCHEMISTRY, SampleTypeEnum.SERUM, "Gold Top (SST Vacutainer)",
+        "No special preparation required.", 6, 950.00,
+        [
+            ("AMYLASE", "Serum Amylase", "U/L", 0, ResultValueTypeEnum.NUMBER, [(None, 28.0, 100.0, "28 - 100 U/L")]),
+            ("LIPASE", "Serum Lipase", "U/L", 0, ResultValueTypeEnum.NUMBER, [(None, 13.0, 60.0, "13 - 60 U/L")]),
+        ]
+    ),
     (
         "BIO", "ELECTROLYTES", "Serum Electrolytes (Na, K, Cl)", "Electrolytes",
         TestTypeEnum.BIOCHEMISTRY, SampleTypeEnum.SERUM, "Gold Top (SST Vacutainer)",
@@ -346,6 +413,73 @@ TESTS_DATA = [
     # ----------------------------------------------------
     # HORMONES, VITAMINS & ENDOCRINOLOGY
     # ----------------------------------------------------
+    (
+        "HOR", "THYROID", "Thyroid Profile (T3, T4, TSH)", "TFT",
+        TestTypeEnum.BIOCHEMISTRY, SampleTypeEnum.SERUM, "Gold Top (SST Vacutainer)",
+        "Overnight fasting of 8-10 hours recommended. Morning sample preferred before taking thyroid medications.",
+        24, 600.00,
+        [
+            ("T3", "Triiodothyronine Total (T3)", "ng/dL", 2, ResultValueTypeEnum.NUMBER, [
+                (None, 80.0, 200.0, "80.0 - 200.0 ng/dL"),
+            ]),
+            ("T4", "Thyroxine Total (T4)", "ug/dL", 2, ResultValueTypeEnum.NUMBER, [
+                (None, 5.10, 14.10, "5.10 - 14.10 ug/dL"),
+            ]),
+            ("TSH", "Thyroid Stimulating Hormone (TSH)", "uIU/mL", 2, ResultValueTypeEnum.NUMBER, [
+                (None, 0.35, 4.94, "0.35 - 4.94 uIU/mL"),
+            ]),
+        ]
+    ),
+    (
+        "HOR", "TFT-FREE", "Thyroid Profile Free (FT3, FT4, TSH)", "Free TFT",
+        TestTypeEnum.BIOCHEMISTRY, SampleTypeEnum.SERUM, "Gold Top (SST Vacutainer)",
+        "Morning blood draw preferred before taking daily thyroid hormone dose.",
+        24, 900.00,
+        [
+            ("FT3", "Free Triiodothyronine (FT3)", "pg/mL", 2, ResultValueTypeEnum.NUMBER, [
+                (None, 1.71, 3.71, "1.71 - 3.71 pg/mL"),
+            ]),
+            ("FT4", "Free Thyroxine (FT4)", "ng/dL", 2, ResultValueTypeEnum.NUMBER, [
+                (None, 0.70, 1.48, "0.70 - 1.48 ng/dL"),
+            ]),
+            ("TSH", "Thyroid Stimulating Hormone (TSH 3rd Gen)", "uIU/mL", 2, ResultValueTypeEnum.NUMBER, [
+                (None, 0.35, 4.94, "0.35 - 4.94 uIU/mL"),
+            ]),
+        ]
+    ),
+    (
+        "HOR", "ANTI-TPO", "Anti-Thyroid Peroxidase Antibody (Anti-TPO)", "Anti-TPO",
+        TestTypeEnum.BIOCHEMISTRY, SampleTypeEnum.SERUM, "Gold Top (SST Vacutainer)",
+        "No special preparation required.",
+        24, 1100.00,
+        [
+            ("TPO_AB", "Anti-Thyroid Peroxidase (TPO) Antibody", "IU/mL", 1, ResultValueTypeEnum.NUMBER, [
+                (None, 0.0, 34.0, "< 34.0 (Normal / Negative)"),
+            ]),
+        ]
+    ),
+    (
+        "HOR", "ANTI-TG", "Anti-Thyroglobulin Antibody (Anti-Tg)", "Anti-Tg",
+        TestTypeEnum.BIOCHEMISTRY, SampleTypeEnum.SERUM, "Gold Top (SST Vacutainer)",
+        "No special preparation required.",
+        24, 1150.00,
+        [
+            ("TG_AB", "Anti-Thyroglobulin (Tg) Antibody", "IU/mL", 1, ResultValueTypeEnum.NUMBER, [
+                (None, 0.0, 115.0, "< 115.0 (Normal / Negative)"),
+            ]),
+        ]
+    ),
+    (
+        "HOR", "THYROGLOBULIN", "Thyroglobulin (Tg) Quantitative", "Thyroglobulin",
+        TestTypeEnum.BIOCHEMISTRY, SampleTypeEnum.SERUM, "Gold Top (SST Vacutainer)",
+        "Fasting not required.",
+        24, 1400.00,
+        [
+            ("THYRO_TG", "Serum Thyroglobulin (Tg)", "ng/mL", 2, ResultValueTypeEnum.NUMBER, [
+                (None, 1.40, 78.00, "1.40 - 78.00 ng/mL"),
+            ]),
+        ]
+    ),
     (
         "HOR", "TSH-ULTRA", "TSH (Thyroid Stimulating Hormone Ultra)", "TSH",
         TestTypeEnum.BIOCHEMISTRY, SampleTypeEnum.SERUM, "Gold Top (SST Vacutainer)",
@@ -734,6 +868,18 @@ TESTS_DATA = [
     # CARDIOLOGY & PULMONOLOGY
     # ----------------------------------------------------
     (
+        "CAR", "ECG-12", "Electrocardiogram (ECG 12-Lead)", "ECG",
+        TestTypeEnum.CARDIOLOGY, SampleTypeEnum.IMAGING, "Digital ECG Machine",
+        "Rest for 5 minutes prior to tracing.", 2, 300.00,
+        [
+            ("HR", "Heart Rate", "bpm", 0, ResultValueTypeEnum.NUMBER, [(None, 60.0, 100.0, "60 - 100 bpm")]),
+            ("PR_INT", "PR Interval", "ms", 0, ResultValueTypeEnum.NUMBER, [(None, 120.0, 200.0, "120 - 200 ms")]),
+            ("QRS_DUR", "QRS Duration", "ms", 0, ResultValueTypeEnum.NUMBER, [(None, 80.0, 120.0, "80 - 120 ms")]),
+            ("QTC_INT", "QTc Interval", "ms", 0, ResultValueTypeEnum.NUMBER, [(None, 350.0, 450.0, "350 - 450 ms")]),
+            ("RHYTHM", "Rhythm & Interpretation", "", 0, ResultValueTypeEnum.TEXT, [(None, None, None, "Normal Sinus Rhythm")]),
+        ]
+    ),
+    (
         "CAR", "ECHO-2D", "2D Echocardiography with Color Doppler", "2D Echo",
         TestTypeEnum.CARDIOLOGY, SampleTypeEnum.IMAGING, "Cardiac Ultrasound System",
         "Rest comfortably for 10 minutes prior to exam.", 4, 1800.00,
@@ -743,13 +889,21 @@ TESTS_DATA = [
         "CAR", "TMT", "Treadmill Stress Test (TMT / Stress ECG)", "TMT",
         TestTypeEnum.CARDIOLOGY, SampleTypeEnum.IMAGING, "Computerized Stress System",
         "Wear comfortable shoes. Light meal 2 hours prior; avoid smoking/caffeine.", 4, 1500.00,
-        []
+        [
+            ("PEAK_HR", "Peak Heart Rate Achieved", "bpm", 0, ResultValueTypeEnum.NUMBER, [(None, 100.0, 180.0, "100 - 180 bpm")]),
+            ("METS", "Workload (METs)", "METs", 1, ResultValueTypeEnum.NUMBER, [(None, 7.0, 16.0, "7.0 - 16.0 METs")]),
+            ("TMT_INTERPRET", "Stress Test Impression", "", 0, ResultValueTypeEnum.TEXT, [(None, None, None, "Negative for Exercise-Induced Ischemia")]),
+        ]
     ),
     (
         "CAR", "PFT", "Pulmonary Function Test (Spirometry)", "PFT",
         TestTypeEnum.OTHER, SampleTypeEnum.OTHER, "Computerized Spirometer",
         "Avoid bronchodilator inhalers 4-6 hours prior if advised by doctor.", 4, 800.00,
-        []
+        [
+            ("FEV1", "FEV1 (% Predicted)", "%", 1, ResultValueTypeEnum.NUMBER, [(None, 80.0, 120.0, "80 - 120 %")]),
+            ("FVC", "FVC (% Predicted)", "%", 1, ResultValueTypeEnum.NUMBER, [(None, 80.0, 120.0, "80 - 120 %")]),
+            ("FEV1_FVC", "FEV1 / FVC Ratio", "%", 1, ResultValueTypeEnum.NUMBER, [(None, 70.0, 85.0, "70 - 85 %")]),
+        ]
     ),
 ]
 

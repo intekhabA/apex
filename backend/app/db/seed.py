@@ -396,6 +396,39 @@ async def seed_database():
         session.add(test_lipid)
         await session.flush()
 
+        lipid_params = [
+            ("CHOL", "Total Cholesterol", "mg/dL", [(None, 125.0, 200.0, "Desirable: < 200")]),
+            ("TRIG", "Triglycerides", "mg/dL", [(None, 50.0, 150.0, "Desirable: < 150")]),
+            ("HDL", "HDL Cholesterol", "mg/dL", [("MALE", 40.0, 60.0, "> 40"), ("FEMALE", 50.0, 70.0, "> 50")]),
+            ("LDL", "LDL Cholesterol (Calculated)", "mg/dL", [(None, 50.0, 100.0, "Optimal: < 100")]),
+            ("VLDL", "VLDL Cholesterol", "mg/dL", [(None, 5.0, 30.0, "5.0 - 30.0")]),
+            ("CHOL_HDL", "Total Cholesterol / HDL Ratio", "ratio", [(None, 3.0, 5.0, "3.0 - 5.0")]),
+            ("LDL_HDL", "LDL / HDL Ratio", "ratio", [(None, 1.5, 3.5, "1.5 - 3.5")]),
+        ]
+
+        for order, (p_code, p_name, p_unit, ranges) in enumerate(lipid_params, start=1):
+            param = TestParameter(
+                test_id=test_lipid.id,
+                code=p_code,
+                name=p_name,
+                short_name=p_code,
+                unit=p_unit,
+                result_type=ResultValueTypeEnum.NUMBER,
+                decimal_precision=1 if p_code in ["CHOL_HDL", "LDL_HDL", "VLDL"] else 0,
+                display_order=order,
+            )
+            session.add(param)
+            await session.flush()
+            for gender, min_val, max_val, display_str in ranges:
+                rr = TestReferenceRange(
+                    parameter_id=param.id,
+                    gender=gender,
+                    min_value=Decimal(str(min_val)) if min_val is not None else None,
+                    max_value=Decimal(str(max_val)) if max_val is not None else None,
+                    display_range_string=display_str,
+                )
+                session.add(rr)
+
         # 5.5 Thyroid Profile
         test_tft = Test(
             category_id=cat_hor.id,
@@ -412,6 +445,37 @@ async def seed_database():
         )
         session.add(test_tft)
         await session.flush()
+
+        tft_params = [
+            ("T3", "Triiodothyronine Total (T3)", "ng/dL", [(None, 80.0, 200.0, 40.0, 300.0, "80.0 - 200.0 ng/dL")]),
+            ("T4", "Thyroxine Total (T4)", "ug/dL", [(None, 5.10, 14.10, 2.0, 20.0, "5.10 - 14.10 ug/dL")]),
+            ("TSH", "Thyroid Stimulating Hormone (TSH)", "uIU/mL", [(None, 0.35, 4.94, 0.10, 15.0, "0.35 - 4.94 uIU/mL")]),
+        ]
+
+        for order, (p_code, p_name, p_unit, ranges) in enumerate(tft_params, start=1):
+            param = TestParameter(
+                test_id=test_tft.id,
+                code=p_code,
+                name=p_name,
+                short_name=p_code,
+                unit=p_unit,
+                result_type=ResultValueTypeEnum.NUMBER,
+                decimal_precision=2,
+                display_order=order,
+            )
+            session.add(param)
+            await session.flush()
+            for gender, min_val, max_val, c_low, c_high, display_str in ranges:
+                rr = TestReferenceRange(
+                    parameter_id=param.id,
+                    gender=gender,
+                    min_value=Decimal(str(min_val)),
+                    max_value=Decimal(str(max_val)),
+                    critical_low=Decimal(str(c_low)) if c_low is not None else None,
+                    critical_high=Decimal(str(c_high)) if c_high is not None else None,
+                    display_range_string=display_str,
+                )
+                session.add(rr)
 
         # 5.6 X-Ray Chest PA View
         test_xray = Test(

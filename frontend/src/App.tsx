@@ -1,13 +1,15 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppLayout } from '@/layouts/AppLayout';
+import { PublicLayout } from '@/layouts/PublicLayout';
 import { ProtectedRoute } from '@/components/common/ProtectedRoute';
 import { LoginPage } from '@/features/auth/LoginPage';
 import { ProfilePage } from '@/features/auth/ProfilePage';
 import { DashboardPage } from '@/features/dashboard/DashboardPage';
 import { UnauthorizedPage } from '@/features/auth/UnauthorizedPage';
 import { NotFoundPage } from '@/features/common/NotFoundPage';
+import { HomePage, PricingPage } from '@/features/public';
 import { LabsListPage } from '@/features/superadmin/LabsListPage';
 import { StaffManagementPage } from '@/features/settings/StaffManagementPage';
 import { LabProfilePage } from '@/features/settings/LabProfilePage';
@@ -53,6 +55,12 @@ export const App: React.FC = () => {
         <ToastContainer />
         <ConfirmDialog />
         <Routes>
+          {/* Public Landing & Marketing Routes */}
+          <Route element={<PublicLayout />}>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/pricing" element={<PricingPage />} />
+          </Route>
+
           {/* Public Auth & Verification Routes */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/unauthorized" element={<UnauthorizedPage />} />
@@ -201,7 +209,6 @@ export const App: React.FC = () => {
               }
             />
 
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
           </Route>
 
           {/* Catch-all 404 */}
