@@ -86,7 +86,11 @@ class Settings(BaseSettings):
     CORS_ORIGINS: Union[List[str], str] = [
         "http://localhost:5173",
         "http://localhost:3000",
-        "http://127.0.0.1:5173"
+        "http://127.0.0.1:5173",
+        "https://trustmylab.in",
+        "http://trustmylab.in",
+        "https://www.trustmylab.in",
+        "http://www.trustmylab.in",
     ]
 
     @field_validator("CORS_ORIGINS", mode="before")

@@ -33,7 +33,7 @@ Edit `.env` and set the following critical security parameters:
 # Set production environment
 ENVIRONMENT=production
 DEBUG=False
-APP_URL=https://diagnolab.yourdomain.com
+APP_URL=https://trustmylab.in
 
 # Cryptography: Generate strong random secrets
 # openssl rand -hex 32
@@ -97,23 +97,23 @@ For production HTTPS, obtain and bind TLS certificates using Certbot.
 
 2. Request Let's Encrypt certificate:
    ```bash
-   sudo certbot certonly --standalone -d diagnolab.yourdomain.com
+   sudo certbot certonly --standalone -d trustmylab.in -d www.trustmylab.in
    ```
 
 3. Update `nginx/default.conf` to enable SSL termination on port 443 with modern ciphers:
    ```nginx
    server {
        listen 80;
-       server_name diagnolab.yourdomain.com;
+       server_name trustmylab.in www.trustmylab.in;
        return 301 https://$host$request_uri;
    }
 
    server {
        listen 443 ssl http2;
-       server_name diagnolab.yourdomain.com;
+       server_name trustmylab.in www.trustmylab.in;
 
-       ssl_certificate /etc/letsencrypt/live/diagnolab.yourdomain.com/fullchain.pem;
-       ssl_certificate_key /etc/letsencrypt/live/diagnolab.yourdomain.com/privkey.pem;
+       ssl_certificate /etc/letsencrypt/live/trustmylab.in/fullchain.pem;
+       ssl_certificate_key /etc/letsencrypt/live/trustmylab.in/privkey.pem;
        ssl_protocols TLSv1.2 TLSv1.3;
        ssl_ciphers HIGH:!aNULL:!MD5;
 
@@ -127,6 +127,9 @@ For production HTTPS, obtain and bind TLS certificates using Certbot.
            proxy_pass http://frontend:5173;
            proxy_set_header Host $host;
            proxy_set_header X-Real-IP $remote_addr;
+           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+           proxy_set_header X-Forwarded-Proto $scheme;
+           proxy_set_header X-Forwarded-Host $host;
        }
 
        location /api/ {
@@ -135,6 +138,8 @@ For production HTTPS, obtain and bind TLS certificates using Certbot.
            proxy_set_header X-Real-IP $remote_addr;
            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
            proxy_set_header X-Forwarded-Proto $scheme;
+           proxy_set_header X-Forwarded-Host $host;
+           proxy_set_header X-Forwarded-Port $server_port;
        }
    }
    ```
@@ -170,7 +175,7 @@ gunzip < /opt/backups/diagnolab_db_YYYYMMDD.sql.gz | docker compose exec -T mysq
 
 ## 7. Monitoring & Health Probes
 
-- **Liveness Probe**: `GET https://diagnolab.yourdomain.com/api/health` returns `{"status": "healthy"}`.
+- **Liveness Probe**: `GET https://trustmylab.in/api/health` returns `{"status": "healthy"}`.
 - **Audit Logs**: Queryable in the Admin UI under `/audit/logs` or via backend log streams:
   ```bash
   docker compose logs -f --tail=100 backend

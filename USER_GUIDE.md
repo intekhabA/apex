@@ -124,7 +124,7 @@ Patients access a streamlined, mobile-responsive portal:
 
 ### 2.8 Public QR Verification & Tamper Protection
 Every finalized DiagnoLab medical report contains an authenticated QR code linking to:
-`https://diagnolab.yourdomain.com/verify/{verification_token}`
+`https://trustmylab.in/verify/{verification_token}`
 
 When scanned by a referring physician, hospital, or insurance provider:
 - Validates the report's HMAC digest against the tamper-proof registry.
