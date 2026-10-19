@@ -16,6 +16,7 @@ import {
   User,
   Percent,
   Wallet,
+  Scan,
 } from 'lucide-react';
 import { usePermissions } from '@/hooks/usePermissions';
 import { clsx } from 'clsx';
@@ -28,6 +29,7 @@ export const Sidebar: React.FC = () => {
       return [
         { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { to: '/admin/laboratories', label: 'Laboratories', icon: Building2 },
+        { to: '/admin/imaging-templates', label: 'X-Ray & USG Templates', icon: Scan },
         { to: '/expenses', label: 'Daily Expenses', icon: Wallet },
         { to: '/tests/catalog', label: 'Master Test Catalog', icon: TestTubes },
         { to: '/notifications', label: 'Global Notifications', icon: Bell },

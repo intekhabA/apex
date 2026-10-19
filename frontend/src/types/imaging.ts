@@ -36,12 +36,46 @@ export interface ImagingReport {
 
 export interface ImagingTemplate {
   id: string;
+  code: string;
   name: string;
-  modality: 'USG' | 'X-RAY' | 'CT' | 'MRI' | string;
-  clinical_history_template: string;
+  modality: 'USG' | 'X-RAY' | 'CT' | 'MRI' | 'ECG' | 'OTHER' | string;
+  test_id?: string | null;
+  test_name?: string | null;
+  test_code?: string | null;
+  clinical_history_template?: string | null;
   findings_template: string;
-  impression_template: string;
-  recommendations_template: string;
+  impression_template?: string | null;
+  recommendations_template?: string | null;
+  is_active: boolean;
+  display_order: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ImagingTemplateCreatePayload {
+  code: string;
+  name: string;
+  modality: string;
+  test_id?: string | null;
+  clinical_history_template?: string | null;
+  findings_template: string;
+  impression_template?: string | null;
+  recommendations_template?: string | null;
+  is_active?: boolean;
+  display_order?: number;
+}
+
+export interface ImagingTemplateUpdatePayload {
+  code?: string;
+  name?: string;
+  modality?: string;
+  test_id?: string | null;
+  clinical_history_template?: string | null;
+  findings_template?: string | null;
+  impression_template?: string | null;
+  recommendations_template?: string | null;
+  is_active?: boolean;
+  display_order?: number;
 }
 
 export interface ImagingReportUpdatePayload {

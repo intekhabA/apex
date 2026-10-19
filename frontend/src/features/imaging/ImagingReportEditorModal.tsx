@@ -80,10 +80,10 @@ export const ImagingReportEditorModal: React.FC<ImagingReportEditorModalProps> =
     const tpl = templates.find((t) => t.id === templateId);
     if (!tpl) return;
     setSelectedTemplateId(templateId);
-    setClinicalHistory(tpl.clinical_history_template);
-    setImagingFindings(tpl.findings_template);
-    setImagingImpression(tpl.impression_template);
-    setRecommendations(tpl.recommendations_template);
+    setClinicalHistory(tpl.clinical_history_template || '');
+    setImagingFindings(tpl.findings_template || '');
+    setImagingImpression(tpl.impression_template || '');
+    setRecommendations(tpl.recommendations_template || '');
   };
 
   const handleUploadScan = async (e: React.FormEvent) => {
@@ -234,12 +234,12 @@ export const ImagingReportEditorModal: React.FC<ImagingReportEditorModalProps> =
               <select
                 value={selectedTemplateId}
                 onChange={(e) => handleApplyTemplate(e.target.value)}
-                className="w-full sm:w-64 px-3 py-1.5 text-xs bg-white border border-teal-200 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500 font-medium"
+                className="w-full sm:w-80 px-3 py-1.5 text-xs bg-white border border-teal-200 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500 font-medium"
               >
                 <option value="">Select a Clinical Template...</option>
                 {templates.map((t) => (
                   <option key={t.id} value={t.id}>
-                    [{t.modality}] {t.name}
+                    [{t.modality}] {t.name} {t.test_code ? `· (${t.test_code})` : ''}
                   </option>
                 ))}
               </select>

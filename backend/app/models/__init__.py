@@ -23,11 +23,13 @@ from app.models.audit import AuditLog
 from app.models.notification import NotificationLog, NotificationEventType, NotificationChannel, NotificationStatus
 from app.models.doctor import Doctor, DoctorTestCommission
 from app.models.expense import Expense, ExpenseCategory
+from app.models.imaging_template import ImagingTemplate
 
 __all__ = [
     "Base",
     "Doctor",
     "DoctorTestCommission",
+    "ImagingTemplate",
     "Laboratory",
     "LaboratorySettings",
     "SubscriptionPlan",

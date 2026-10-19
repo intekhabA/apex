@@ -1,9 +1,9 @@
 import os
 import shutil
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, desc
+from sqlalchemy import select, desc, func, or_
 from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
@@ -13,6 +13,7 @@ from app.models.user import User
 from app.models.patient import Patient
 from app.models.test import Test
 from app.models.report import Report, ReportStatus, ReportAttachment
+from app.models.imaging_template import ImagingTemplate
 from app.schemas.common import APIResponse, MessageResponse
 from app.schemas.imaging import (
     ImagingReportUpdate,
@@ -25,13 +26,13 @@ from app.services.storage_service import storage_service
 router = APIRouter(prefix="/imaging", tags=["Imaging & Radiology Reporting"])
 
 # Standard Diagnostic Ultrasound & Radiography Narrative Templates
-STANDARD_TEMPLATES: List[ImagingTemplateResponse] = [
-    ImagingTemplateResponse(
-        id="USG_WHOLE_ABDOMEN",
-        name="USG Whole Abdomen",
-        modality="USG",
-        clinical_history_template="Patient presents with abdominal discomfort. Evaluation of hepatobiliary, renal, and gastrointestinal systems.",
-        findings_template=(
+DEFAULT_TEMPLATES_DATA = [
+    {
+        "code": "USG_WHOLE_ABDOMEN",
+        "name": "USG Whole Abdomen",
+        "modality": "USG",
+        "clinical_history_template": "Patient presents with abdominal discomfort. Evaluation of hepatobiliary, renal, and gastrointestinal systems.",
+        "findings_template": (
             "LIVER: Normal size and shape. Normal parenchymal echotexture. No focal mass lesion. Intrahepatic biliary radicles are not dilated.\n"
             "GALLBLADDER: Well distended with normal wall thickness. Lumen is clear of calculi or biliary sludge.\n"
             "PANCREAS: Visualised parts show normal size and homogeneous echogenicity. MPD is not dilated.\n"
@@ -40,78 +41,145 @@ STANDARD_TEMPLATES: List[ImagingTemplateResponse] = [
             "URINARY BLADDER: Adequately distended with smooth walls. No intravesical mass or calculus.\n"
             "RETROPERITONEUM: No significant retroperitoneal lymphadenopathy or free fluid in peritoneal cavity."
         ),
-        impression_template="Sonographically normal whole abdomen study. No focal parenchymal lesion, cholelithiasis, or calculus noted.",
-        recommendations_template="Clinical and biochemical correlation advised.",
-    ),
-    ImagingTemplateResponse(
-        id="USG_PELVIS",
-        name="USG Pelvis",
-        modality="USG",
-        clinical_history_template="Routine pelvic sonogram evaluation.",
-        findings_template=(
+        "impression_template": "Sonographically normal whole abdomen study. No focal parenchymal lesion, cholelithiasis, or calculus noted.",
+        "recommendations_template": "Clinical and biochemical correlation advised.",
+        "display_order": 1,
+    },
+    {
+        "code": "USG_PELVIS",
+        "name": "USG Pelvis",
+        "modality": "USG",
+        "clinical_history_template": "Routine pelvic sonogram evaluation.",
+        "findings_template": (
             "UTERUS: Normal in size, anteverted, and shows homogeneous myometrial echotexture. Endometrial stripe is central and regular.\n"
             "OVARIES: Both ovaries are normal in size and volume with regular stromal echogenicity. No cysts or solid masses noted.\n"
             "CUL-DE-SAC: Free of fluid collections or masses."
         ),
-        impression_template="Normal pelvic ultrasound. No uterine or adnexal mass lesions seen.",
-        recommendations_template="Correlate clinically.",
-    ),
-    ImagingTemplateResponse(
-        id="USG_OBSTETRIC",
-        name="USG Obstetric (Routine Antenatal)",
-        modality="USG",
-        clinical_history_template="Antenatal obstetric sonographic evaluation.",
-        findings_template=(
+        "impression_template": "Normal pelvic ultrasound. No uterine or adnexal mass lesions seen.",
+        "recommendations_template": "Correlate clinically.",
+        "display_order": 2,
+    },
+    {
+        "code": "USG_OBSTETRIC",
+        "name": "USG Obstetric (Routine Antenatal)",
+        "modality": "USG",
+        "clinical_history_template": "Antenatal obstetric sonographic evaluation.",
+        "findings_template": (
             "Single live intrauterine gestation demonstrated. Regular cardiac motion and active fetal movements observed.\n"
             "Fetal Heart Rate: 144 beats/minute, regular rhythm.\n"
             "Placenta: Anterior, upper segment, maturity Grade I.\n"
             "Amniotic Fluid: Amniotic fluid volume is adequate with clear liquor. AFI is within normal range."
         ),
-        impression_template="Single live intrauterine gestation corresponding to gestational dates. Good fetal cardiac activity and adequate liquor.",
-        recommendations_template="Routine antenatal care and follow-up as scheduled.",
-    ),
-    ImagingTemplateResponse(
-        id="CHEST_XRAY_PA",
-        name="Chest X-Ray PA View",
-        modality="X-RAY",
-        clinical_history_template="Evaluation for respiratory symptoms / routine pre-operative screening.",
-        findings_template=(
+        "impression_template": "Single live intrauterine gestation corresponding to gestational dates. Good fetal cardiac activity and adequate liquor.",
+        "recommendations_template": "Routine antenatal care and follow-up as scheduled.",
+        "display_order": 3,
+    },
+    {
+        "code": "CHEST_XRAY_PA",
+        "name": "Chest X-Ray PA View",
+        "modality": "X-RAY",
+        "clinical_history_template": "Evaluation for respiratory symptoms / routine pre-operative screening.",
+        "findings_template": (
             "Trachea is central in position.\n"
             "Lung fields: Clear bilaterally. No active focal parenchymal consolidation, infiltrate, cavity, or nodule seen.\n"
             "Pleura: Both costophrenic and cardiophrenic angles are sharp and clear. No pleural effusion.\n"
             "Cardiovascular: Cardiothoracic ratio is within normal limits. Aortic arch and mediastinum appear normal.\n"
             "Bony thorax: Ribs, clavicles, and visualised soft tissues are unremarkable."
         ),
-        impression_template="Normal chest radiograph (PA View). No cardiopulmonary abnormality identified.",
-        recommendations_template="Clinical correlation recommended.",
-    ),
-    ImagingTemplateResponse(
-        id="XRAY_LUMBAR_SPINE",
-        name="X-Ray Lumbar Spine AP & Lateral",
-        modality="X-RAY",
-        clinical_history_template="Evaluation for lower back pain.",
-        findings_template=(
+        "impression_template": "Normal chest radiograph (PA View). No cardiopulmonary abnormality identified.",
+        "recommendations_template": "Clinical correlation recommended.",
+        "display_order": 4,
+    },
+    {
+        "code": "XRAY_LUMBAR_SPINE",
+        "name": "X-Ray Lumbar Spine AP & Lateral",
+        "modality": "X-RAY",
+        "clinical_history_template": "Evaluation for lower back pain.",
+        "findings_template": (
             "Normal physiological lumbar lordosis is preserved.\n"
             "Vertebral body heights and alignment are normal. No evidence of compression fracture or spondylolisthesis.\n"
             "Intervertebral disc spaces appear preserved across L1 to S1.\n"
             "Posterior elements, pedicles, and spinous processes are intact.\n"
             "Sacroiliac joints appear normal."
         ),
-        impression_template="No significant osseous abnormality, fracture, or misalignment seen in lumbar spine.",
-        recommendations_template="Physiotherapy / clinical review advised.",
-    ),
+        "impression_template": "No significant osseous abnormality, fracture, or misalignment seen in lumbar spine.",
+        "recommendations_template": "Physiotherapy / clinical review advised.",
+        "display_order": 5,
+    },
 ]
+
+
+async def ensure_imaging_templates_seeded(db: AsyncSession):
+    """Seed standard templates if the imaging_templates table is empty."""
+    count_res = await db.execute(select(func.count(ImagingTemplate.id)))
+    count = count_res.scalar() or 0
+    if count == 0:
+        for tpl_data in DEFAULT_TEMPLATES_DATA:
+            tpl = ImagingTemplate(
+                id=tpl_data["code"],
+                code=tpl_data["code"],
+                name=tpl_data["name"],
+                modality=tpl_data["modality"],
+                clinical_history_template=tpl_data["clinical_history_template"],
+                findings_template=tpl_data["findings_template"],
+                impression_template=tpl_data["impression_template"],
+                recommendations_template=tpl_data["recommendations_template"],
+                display_order=tpl_data["display_order"],
+                is_active=True,
+            )
+            db.add(tpl)
+        await db.commit()
 
 
 @router.get("/templates", response_model=APIResponse[List[ImagingTemplateResponse]])
 async def list_imaging_templates(
+    modality: Optional[str] = Query(None, description="Filter by modality (USG, X-RAY, CT, MRI, etc.)"),
+    test_id: Optional[str] = Query(None, description="Filter by linked diagnostic test ID"),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_lab_staff),
 ):
     """Retrieve pre-configured diagnostic radiology & ultrasound narrative reporting templates."""
+    await ensure_imaging_templates_seeded(db)
+
+    query = (
+        select(ImagingTemplate)
+        .options(selectinload(ImagingTemplate.test))
+        .where(ImagingTemplate.is_active.is_(True))
+        .order_by(ImagingTemplate.display_order.asc(), ImagingTemplate.name.asc())
+    )
+    if modality:
+        query = query.where(ImagingTemplate.modality == modality.upper())
+    if test_id:
+        query = query.where(or_(ImagingTemplate.test_id == test_id, ImagingTemplate.test_id.is_(None)))
+
+    res = await db.execute(query)
+    templates = res.scalars().all()
+
+    data = [
+        ImagingTemplateResponse(
+            id=str(t.id),
+            code=t.code,
+            name=t.name,
+            modality=t.modality,
+            test_id=str(t.test_id) if t.test_id else None,
+            test_name=t.test.name if t.test else None,
+            test_code=t.test.code if t.test else None,
+            clinical_history_template=t.clinical_history_template or "",
+            findings_template=t.findings_template,
+            impression_template=t.impression_template or "",
+            recommendations_template=t.recommendations_template or "",
+            is_active=t.is_active,
+            display_order=t.display_order,
+            created_at=t.created_at,
+            updated_at=t.updated_at,
+        )
+        for t in templates
+    ]
+
     return APIResponse(
         success=True,
-        message=f"Retrieved {len(STANDARD_TEMPLATES)} imaging templates.",
-        data=STANDARD_TEMPLATES,
+        message=f"Retrieved {len(data)} imaging templates.",
+        data=data,
     )
 
 

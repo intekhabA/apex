@@ -13,7 +13,8 @@ from app.models.laboratory import Laboratory, LaboratorySettings
 from app.models.user import User, UserRole
 from app.models.patient import Patient
 from app.models.test import Test, TestCategory, LabTestPrice
-from app.schemas.common import APIResponse
+from app.models.imaging_template import ImagingTemplate
+from app.schemas.common import APIResponse, MessageResponse
 from app.schemas.laboratory import (
     LaboratoryCreate,
     LaboratoryUpdate,
@@ -29,6 +30,11 @@ from app.schemas.test import (
     LabUnassignTestsPayload,
     LabTestAssignmentItem,
     LabTestAssignmentUpdate,
+)
+from app.schemas.imaging import (
+    ImagingTemplateCreate,
+    ImagingTemplateUpdate,
+    ImagingTemplateResponse,
 )
 from app.services.audit_service import AuditService
 from app.services.dashboard_service import DashboardService
@@ -617,4 +623,332 @@ async def update_laboratory_test_assignment(
             is_common=test.code in COMMON_TEST_CODES,
         ),
     )
+
+
+# =========================================================================
+# IMAGING & RADIOLOGY REPORTING TEMPLATES (SUPER ADMIN)
+# =========================================================================
+
+@router.get("/imaging-templates", response_model=APIResponse[List[ImagingTemplateResponse]])
+async def list_admin_imaging_templates(
+    search: Optional[str] = Query(None, description="Search by name, code, or findings"),
+    modality: Optional[str] = Query(None, description="Filter by modality (USG, X-RAY, CT, MRI, etc.)"),
+    is_active: Optional[bool] = Query(None, description="Filter by active status"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_super_admin),
+):
+    """List all imaging templates across the platform for Super Admin management."""
+    from app.api.routes.imaging import ensure_imaging_templates_seeded
+    await ensure_imaging_templates_seeded(db)
+
+    query = select(ImagingTemplate).options(selectinload(ImagingTemplate.test)).order_by(
+        ImagingTemplate.display_order.asc(), ImagingTemplate.name.asc()
+    )
+
+    if modality:
+        query = query.where(ImagingTemplate.modality == modality.upper())
+    if is_active is not None:
+        query = query.where(ImagingTemplate.is_active == is_active)
+    if search:
+        term = f"%{search}%"
+        query = query.where(
+            or_(
+                ImagingTemplate.name.ilike(term),
+                ImagingTemplate.code.ilike(term),
+                ImagingTemplate.findings_template.ilike(term),
+                ImagingTemplate.impression_template.ilike(term),
+            )
+        )
+
+    res = await db.execute(query)
+    templates = res.scalars().all()
+
+    data = [
+        ImagingTemplateResponse(
+            id=str(t.id),
+            code=t.code,
+            name=t.name,
+            modality=t.modality,
+            test_id=str(t.test_id) if t.test_id else None,
+            test_name=t.test.name if t.test else None,
+            test_code=t.test.code if t.test else None,
+            clinical_history_template=t.clinical_history_template or "",
+            findings_template=t.findings_template,
+            impression_template=t.impression_template or "",
+            recommendations_template=t.recommendations_template or "",
+            is_active=t.is_active,
+            display_order=t.display_order,
+            created_at=t.created_at,
+            updated_at=t.updated_at,
+        )
+        for t in templates
+    ]
+
+    return APIResponse(
+        success=True,
+        message=f"Retrieved {len(data)} imaging templates.",
+        data=data,
+    )
+
+
+@router.post("/imaging-templates", response_model=APIResponse[ImagingTemplateResponse], status_code=status.HTTP_201_CREATED)
+async def create_imaging_template(
+    payload: ImagingTemplateCreate,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_super_admin),
+):
+    """Create a new standardized clinical imaging / radiology reporting template."""
+    code_clean = payload.code.strip().upper()
+    existing_res = await db.execute(
+        select(ImagingTemplate).where(func.upper(ImagingTemplate.code) == code_clean)
+    )
+    if existing_res.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"An imaging template with code '{code_clean}' already exists.",
+        )
+
+    test_obj = None
+    if payload.test_id:
+        test_res = await db.execute(select(Test).where(Test.id == payload.test_id))
+        test_obj = test_res.scalar_one_or_none()
+        if not test_obj:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Linked test with ID '{payload.test_id}' not found.",
+            )
+
+    template = ImagingTemplate(
+        code=code_clean,
+        name=payload.name.strip(),
+        modality=payload.modality.strip().upper(),
+        test_id=payload.test_id,
+        clinical_history_template=payload.clinical_history_template,
+        findings_template=payload.findings_template,
+        impression_template=payload.impression_template,
+        recommendations_template=payload.recommendations_template,
+        is_active=payload.is_active,
+        display_order=payload.display_order,
+    )
+    db.add(template)
+    await db.commit()
+    await db.refresh(template)
+
+    await AuditService.log_event(
+        db=db,
+        action="CREATE_IMAGING_TEMPLATE",
+        entity_name="imaging_templates",
+        entity_id=str(template.id),
+        user_id=current_user.id,
+        user_email=current_user.email,
+        user_role=current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role),
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+        after_state={"code": template.code, "name": template.name, "modality": template.modality},
+    )
+
+    return APIResponse(
+        success=True,
+        message=f"Imaging template '{template.name}' created successfully.",
+        data=ImagingTemplateResponse(
+            id=str(template.id),
+            code=template.code,
+            name=template.name,
+            modality=template.modality,
+            test_id=str(template.test_id) if template.test_id else None,
+            test_name=test_obj.name if test_obj else None,
+            test_code=test_obj.code if test_obj else None,
+            clinical_history_template=template.clinical_history_template or "",
+            findings_template=template.findings_template,
+            impression_template=template.impression_template or "",
+            recommendations_template=template.recommendations_template or "",
+            is_active=template.is_active,
+            display_order=template.display_order,
+            created_at=template.created_at,
+            updated_at=template.updated_at,
+        ),
+    )
+
+
+@router.get("/imaging-templates/{template_id}", response_model=APIResponse[ImagingTemplateResponse])
+async def get_imaging_template(
+    template_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_super_admin),
+):
+    """Retrieve details of a single imaging template."""
+    res = await db.execute(
+        select(ImagingTemplate)
+        .options(selectinload(ImagingTemplate.test))
+        .where(or_(ImagingTemplate.id == template_id, ImagingTemplate.code == template_id))
+    )
+    template = res.scalar_one_or_none()
+    if not template:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Imaging template not found.")
+
+    return APIResponse(
+        success=True,
+        message="Imaging template retrieved.",
+        data=ImagingTemplateResponse(
+            id=str(template.id),
+            code=template.code,
+            name=template.name,
+            modality=template.modality,
+            test_id=str(template.test_id) if template.test_id else None,
+            test_name=template.test.name if template.test else None,
+            test_code=template.test.code if template.test else None,
+            clinical_history_template=template.clinical_history_template or "",
+            findings_template=template.findings_template,
+            impression_template=template.impression_template or "",
+            recommendations_template=template.recommendations_template or "",
+            is_active=template.is_active,
+            display_order=template.display_order,
+            created_at=template.created_at,
+            updated_at=template.updated_at,
+        ),
+    )
+
+
+@router.put("/imaging-templates/{template_id}", response_model=APIResponse[ImagingTemplateResponse])
+async def update_imaging_template(
+    template_id: str,
+    payload: ImagingTemplateUpdate,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_super_admin),
+):
+    """Update an existing imaging reporting template."""
+    res = await db.execute(
+        select(ImagingTemplate)
+        .options(selectinload(ImagingTemplate.test))
+        .where(or_(ImagingTemplate.id == template_id, ImagingTemplate.code == template_id))
+    )
+    template = res.scalar_one_or_none()
+    if not template:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Imaging template not found.")
+
+    if payload.code is not None:
+        code_clean = payload.code.strip().upper()
+        if code_clean != template.code.upper():
+            existing = await db.execute(
+                select(ImagingTemplate).where(
+                    func.upper(ImagingTemplate.code) == code_clean,
+                    ImagingTemplate.id != template.id,
+                )
+            )
+            if existing.scalar_one_or_none():
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"Another template with code '{code_clean}' already exists.",
+                )
+            template.code = code_clean
+
+    test_obj = template.test
+    if payload.test_id is not None:
+        if payload.test_id == "":
+            template.test_id = None
+            test_obj = None
+        else:
+            test_res = await db.execute(select(Test).where(Test.id == payload.test_id))
+            test_obj = test_res.scalar_one_or_none()
+            if not test_obj:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Linked test not found.")
+            template.test_id = payload.test_id
+
+    if payload.name is not None:
+        template.name = payload.name.strip()
+    if payload.modality is not None:
+        template.modality = payload.modality.strip().upper()
+    if payload.clinical_history_template is not None:
+        template.clinical_history_template = payload.clinical_history_template
+    if payload.findings_template is not None:
+        template.findings_template = payload.findings_template
+    if payload.impression_template is not None:
+        template.impression_template = payload.impression_template
+    if payload.recommendations_template is not None:
+        template.recommendations_template = payload.recommendations_template
+    if payload.is_active is not None:
+        template.is_active = payload.is_active
+    if payload.display_order is not None:
+        template.display_order = payload.display_order
+
+    await db.commit()
+    await db.refresh(template)
+
+    await AuditService.log_event(
+        db=db,
+        action="UPDATE_IMAGING_TEMPLATE",
+        entity_name="imaging_templates",
+        entity_id=str(template.id),
+        user_id=current_user.id,
+        user_email=current_user.email,
+        user_role=current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role),
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+        after_state={"code": template.code, "name": template.name, "modality": template.modality},
+    )
+
+    return APIResponse(
+        success=True,
+        message=f"Imaging template '{template.name}' updated successfully.",
+        data=ImagingTemplateResponse(
+            id=str(template.id),
+            code=template.code,
+            name=template.name,
+            modality=template.modality,
+            test_id=str(template.test_id) if template.test_id else None,
+            test_name=test_obj.name if test_obj else None,
+            test_code=test_obj.code if test_obj else None,
+            clinical_history_template=template.clinical_history_template or "",
+            findings_template=template.findings_template,
+            impression_template=template.impression_template or "",
+            recommendations_template=template.recommendations_template or "",
+            is_active=template.is_active,
+            display_order=template.display_order,
+            created_at=template.created_at,
+            updated_at=template.updated_at,
+        ),
+    )
+
+
+@router.delete("/imaging-templates/{template_id}", response_model=MessageResponse)
+async def delete_imaging_template(
+    template_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_super_admin),
+):
+    """Delete an imaging reporting template."""
+    res = await db.execute(
+        select(ImagingTemplate).where(or_(ImagingTemplate.id == template_id, ImagingTemplate.code == template_id))
+    )
+    template = res.scalar_one_or_none()
+    if not template:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Imaging template not found.")
+
+    template_name = template.name
+    template_id_str = str(template.id)
+
+    await db.delete(template)
+    await db.commit()
+
+    await AuditService.log_event(
+        db=db,
+        action="DELETE_IMAGING_TEMPLATE",
+        entity_name="imaging_templates",
+        entity_id=template_id_str,
+        user_id=current_user.id,
+        user_email=current_user.email,
+        user_role=current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role),
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+        after_state={"name": template_name},
+    )
+
+    return MessageResponse(
+        success=True,
+        message=f"Imaging template '{template_name}' has been deleted.",
+    )
+
 
