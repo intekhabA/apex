@@ -187,7 +187,7 @@ export const ImagingReportEditorModal: React.FC<ImagingReportEditorModalProps> =
       isOpen={isOpen}
       onClose={onClose}
       title={`Radiology Reporting: ${report?.test_name || 'Loading...'}`}
-      maxWidth="2xl"
+      maxWidth="5xl"
     >
       {loading ? (
         <div className="py-12 flex justify-center items-center text-slate-500">

@@ -151,7 +151,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
       onClose={onClose}
       title={isEditing ? 'Edit Expense Record' : 'Record New Expense'}
       description="Track daily operational laboratory outlays, purchases, and petty cash."
-      maxWidth="lg"
+      maxWidth="3xl"
       footer={
         <div className="flex justify-end gap-3 w-full">
           <Button variant="outline" onClick={onClose} disabled={loading}>

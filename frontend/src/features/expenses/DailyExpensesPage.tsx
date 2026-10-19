@@ -863,7 +863,7 @@ export const DailyExpensesPage: React.FC = () => {
         onClose={() => setDeleteExpenseId(null)}
         title="Confirm Expense Deletion"
         description="Are you sure you want to delete this expense record? This action cannot be undone."
-        maxWidth="sm"
+        maxWidth="md"
         footer={
           <div className="flex justify-end gap-3 w-full">
             <Button

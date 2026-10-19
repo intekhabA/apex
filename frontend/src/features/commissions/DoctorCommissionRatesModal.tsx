@@ -123,7 +123,7 @@ export const DoctorCommissionRatesModal: React.FC<Props> = ({
       onClose={onClose}
       title={`Configure Test Commission Rates — ${doctor?.name || ''}`}
       description="Customize doctor commission percentages for specific tests. Every test can have its own distinct percentage."
-      maxWidth="2xl"
+      maxWidth="5xl"
       footer={
         <div className="flex items-center justify-between w-full">
           <span className="text-xs text-slate-500">
@@ -183,7 +183,7 @@ export const DoctorCommissionRatesModal: React.FC<Props> = ({
             </Button>
           </div>
 
-          <div className="relative w-48">
+          <div className="relative w-full sm:w-80">
             <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" />
             <input
               type="text"
@@ -196,7 +196,7 @@ export const DoctorCommissionRatesModal: React.FC<Props> = ({
         </div>
 
         {/* Test List Table */}
-        <div className="border border-slate-200 rounded-xl overflow-hidden max-h-[50vh] overflow-y-auto">
+        <div className="border border-slate-200 rounded-xl overflow-hidden">
           {loading ? (
             <div className="p-8 text-center text-sm text-slate-500">
               Loading lab test catalog...

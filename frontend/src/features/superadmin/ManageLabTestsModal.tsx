@@ -239,7 +239,7 @@ export const ManageLabTestsModal: React.FC<ManageLabTestsModalProps> = ({
         onClose={onClose}
         title={`Assign & Manage Diagnostic Tests — ${labName || 'Laboratory'}`}
         description={`Tenant: ${labCode || ''} | Configure tests available for billing, booking, and processing.`}
-        maxWidth="2xl"
+        maxWidth="5xl"
       >
 
         <div className="space-y-4">
@@ -397,7 +397,7 @@ export const ManageLabTestsModal: React.FC<ManageLabTestsModalProps> = ({
           )}
 
           {/* Tests Table */}
-          <div className="border border-slate-200 rounded-xl overflow-hidden max-h-[50vh] overflow-y-auto">
+          <div className="border border-slate-200 rounded-xl overflow-hidden">
             {isLoading ? (
               <div className="p-12 flex justify-center">
                 <LoadingSpinner size="md" label="Loading test catalog..." />

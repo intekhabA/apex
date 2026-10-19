@@ -133,14 +133,14 @@ export const AddTestModal: React.FC<AddTestModalProps> = ({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Add Master Diagnostic Test" maxWidth="lg">
+    <Modal isOpen={isOpen} onClose={onClose} title="Add Master Diagnostic Test" maxWidth="4xl">
       {errorMessage && (
         <Alert type="error" className="mb-4">
           {errorMessage}
         </Alert>
       )}
 
-      <form onSubmit={handleSubmit(onSubmit as any)} className="space-y-4 max-h-[75vh] overflow-y-auto px-1">
+      <form onSubmit={handleSubmit(onSubmit as any)} className="space-y-5 px-1">
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">

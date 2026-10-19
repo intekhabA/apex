@@ -62,7 +62,7 @@ export const ReportAmendModal: React.FC<ReportAmendModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       title={`Create Versioned Amendment: ${reportDisplayId || ''}`}
-      maxWidth="md"
+      maxWidth="xl"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         {errorMessage && <Alert type="error">{errorMessage}</Alert>}

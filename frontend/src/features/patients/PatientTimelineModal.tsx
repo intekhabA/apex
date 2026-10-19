@@ -30,9 +30,9 @@ export const PatientTimelineModal: React.FC<PatientTimelineModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       title={`Medical Timeline: ${patient.full_name} (${patient.patient_id_display})`}
-      maxWidth="md"
+      maxWidth="3xl"
     >
-      <div className="max-h-[70vh] overflow-y-auto px-1 py-2">
+      <div className="px-1 py-2">
         {isLoading ? (
           <div className="py-8 flex justify-center">
             <LoadingSpinner size="md" />

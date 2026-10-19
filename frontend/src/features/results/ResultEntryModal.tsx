@@ -161,7 +161,7 @@ export const ResultEntryModal: React.FC<ResultEntryModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       title={`Result Entry Worksheet: ${sheet?.test_name || 'Loading...'}`}
-      maxWidth="2xl"
+      maxWidth="5xl"
     >
       {loading ? (
         <div className="py-12 flex justify-center items-center text-slate-500">

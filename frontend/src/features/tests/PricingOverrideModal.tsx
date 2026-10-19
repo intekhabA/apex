@@ -99,7 +99,7 @@ export const PricingOverrideModal: React.FC<PricingOverrideModalProps> = ({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={`Custom Pricing: ${test.name}`} maxWidth="md">
+    <Modal isOpen={isOpen} onClose={onClose} title={`Custom Pricing: ${test.name}`} maxWidth="xl">
       {errorMessage && (
         <Alert type="error" className="mb-4">
           {errorMessage}
@@ -124,21 +124,23 @@ export const PricingOverrideModal: React.FC<PricingOverrideModalProps> = ({
       </div>
 
       <form onSubmit={handleSubmit(onSubmit as any)} className="space-y-4">
-        <Input
-          label="Lab Custom Price (₹)"
-          type="number"
-          step="0.01"
-          {...register('custom_price')}
-          error={errors.custom_price?.message}
-          required
-        />
-        <Input
-          label="Promotional Discount (%)"
-          type="number"
-          step="0.1"
-          {...register('discount_percentage')}
-          error={errors.discount_percentage?.message}
-        />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Input
+            label="Lab Custom Price (₹)"
+            type="number"
+            step="0.01"
+            {...register('custom_price')}
+            error={errors.custom_price?.message}
+            required
+          />
+          <Input
+            label="Promotional Discount (%)"
+            type="number"
+            step="0.1"
+            {...register('discount_percentage')}
+            error={errors.discount_percentage?.message}
+          />
+        </div>
         <div className="flex items-center gap-2">
           <input
             type="checkbox"

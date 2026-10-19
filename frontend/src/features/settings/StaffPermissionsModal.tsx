@@ -208,7 +208,7 @@ export const StaffPermissionsModal: React.FC<StaffPermissionsModalProps> = ({
       onClose={onClose}
       title="Staff Feature Access & Permissions"
       description="Select which modules and features this team member is permitted to access."
-      maxWidth="2xl"
+      maxWidth="4xl"
     >
       <div className="space-y-5">
         {/* Staff User Header Card */}
@@ -302,7 +302,7 @@ export const StaffPermissionsModal: React.FC<StaffPermissionsModalProps> = ({
         </div>
 
         {/* Module Permissions Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 max-h-[380px] overflow-y-auto pr-1">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pr-1">
           {modules.map((mod) => {
             const isChecked = selectedPermissions.includes(mod.key);
             const Icon = ICON_MAP[mod.icon] || Shield;

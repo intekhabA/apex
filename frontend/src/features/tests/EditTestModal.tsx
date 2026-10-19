@@ -110,7 +110,7 @@ export const EditTestModal: React.FC<EditTestModalProps> = ({
       onClose={onClose}
       title="Edit Diagnostic Test"
       description={`Modify test properties and correct any catalog inaccuracies for [${test.code}]`}
-      maxWidth="lg"
+      maxWidth="4xl"
     >
       {errorMessage && (
         <Alert type="error" className="mb-4">
@@ -118,7 +118,7 @@ export const EditTestModal: React.FC<EditTestModalProps> = ({
         </Alert>
       )}
 
-      <form onSubmit={handleSubmit(onSubmit as any)} className="space-y-4 max-h-[75vh] overflow-y-auto px-1">
+      <form onSubmit={handleSubmit(onSubmit as any)} className="space-y-5 px-1">
         {/* Category & Status */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>

@@ -140,7 +140,7 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       title={`Billing Ledger & Payment — ${currentInvoice.invoice_id_display}`}
-      maxWidth="xl"
+      maxWidth="4xl"
     >
       <div className="space-y-6">
         {error && <Alert type="error" onDismiss={() => setError(null)}>{error}</Alert>}

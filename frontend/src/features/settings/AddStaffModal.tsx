@@ -83,7 +83,7 @@ export const AddStaffModal: React.FC<AddStaffModalProps> = ({
       onClose={onClose}
       title="Provision Staff Member Account"
       description="Create a role-scoped laboratory user account with assigned clinical permissions."
-      maxWidth="lg"
+      maxWidth="3xl"
     >
       {errorMessage && (
         <Alert type="error" className="mb-5" onDismiss={() => setErrorMessage(null)}>
@@ -92,7 +92,7 @@ export const AddStaffModal: React.FC<AddStaffModalProps> = ({
       )}
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Input
             label="First Name *"
             placeholder="Pooja"
@@ -107,49 +107,55 @@ export const AddStaffModal: React.FC<AddStaffModalProps> = ({
           />
         </div>
 
-        <Input
-          label="Work Email Address *"
-          type="email"
-          placeholder="pooja@demolab.com"
-          error={errors.email?.message}
-          {...register('email')}
-        />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Input
+            label="Work Email Address *"
+            type="email"
+            placeholder="pooja@demolab.com"
+            error={errors.email?.message}
+            {...register('email')}
+          />
 
-        <Input
-          label="Initial Password *"
-          type="password"
-          placeholder="••••••••••••"
-          helperText="Min. 8 characters"
-          error={errors.password?.message}
-          {...register('password')}
-        />
-
-        <div>
-          <label className="block text-sm font-semibold text-slate-700 mb-1.5">
-            Workstation Role *
-          </label>
-          <select
-            className="block w-full rounded-lg border border-slate-300 py-2.5 px-3.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
-            {...register('role')}
-          >
-            <option value="LAB_ASSISTANT">Lab Assistant / Phlebotomist</option>
-            <option value="PATHOLOGIST">Consultant Pathologist (MD)</option>
-            <option value="RADIOLOGIST">Consultant Radiologist (MD)</option>
-            <option value="RECEPTIONIST">Billing & Frontdesk Receptionist</option>
-            <option value="LAB_ADMIN">Laboratory Administrator</option>
-          </select>
-          <p className="mt-1 text-xs text-slate-500">
-            Smart role defaults are pre-applied. You can easily customize module permissions anytime.
-          </p>
-          {errors.role && <p className="mt-1.5 text-xs text-rose-600">{errors.role.message}</p>}
+          <Input
+            label="Initial Password *"
+            type="password"
+            placeholder="••••••••••••"
+            helperText="Min. 8 characters"
+            error={errors.password?.message}
+            {...register('password')}
+          />
         </div>
 
-        <Input
-          label="Phone Number"
-          placeholder="+91 98200 12345"
-          error={errors.phone?.message}
-          {...register('phone')}
-        />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+              Workstation Role *
+            </label>
+            <select
+              className="block w-full rounded-lg border border-slate-300 py-2.5 px-3.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
+              {...register('role')}
+            >
+              <option value="LAB_ASSISTANT">Lab Assistant / Phlebotomist</option>
+              <option value="PATHOLOGIST">Consultant Pathologist (MD)</option>
+              <option value="RADIOLOGIST">Consultant Radiologist (MD)</option>
+              <option value="RECEPTIONIST">Billing & Frontdesk Receptionist</option>
+              <option value="LAB_ADMIN">Laboratory Administrator</option>
+            </select>
+            <p className="mt-1 text-xs text-slate-500">
+              Smart role defaults are pre-applied. You can easily customize module permissions anytime.
+            </p>
+            {errors.role && <p className="mt-1.5 text-xs text-rose-600">{errors.role.message}</p>}
+          </div>
+
+          <div>
+            <Input
+              label="Phone Number"
+              placeholder="+91 98200 12345"
+              error={errors.phone?.message}
+              {...register('phone')}
+            />
+          </div>
+        </div>
 
         {isDoctor && (
           <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-3">

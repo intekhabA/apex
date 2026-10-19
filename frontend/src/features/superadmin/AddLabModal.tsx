@@ -77,7 +77,7 @@ export const AddLabModal: React.FC<AddLabModalProps> = ({ isOpen, onClose, onSuc
       onClose={onClose}
       title="Onboard New Diagnostic Laboratory"
       description="Create a new laboratory workspace with automated tenant provisioning and initial administrator."
-      maxWidth="2xl"
+      maxWidth="4xl"
     >
       {errorMessage && (
         <Alert type="error" className="mb-5" onDismiss={() => setErrorMessage(null)}>

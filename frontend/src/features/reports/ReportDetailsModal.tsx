@@ -146,7 +146,7 @@ export const ReportDetailsModal: React.FC<ReportDetailsModalProps> = ({
         isOpen={isOpen}
         onClose={onClose}
         title={`Diagnostic Medical Report: ${report?.report_id_display || 'Loading...'}`}
-        maxWidth="2xl"
+        maxWidth="5xl"
       >
         {loading ? (
           <div className="py-12 flex justify-center items-center text-slate-500">

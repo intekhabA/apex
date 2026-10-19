@@ -237,7 +237,7 @@ export const PatientReportsPage: React.FC = () => {
             ? `${detailReport.test_name} — ${detailReport.report_id_display}`
             : 'Diagnostic Report'
         }
-        maxWidth="xl"
+        maxWidth="4xl"
       >
         {detailLoading || !detailReport ? (
           <div className="p-8 text-center text-slate-500 text-sm">Loading report details...</div>

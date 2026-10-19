@@ -73,14 +73,14 @@ export const AddPatientModal: React.FC<AddPatientModalProps> = ({ isOpen, onClos
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Register New Patient" maxWidth="lg">
+    <Modal isOpen={isOpen} onClose={onClose} title="Register New Patient" maxWidth="4xl">
       {errorMessage && (
         <Alert type="error" className="mb-4">
           {errorMessage}
         </Alert>
       )}
 
-      <form onSubmit={handleSubmit(onSubmit as any)} className="space-y-4 max-h-[75vh] overflow-y-auto px-1">
+      <form onSubmit={handleSubmit(onSubmit as any)} className="space-y-5 px-1">
         <div className="grid grid-cols-2 gap-4">
           <Input
             label="First Name *"

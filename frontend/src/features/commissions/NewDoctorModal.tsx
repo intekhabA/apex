@@ -61,7 +61,7 @@ export const NewDoctorModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) 
       onClose={onClose}
       title="Add Referring Doctor"
       description="Register a doctor to calculate and track test referral commissions."
-      maxWidth="md"
+      maxWidth="2xl"
       footer={
         <div className="flex justify-end gap-2 w-full">
           <Button variant="outline" onClick={onClose} disabled={saving}>

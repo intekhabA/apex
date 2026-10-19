@@ -79,9 +79,9 @@ export const BookingDetailsModal: React.FC<BookingDetailsModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       title={`Booking Order: ${booking.booking_id_display}`}
-      maxWidth="lg"
+      maxWidth="4xl"
     >
-      <div className="space-y-4 max-h-[75vh] overflow-y-auto px-1">
+      <div className="space-y-5 px-1">
         {/* Header Status */}
         <div className="flex items-center justify-between bg-slate-50 p-3 rounded-lg border border-slate-200">
           <div>

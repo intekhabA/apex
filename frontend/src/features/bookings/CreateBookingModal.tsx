@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Trash2,
@@ -8,6 +8,8 @@ import {
   CheckCircle2,
   UserPlus,
   Receipt,
+  Search,
+  X,
 } from 'lucide-react';
 import { Modal, Input, Button, Alert, Badge, toast } from '@/components/ui';
 import { patientService } from '@/api/patientService';
@@ -64,11 +66,19 @@ export const CreateBookingModal: React.FC<CreateBookingModalProps> = ({
     'CASH' | 'UPI' | 'CARD' | 'BANK_TRANSFER' | 'OTHER'
   >('CASH');
 
+  // Test Search & Selection State
+  const [testSearchQuery, setTestSearchQuery] = useState('');
+  const [itemTypeTab, setItemTypeTab] = useState<'TEST' | 'PACKAGE'>('TEST');
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+
   // Pre-fill initial patient when opened
   useEffect(() => {
     if (isOpen) {
       setErrorMessage(null);
       setCreatedBookingResult(null);
+      setTestSearchQuery('');
+      setIsSearchFocused(false);
       if (initialPatient) {
         setSelectedPatientId(initialPatient.id);
         if (initialPatient.referring_doctor) {
@@ -83,10 +93,26 @@ export const CreateBookingModal: React.FC<CreateBookingModalProps> = ({
       setDiscountAmount(0);
       setPaidAmount(0);
       setClinicalNotes('');
+      setTestSearchQuery('');
+      setIsSearchFocused(false);
       setErrorMessage(null);
       setCreatedBookingResult(null);
     }
   }, [isOpen, initialPatient, initialPatientId]);
+
+  // Handle clicking outside test search dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        searchContainerRef.current &&
+        !searchContainerRef.current.contains(event.target as Node)
+      ) {
+        setIsSearchFocused(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Queries
   const { data: patients = [] } = useQuery<Patient[]>({
@@ -120,6 +146,37 @@ export const CreateBookingModal: React.FC<CreateBookingModalProps> = ({
   const activePatient = useMemo(() => {
     return availablePatients.find((p) => p.id === selectedPatientId) || null;
   }, [availablePatients, selectedPatientId]);
+
+  // Filtered Tests by name, code, short_name, or category
+  const filteredTests = useMemo(() => {
+    if (!testSearchQuery.trim()) {
+      return tests.slice(0, 25);
+    }
+    const q = testSearchQuery.toLowerCase().trim();
+    return tests.filter((t) => {
+      return (
+        t.name.toLowerCase().includes(q) ||
+        t.code.toLowerCase().includes(q) ||
+        t.short_name?.toLowerCase().includes(q) ||
+        t.category_name?.toLowerCase().includes(q)
+      );
+    });
+  }, [tests, testSearchQuery]);
+
+  // Filtered Packages by name, code, or description
+  const filteredPackages = useMemo(() => {
+    if (!testSearchQuery.trim()) {
+      return packages.slice(0, 25);
+    }
+    const q = testSearchQuery.toLowerCase().trim();
+    return packages.filter((pkg) => {
+      return (
+        pkg.name.toLowerCase().includes(q) ||
+        pkg.code.toLowerCase().includes(q) ||
+        pkg.description?.toLowerCase().includes(q)
+      );
+    });
+  }, [packages, testSearchQuery]);
 
   // Financial Calculations
   const subtotal = selectedItems.reduce((acc, it) => acc + it.price, 0);
@@ -255,7 +312,7 @@ export const CreateBookingModal: React.FC<CreateBookingModalProps> = ({
           }
         }}
         title="Diagnostic Order & Billing"
-        maxWidth="xl"
+        maxWidth="4xl"
       >
         {errorMessage && (
           <Alert type="error" className="mb-4">
@@ -386,7 +443,7 @@ export const CreateBookingModal: React.FC<CreateBookingModalProps> = ({
           </div>
         ) : (
           /* View 2: Diagnostic Booking & Billing Form */
-          <form onSubmit={handleSubmit} className="space-y-4 max-h-[75vh] overflow-y-auto px-1">
+          <form onSubmit={handleSubmit} className="space-y-4 px-1">
             {/* 1. Patient Selection Header */}
             <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
               <div className="flex items-center justify-between mb-2">
@@ -453,76 +510,296 @@ export const CreateBookingModal: React.FC<CreateBookingModalProps> = ({
             </div>
 
             {/* 2. Test & Package Selection */}
-            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                2. Add Tests & Packages *
-              </label>
-              <div className="grid grid-cols-2 gap-3 mb-3">
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2.5">
                 <div>
-                  <span className="text-[11px] text-slate-500 mb-1 block">Add Diagnostic Test:</span>
-                  <select
-                    onChange={(e) => {
-                      if (e.target.value) {
-                        handleAddTest(e.target.value);
-                        e.target.value = '';
-                      }
-                    }}
-                    className="w-full px-3 py-1.5 border border-slate-300 rounded text-xs bg-white"
-                  >
-                    <option value="">Choose test to add...</option>
-                    {tests.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name} ({t.code}) - ₹{Number(t.effective_price ?? t.default_price).toFixed(2)}
-                      </option>
-                    ))}
-                  </select>
+                  <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider">
+                    2. Add Diagnostic Tests & Packages *
+                  </label>
+                  <span className="text-xs text-slate-500">
+                    Search test by name or code to add to this order
+                  </span>
                 </div>
-                <div>
-                  <span className="text-[11px] text-slate-500 mb-1 block">Add Health Package:</span>
-                  <select
-                    onChange={(e) => {
-                      if (e.target.value) {
-                        handleAddPackage(e.target.value);
-                        e.target.value = '';
-                      }
+
+                {/* Switcher: Diagnostic Tests vs Health Packages */}
+                <div className="inline-flex rounded-lg bg-slate-200/80 p-0.5 text-xs font-semibold self-start sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setItemTypeTab('TEST');
+                      setIsSearchFocused(true);
                     }}
-                    className="w-full px-3 py-1.5 border border-slate-300 rounded text-xs bg-white"
+                    className={`px-3 py-1.5 rounded-md transition-all flex items-center gap-1.5 ${
+                      itemTypeTab === 'TEST'
+                        ? 'bg-white text-brand-700 shadow-sm font-bold'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
                   >
-                    <option value="">Choose bundle to add...</option>
-                    {packages.map((pkg) => (
-                      <option key={pkg.id} value={pkg.id}>
-                        {pkg.name} ({pkg.code}) - ₹{Number(pkg.price).toFixed(2)}
-                      </option>
-                    ))}
-                  </select>
+                    <span>Individual Tests</span>
+                    <span className="px-1.5 py-0.2 bg-slate-100 text-slate-600 rounded text-[10px] font-mono">
+                      {tests.length}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setItemTypeTab('PACKAGE');
+                      setIsSearchFocused(true);
+                    }}
+                    className={`px-3 py-1.5 rounded-md transition-all flex items-center gap-1.5 ${
+                      itemTypeTab === 'PACKAGE'
+                        ? 'bg-white text-brand-700 shadow-sm font-bold'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <span>Health Packages</span>
+                    <span className="px-1.5 py-0.2 bg-slate-100 text-slate-600 rounded text-[10px] font-mono">
+                      {packages.length}
+                    </span>
+                  </button>
                 </div>
               </div>
 
+              {/* Big, Wide Search Input Box */}
+              <div className="relative mb-3" ref={searchContainerRef}>
+                <div className="relative flex items-center">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder={
+                      itemTypeTab === 'TEST'
+                        ? 'Search test by name or code (e.g. CBC, Lipid, Thyroid, Glucose, Urine)...'
+                        : 'Search health package by name or code (e.g. Master Health Checkup)...'
+                    }
+                    value={testSearchQuery}
+                    onChange={(e) => {
+                      setTestSearchQuery(e.target.value);
+                      setIsSearchFocused(true);
+                    }}
+                    onFocus={() => setIsSearchFocused(true)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (itemTypeTab === 'TEST' && filteredTests.length > 0) {
+                          const firstUnadded = filteredTests.find(
+                            (t) => !selectedItems.some((it) => it.id === t.id)
+                          );
+                          if (firstUnadded) {
+                            handleAddTest(firstUnadded.id);
+                            toast.success(`Added ${firstUnadded.name}`);
+                            setTestSearchQuery('');
+                            setIsSearchFocused(false);
+                          }
+                        } else if (itemTypeTab === 'PACKAGE' && filteredPackages.length > 0) {
+                          const firstUnadded = filteredPackages.find(
+                            (pkg) => !selectedItems.some((it) => it.id === pkg.id)
+                          );
+                          if (firstUnadded) {
+                            handleAddPackage(firstUnadded.id);
+                            toast.success(`Added ${firstUnadded.name}`);
+                            setTestSearchQuery('');
+                            setIsSearchFocused(false);
+                          }
+                        }
+                      }
+                    }}
+                    className="w-full pl-10 pr-9 py-2.5 bg-white border border-slate-300 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 font-medium transition-all"
+                  />
+                  {testSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setTestSearchQuery('')}
+                      className="absolute right-3 p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Autocomplete Dropdown Results */}
+                {isSearchFocused && (
+                  <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-30 max-h-64 overflow-y-auto divide-y divide-slate-100 animate-in fade-in slide-in-from-top-1 duration-150">
+                    {itemTypeTab === 'TEST' ? (
+                      filteredTests.length > 0 ? (
+                        filteredTests.map((t) => {
+                          const isAlreadyAdded = selectedItems.some((it) => it.id === t.id);
+                          return (
+                            <div
+                              key={t.id}
+                              onClick={() => {
+                                if (!isAlreadyAdded) {
+                                  handleAddTest(t.id);
+                                  toast.success(`Added ${t.name}`);
+                                  setTestSearchQuery('');
+                                  setIsSearchFocused(false);
+                                }
+                              }}
+                              className={`flex items-center justify-between px-4 py-2.5 transition-colors cursor-pointer ${
+                                isAlreadyAdded
+                                  ? 'bg-slate-50 opacity-70 cursor-not-allowed'
+                                  : 'hover:bg-brand-50/70 hover:text-brand-900'
+                              }`}
+                            >
+                              <div className="flex-1 min-w-0 pr-4">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-semibold text-sm text-slate-900 truncate">
+                                    {t.name}
+                                  </span>
+                                  <span className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-slate-100 text-slate-700 rounded border border-slate-200">
+                                    {t.code}
+                                  </span>
+                                  {t.category_name && (
+                                    <span className="text-[11px] text-slate-500 hidden sm:inline">
+                                      • {t.category_name}
+                                    </span>
+                                  )}
+                                </div>
+                                {t.preparation_instructions && (
+                                  <p className="text-[11px] text-amber-600 truncate mt-0.5">
+                                    Note: {t.preparation_instructions}
+                                  </p>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-3 shrink-0">
+                                <span className="font-mono font-bold text-sm text-slate-900">
+                                  ₹{Number(t.effective_price ?? t.default_price).toFixed(2)}
+                                </span>
+                                {isAlreadyAdded ? (
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                    Added
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-brand-700 bg-brand-50 hover:bg-brand-100 px-2.5 py-1 rounded-md border border-brand-200 transition-colors">
+                                    + Add
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className="p-6 text-center text-slate-500 text-sm">
+                          <p className="font-medium">No diagnostic tests match "{testSearchQuery}"</p>
+                          <p className="text-xs text-slate-400 mt-1">
+                            Try searching by partial name, test code, or category.
+                          </p>
+                        </div>
+                      )
+                    ) : filteredPackages.length > 0 ? (
+                      filteredPackages.map((pkg) => {
+                        const isAlreadyAdded = selectedItems.some((it) => it.id === pkg.id);
+                        return (
+                          <div
+                            key={pkg.id}
+                            onClick={() => {
+                              if (!isAlreadyAdded) {
+                                handleAddPackage(pkg.id);
+                                toast.success(`Added ${pkg.name}`);
+                                setTestSearchQuery('');
+                                setIsSearchFocused(false);
+                              }
+                            }}
+                            className={`flex items-center justify-between px-4 py-2.5 transition-colors cursor-pointer ${
+                              isAlreadyAdded
+                                ? 'bg-slate-50 opacity-70 cursor-not-allowed'
+                                : 'hover:bg-brand-50/70 hover:text-brand-900'
+                            }`}
+                          >
+                            <div className="flex-1 min-w-0 pr-4">
+                              <div className="flex items-center gap-2">
+                                <span className="font-semibold text-sm text-slate-900 truncate">
+                                  {pkg.name}
+                                </span>
+                                <span className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-purple-100 text-purple-700 rounded border border-purple-200">
+                                  {pkg.code}
+                                </span>
+                                {pkg.items?.length > 0 && (
+                                  <span className="text-[11px] text-slate-500 hidden sm:inline">
+                                    • {pkg.items.length} tests included
+                                  </span>
+                                )}
+                              </div>
+                              {pkg.description && (
+                                <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                                  {pkg.description}
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-3 shrink-0">
+                              <span className="font-mono font-bold text-sm text-slate-900">
+                                ₹{Number(pkg.price).toFixed(2)}
+                              </span>
+                              {isAlreadyAdded ? (
+                                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                  Added
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 px-2.5 py-1 rounded-md border border-purple-200 transition-colors">
+                                  + Add
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="p-6 text-center text-slate-500 text-sm">
+                        <p className="font-medium">No health packages match "{testSearchQuery}"</p>
+                        <p className="text-xs text-slate-400 mt-1">
+                          Try searching by package name or code.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {/* Selected Items List */}
-              {selectedItems.length > 0 && (
-                <div className="divide-y divide-slate-200 border border-slate-200 rounded bg-white">
-                  {selectedItems.map((item, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-2 text-xs">
-                      <div className="flex items-center gap-2">
-                        <Badge variant={item.item_type === 'PACKAGE' ? 'brand' : 'slate'}>
-                          {item.item_type}
-                        </Badge>
-                        <span className="font-semibold text-slate-800">{item.name}</span>
+              {selectedItems.length > 0 ? (
+                <div className="border border-slate-200 rounded-lg overflow-hidden bg-white shadow-sm">
+                  <div className="bg-slate-100/75 px-3 py-2 text-xs font-bold text-slate-700 flex justify-between items-center border-b border-slate-200">
+                    <span>Selected Tests & Packages ({selectedItems.length})</span>
+                    <span className="font-mono text-slate-600">Subtotal: ₹{subtotal.toFixed(2)}</span>
+                  </div>
+                  <div className="divide-y divide-slate-100 max-h-48 overflow-y-auto">
+                    {selectedItems.map((item, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center justify-between p-2.5 text-xs hover:bg-slate-50/50"
+                      >
+                        <div className="flex items-center gap-2 min-w-0 pr-2">
+                          <Badge
+                            variant={item.item_type === 'PACKAGE' ? 'brand' : 'slate'}
+                            className="shrink-0"
+                          >
+                            {item.item_type}
+                          </Badge>
+                          <span className="font-semibold text-slate-800 truncate">
+                            {item.name}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <span className="font-mono font-bold text-slate-900">
+                            ₹{item.price.toFixed(2)}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveItem(idx)}
+                            className="p-1 rounded text-red-500 hover:text-red-700 hover:bg-red-50 transition-colors"
+                            title="Remove item"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <span className="font-mono font-bold text-slate-900">
-                          ₹{item.price.toFixed(2)}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveItem(idx)}
-                          className="text-red-500 hover:text-red-700"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="p-4 border border-dashed border-slate-300 rounded-lg text-center text-xs text-slate-400 bg-white">
+                  No tests or packages selected yet. Type a test name in the search box above to add.
                 </div>
               )}
             </div>

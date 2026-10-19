@@ -32,7 +32,7 @@ export const LabDetailsModal: React.FC<LabDetailsModalProps> = ({ labId, isOpen,
       onClose={onClose}
       title={lab?.name || 'Laboratory Overview'}
       description={`Tenant Identifier: ${lab?.code || ''}`}
-      maxWidth="2xl"
+      maxWidth="4xl"
     >
       {isLoading ? (
         <LoadingSpinner size="md" label="Loading laboratory specifications..." />
@@ -114,7 +114,7 @@ export const LabDetailsModal: React.FC<LabDetailsModalProps> = ({ labId, isOpen,
                 <Users className="w-3.5 h-3.5 text-brand-600" /> Assigned Staff Members ({staff?.length || 0})
               </span>
             </h4>
-            <div className="border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-100 max-h-48 overflow-y-auto">
+            <div className="border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-100">
               {staff && staff.length > 0 ? (
                 staff.map((u) => (
                   <div key={u.id} className="p-3 flex items-center justify-between hover:bg-slate-50">

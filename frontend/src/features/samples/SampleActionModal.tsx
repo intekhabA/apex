@@ -91,7 +91,7 @@ export const SampleActionModal: React.FC<SampleActionModalProps> = ({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={titles[actionType]} maxWidth="md">
+    <Modal isOpen={isOpen} onClose={onClose} title={titles[actionType]} maxWidth="xl">
       {errorMessage && (
         <Alert type="error" className="mb-4">
           {errorMessage}
