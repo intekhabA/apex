@@ -1,13 +1,14 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, or_, delete
+from sqlalchemy import select, or_, delete, func
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.permissions import require_super_admin, require_lab_admin
 from app.core.security import get_current_user
 from app.models.user import User, UserRole
+from app.models.result import TestResultValue
 from app.models.test import (
     TestCategory,
     Test,
@@ -26,6 +27,7 @@ from app.schemas.test import (
     TestUpdate,
     TestResponse,
     TestParameterCreate,
+    TestParameterUpdate,
     TestParameterResponse,
     ReferenceRangeCreate,
     ReferenceRangeResponse,
@@ -849,4 +851,168 @@ async def add_parameter_to_test(
                 for rr in ranges
             ],
         ),
+    )
+
+
+@router.put("/{test_id}/parameters/{parameter_id}", response_model=APIResponse[TestParameterResponse])
+async def update_parameter_in_test(
+    test_id: str,
+    parameter_id: str,
+    payload: TestParameterUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_super_admin),
+):
+    """Update a sub-analyte parameter in master catalog (Super Admin only)."""
+    test_res = await db.execute(select(Test).where(Test.id == test_id))
+    if not test_res.scalar_one_or_none():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Test not found.")
+
+    param_res = await db.execute(
+        select(TestParameter)
+        .options(selectinload(TestParameter.reference_ranges))
+        .where(TestParameter.id == parameter_id, TestParameter.test_id == test_id)
+    )
+    param = param_res.scalar_one_or_none()
+    if not param:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Parameter not found for this test.")
+
+    update_data = payload.model_dump(exclude_unset=True)
+
+    # Validate code uniqueness within this test if changed
+    if "code" in update_data and update_data["code"]:
+        new_code = update_data["code"].upper().strip()
+        if new_code != param.code:
+            existing = await db.execute(
+                select(TestParameter).where(
+                    TestParameter.test_id == test_id,
+                    TestParameter.code == new_code,
+                    TestParameter.id != parameter_id,
+                )
+            )
+            if existing.scalar_one_or_none():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Parameter with code '{new_code}' already exists for this test.",
+                )
+            param.code = new_code
+        del update_data["code"]
+
+    ranges_to_replace = None
+    if "reference_ranges" in update_data:
+        ranges_to_replace = update_data.pop("reference_ranges")
+
+    for field, val in update_data.items():
+        setattr(param, field, val)
+
+    if ranges_to_replace is not None:
+        param.reference_ranges.clear()
+        for rr_data in ranges_to_replace:
+            gender = rr_data.get("gender") if isinstance(rr_data, dict) else rr_data.gender
+            age_min_years = rr_data.get("age_min_years", 0) if isinstance(rr_data, dict) else getattr(rr_data, "age_min_years", 0)
+            age_max_years = rr_data.get("age_max_years", 150) if isinstance(rr_data, dict) else getattr(rr_data, "age_max_years", 150)
+            min_value = rr_data.get("min_value") if isinstance(rr_data, dict) else getattr(rr_data, "min_value", None)
+            max_value = rr_data.get("max_value") if isinstance(rr_data, dict) else getattr(rr_data, "max_value", None)
+            critical_low = rr_data.get("critical_low") if isinstance(rr_data, dict) else getattr(rr_data, "critical_low", None)
+            critical_high = rr_data.get("critical_high") if isinstance(rr_data, dict) else getattr(rr_data, "critical_high", None)
+            text_normal_value = rr_data.get("text_normal_value") if isinstance(rr_data, dict) else getattr(rr_data, "text_normal_value", None)
+            display_range_string = rr_data.get("display_range_string", "") if isinstance(rr_data, dict) else getattr(rr_data, "display_range_string", "")
+
+            rr = TestReferenceRange(
+                parameter_id=param.id,
+                gender=gender,
+                age_min_years=age_min_years,
+                age_max_years=age_max_years,
+                min_value=min_value,
+                max_value=max_value,
+                critical_low=critical_low,
+                critical_high=critical_high,
+                text_normal_value=text_normal_value,
+                display_range_string=display_range_string,
+            )
+            param.reference_ranges.append(rr)
+
+    await db.commit()
+
+    # Re-fetch parameter with reference ranges
+    param_res = await db.execute(
+        select(TestParameter)
+        .options(selectinload(TestParameter.reference_ranges))
+        .where(TestParameter.id == parameter_id)
+    )
+    param = param_res.scalar_one()
+
+    return APIResponse(
+        success=True,
+        message=f"Parameter '{param.name}' updated successfully.",
+        data=TestParameterResponse(
+            id=str(param.id),
+            test_id=str(param.test_id),
+            code=param.code,
+            name=param.name,
+            short_name=param.short_name,
+            unit=param.unit,
+            result_type=param.result_type,
+            decimal_precision=param.decimal_precision,
+            display_order=param.display_order,
+            options_json=param.options_json,
+            reference_ranges=[
+                ReferenceRangeResponse(
+                    id=str(rr.id),
+                    parameter_id=str(rr.parameter_id),
+                    gender=rr.gender,
+                    age_min_years=rr.age_min_years,
+                    age_max_years=rr.age_max_years,
+                    min_value=rr.min_value,
+                    max_value=rr.max_value,
+                    critical_low=rr.critical_low,
+                    critical_high=rr.critical_high,
+                    text_normal_value=rr.text_normal_value,
+                    display_range_string=rr.display_range_string,
+                )
+                for rr in param.reference_ranges
+            ],
+        ),
+    )
+
+
+@router.delete("/{test_id}/parameters/{parameter_id}", response_model=APIResponse[MessageResponse])
+async def delete_parameter_from_test(
+    test_id: str,
+    parameter_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_super_admin),
+):
+    """Delete a sub-analyte parameter from a test (Super Admin only)."""
+    test_res = await db.execute(select(Test).where(Test.id == test_id))
+    if not test_res.scalar_one_or_none():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Test not found.")
+
+    param_res = await db.execute(
+        select(TestParameter).where(
+            TestParameter.id == parameter_id,
+            TestParameter.test_id == test_id,
+        )
+    )
+    param = param_res.scalar_one_or_none()
+    if not param:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Parameter not found for this test.")
+
+    # Check if used in test results
+    res_count = await db.scalar(
+        select(func.count(TestResultValue.id)).where(TestResultValue.parameter_id == parameter_id)
+    )
+    if res_count and res_count > 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot delete parameter '{param.name}' because {res_count} test result(s) are recorded for it.",
+        )
+
+    param_name = param.name
+    await db.delete(param)
+    await db.commit()
+
+    return APIResponse(
+        success=True,
+        message=f"Parameter '{param_name}' deleted successfully.",
+        data=MessageResponse(message=f"Parameter '{param_name}' removed from test catalog."),
     )

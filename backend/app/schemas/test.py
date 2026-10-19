@@ -84,6 +84,19 @@ class TestParameterCreate(TestParameterBase):
     reference_ranges: Optional[List[ReferenceRangeCreate]] = None
 
 
+class TestParameterUpdate(BaseModel):
+    code: Optional[str] = Field(None, min_length=1, max_length=50)
+    name: Optional[str] = Field(None, min_length=1, max_length=200)
+    short_name: Optional[str] = None
+    unit: Optional[str] = None
+    result_type: Optional[ResultValueTypeEnum] = None
+    decimal_precision: Optional[int] = None
+    display_order: Optional[int] = None
+    options_json: Optional[Any] = None
+    reference_ranges: Optional[List[ReferenceRangeCreate]] = None
+
+
+
 class TestParameterResponse(TestParameterBase):
     id: str
     test_id: str

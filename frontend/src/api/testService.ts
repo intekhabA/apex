@@ -6,6 +6,7 @@ import {
   DiagnosticTest,
   LabTestPriceOverride,
   TestPackage,
+  TestParameter,
 } from '@/types';
 
 export const testService = {
@@ -102,5 +103,26 @@ export const testService = {
       payload
     );
     return res.data.data!;
+  },
+
+  // Parameters
+  async addParameter(testId: string, payload: any): Promise<TestParameter> {
+    const res = await apiClient.post<APIResponse<TestParameter>>(
+      `${API_ENDPOINTS.TESTS.TESTS}/${testId}/parameters`,
+      payload
+    );
+    return res.data.data!;
+  },
+
+  async updateParameter(testId: string, parameterId: string, payload: any): Promise<TestParameter> {
+    const res = await apiClient.put<APIResponse<TestParameter>>(
+      `${API_ENDPOINTS.TESTS.TESTS}/${testId}/parameters/${parameterId}`,
+      payload
+    );
+    return res.data.data!;
+  },
+
+  async deleteParameter(testId: string, parameterId: string): Promise<void> {
+    await apiClient.delete(`${API_ENDPOINTS.TESTS.TESTS}/${testId}/parameters/${parameterId}`);
   },
 };

@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Modal, Input, Button, Alert, toast } from '@/components/ui';
+import { Modal, Input, Button, Alert, toast, confirmDialog } from '@/components/ui';
 import { testService } from '@/api/testService';
-import { DiagnosticTest, TestCategory } from '@/types';
+import { DiagnosticTest, TestCategory, TestParameter } from '@/types';
+import { Plus, Edit2, Trash2 } from 'lucide-react';
+import { ParameterModal } from './ParameterModal';
 
 const editTestSchema = z.object({
   category_id: z.string().min(1, 'Category is required'),
@@ -50,6 +52,60 @@ export const EditTestModal: React.FC<EditTestModalProps> = ({
 }) => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [currentTest, setCurrentTest] = useState<DiagnosticTest | null>(test);
+
+  useEffect(() => {
+    setCurrentTest(test);
+  }, [test]);
+
+  const [paramModalConfig, setParamModalConfig] = useState<{
+    isOpen: boolean;
+    parameter: TestParameter | null;
+  }>({
+    isOpen: false,
+    parameter: null,
+  });
+
+  const handleOpenAddParameter = () => {
+    setParamModalConfig({
+      isOpen: true,
+      parameter: null,
+    });
+  };
+
+  const handleOpenEditParameter = (param: TestParameter) => {
+    setParamModalConfig({
+      isOpen: true,
+      parameter: param,
+    });
+  };
+
+  const handleDeleteParameter = async (param: TestParameter) => {
+    if (!currentTest) return;
+    const confirmed = await confirmDialog({
+      title: `Delete Parameter "${param.name}"?`,
+      message: `Are you sure you want to permanently delete analyte [${param.code}] from "${currentTest.name}"? This action cannot be undone.`,
+      confirmText: 'Delete Parameter',
+      cancelText: 'Cancel',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
+
+    try {
+      await testService.deleteParameter(currentTest.id, param.id);
+      toast.success(`Parameter "${param.name}" removed from test.`);
+      const fresh = await testService.getTestById(currentTest.id);
+      setCurrentTest(fresh);
+      onSuccess();
+    } catch (err: any) {
+      toast.error(
+        err?.response?.data?.detail ||
+          err?.response?.data?.message ||
+          err?.message ||
+          'Failed to delete parameter.'
+      );
+    }
+  };
 
   const {
     register,
@@ -284,6 +340,88 @@ export const EditTestModal: React.FC<EditTestModalProps> = ({
           />
         </div>
 
+        {/* Sub-Parameters & Analytes Manager */}
+        <div className="pt-3 border-t border-slate-200">
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                Sub-Parameters & Biological Reference Intervals ({currentTest?.parameters?.length || 0})
+              </h4>
+              <p className="text-[11px] text-slate-500">
+                Manage analytes for panel tests (e.g. Hemoglobin, RBC)
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleOpenAddParameter}
+              className="flex items-center gap-1 text-xs text-brand-700 border-brand-300 hover:bg-brand-50"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add Parameter</span>
+            </Button>
+          </div>
+
+          {currentTest?.parameters && currentTest.parameters.length > 0 ? (
+            <div className="border border-slate-200 rounded-lg overflow-x-auto max-h-56">
+              <table className="min-w-full text-xs divide-y divide-slate-200">
+                <thead className="bg-slate-50 text-slate-600 font-semibold sticky top-0">
+                  <tr>
+                    <th className="px-3 py-2 text-left">Code</th>
+                    <th className="px-3 py-2 text-left">Parameter Name</th>
+                    <th className="px-3 py-2 text-left">Unit</th>
+                    <th className="px-3 py-2 text-left">Type</th>
+                    <th className="px-3 py-2 text-left">Reference Interval</th>
+                    <th className="px-3 py-2 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 bg-white">
+                  {currentTest.parameters.map((p) => (
+                    <tr key={p.id} className="hover:bg-slate-50">
+                      <td className="px-3 py-2 font-mono font-medium text-slate-700">{p.code}</td>
+                      <td className="px-3 py-2 font-semibold text-slate-900">{p.name}</td>
+                      <td className="px-3 py-2 text-slate-600">{p.unit || '—'}</td>
+                      <td className="px-3 py-2 text-slate-500">{p.result_type}</td>
+                      <td className="px-3 py-2 text-slate-700">
+                        {p.reference_ranges?.length > 0 ? (
+                          p.reference_ranges.map((rr) => rr.display_range_string).join(', ')
+                        ) : (
+                          <span className="text-slate-400">Not specified</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            type="button"
+                            title="Edit Parameter"
+                            onClick={() => handleOpenEditParameter(p)}
+                            className="p-1 text-slate-500 hover:text-brand-600 hover:bg-brand-50 rounded"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            title="Delete Parameter"
+                            onClick={() => handleDeleteParameter(p)}
+                            className="p-1 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-xs text-slate-400 italic p-3 bg-slate-50 rounded-lg border border-slate-200">
+              No sub-parameters configured for this test yet. Click "Add Parameter" to configure analytes.
+            </p>
+          )}
+        </div>
+
         {/* Action Buttons */}
         <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
           <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
@@ -294,6 +432,22 @@ export const EditTestModal: React.FC<EditTestModalProps> = ({
           </Button>
         </div>
       </form>
+
+      {/* Parameter Edit/Add Modal */}
+      {paramModalConfig.isOpen && currentTest && (
+        <ParameterModal
+          isOpen={paramModalConfig.isOpen}
+          onClose={() => setParamModalConfig((prev) => ({ ...prev, isOpen: false }))}
+          onSuccess={async () => {
+            const fresh = await testService.getTestById(currentTest.id);
+            setCurrentTest(fresh);
+            onSuccess();
+          }}
+          testId={currentTest.id}
+          testName={currentTest.name}
+          parameter={paramModalConfig.parameter}
+        />
+      )}
     </Modal>
   );
 };

@@ -79,6 +79,7 @@ export const DoctorCommissionsPage: React.FC = () => {
   const [rateModalDoctor, setRateModalDoctor] = useState<Doctor | null>(null);
   const [isNewDocModalOpen, setIsNewDocModalOpen] = useState(false);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+  const [printModalMode, setPrintModalMode] = useState<'ledger' | 'tests' | 'complete'>('ledger');
 
   // 1. Fetch Doctors list on mount
   useEffect(() => {
@@ -201,12 +202,15 @@ export const DoctorCommissionsPage: React.FC = () => {
         <div className="flex items-center gap-2.5">
           <Button
             variant="outline"
-            className="flex items-center gap-2"
-            onClick={() => setIsPrintModalOpen(true)}
-            disabled={!report || report.test_breakdown.length === 0}
+            className="flex items-center gap-2 border-brand-200 text-brand-800 hover:bg-brand-50"
+            onClick={() => {
+              setPrintModalMode('ledger');
+              setIsPrintModalOpen(true);
+            }}
+            disabled={!report || (report.patient_ledger.length === 0 && report.test_breakdown.length === 0)}
           >
-            <Printer className="w-4 h-4 text-slate-600" />
-            <span>Print Payout Voucher</span>
+            <Printer className="w-4 h-4 text-brand-600" />
+            <span>Print Referral Ledger</span>
           </Button>
 
           <Button
@@ -718,6 +722,30 @@ export const DoctorCommissionsPage: React.FC = () => {
       {/* Tab 3: Patient Referral Ledger */}
       {activeTab === 'ledger' && (
         <Card className="overflow-hidden border-slate-200">
+          <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-slate-50 border-b border-slate-200">
+            <div>
+              <h3 className="text-sm font-bold text-slate-800">
+                Itemized Patient Referral Transactions
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Total Patients: <strong className="text-blue-700">{report?.total_patients || 0}</strong> • Tests Referred: <strong className="text-slate-800">{report?.total_tests || 0}</strong> • Total Commission: <strong className="text-emerald-700">₹{totalCommission.toFixed(2)}</strong>
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setPrintModalMode('ledger');
+                setIsPrintModalOpen(true);
+              }}
+              className="flex items-center gap-1.5 text-xs text-slate-700 border-slate-300 hover:bg-slate-100"
+              disabled={!report || report.patient_ledger.length === 0}
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>Print Referral Ledger</span>
+            </Button>
+          </div>
+
           {loading ? (
             <div className="p-12 text-center text-sm text-slate-500">
               Loading patient referral ledger...
@@ -800,6 +828,27 @@ export const DoctorCommissionsPage: React.FC = () => {
                     );
                   })}
                 </tbody>
+                <tfoot className="bg-slate-50 font-bold border-t border-slate-200 text-slate-900">
+                  <tr>
+                    <td className="px-4 py-3" colSpan={4}>
+                      <span>Grand Total: </span>
+                      <span className="text-blue-700 font-extrabold ml-1">
+                        {report?.total_patients || 0} Total Patients
+                      </span>
+                      <span className="text-slate-500 font-normal ml-2">
+                        ({report?.total_tests || 0} Tests)
+                      </span>
+                    </td>
+                    <td className="px-3 py-3 text-right font-bold">₹{totalIncome.toFixed(2)}</td>
+                    <td className="px-3 py-3 text-center text-brand-700 font-extrabold">
+                      {effectivePct.toFixed(1)}% avg
+                    </td>
+                    <td className="px-4 py-3 text-right text-emerald-800 font-black text-sm">
+                      ₹{totalCommission.toFixed(2)}
+                    </td>
+                    <td></td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
           )}
@@ -889,6 +938,7 @@ export const DoctorCommissionsPage: React.FC = () => {
         isOpen={isPrintModalOpen}
         onClose={() => setIsPrintModalOpen(false)}
         report={report}
+        defaultMode={printModalMode}
       />
     </div>
   );

@@ -12,6 +12,7 @@ import {
   ChevronDown,
   ChevronUp,
   Edit2,
+  Trash2,
   Building2,
   CheckCircle2,
 } from 'lucide-react';
@@ -21,12 +22,13 @@ import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { usePermissions } from '@/hooks/usePermissions';
 import { testService } from '@/api/testService';
 import { adminApi } from '@/api/adminService';
-import { DiagnosticTest, TestCategory, TestPackage, Laboratory } from '@/types';
+import { DiagnosticTest, TestCategory, TestPackage, Laboratory, TestParameter } from '@/types';
 import { AddTestModal } from './AddTestModal';
 import { EditTestModal } from './EditTestModal';
 import { AddCategoryModal } from './AddCategoryModal';
 import { PricingOverrideModal } from './PricingOverrideModal';
 import { AddPackageModal } from './AddPackageModal';
+import { ParameterModal } from './ParameterModal';
 
 export const TestCatalogPage: React.FC = () => {
   const { isSuperAdmin, isLabAdmin } = usePermissions();
@@ -44,6 +46,61 @@ export const TestCatalogPage: React.FC = () => {
   const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
   const [isAddPackageOpen, setIsAddPackageOpen] = useState(false);
   const [pricingTest, setPricingTest] = useState<DiagnosticTest | null>(null);
+
+  // Parameter Modal state
+  const [paramModalConfig, setParamModalConfig] = useState<{
+    isOpen: boolean;
+    testId: string;
+    testName: string;
+    parameter: TestParameter | null;
+  }>({
+    isOpen: false,
+    testId: '',
+    testName: '',
+    parameter: null,
+  });
+
+  const handleOpenAddParameter = (test: DiagnosticTest) => {
+    setParamModalConfig({
+      isOpen: true,
+      testId: test.id,
+      testName: test.name,
+      parameter: null,
+    });
+  };
+
+  const handleOpenEditParameter = (test: DiagnosticTest, param: TestParameter) => {
+    setParamModalConfig({
+      isOpen: true,
+      testId: test.id,
+      testName: test.name,
+      parameter: param,
+    });
+  };
+
+  const handleDeleteParameter = async (test: DiagnosticTest, param: TestParameter) => {
+    const confirmed = await confirmDialog({
+      title: `Delete Parameter "${param.name}"?`,
+      message: `Are you sure you want to permanently delete analyte [${param.code}] from "${test.name}"? This action cannot be undone.`,
+      confirmText: 'Delete Parameter',
+      cancelText: 'Cancel',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
+
+    try {
+      await testService.deleteParameter(test.id, param.id);
+      toast.success(`Parameter "${param.name}" removed from test.`);
+      queryClient.invalidateQueries({ queryKey: ['tests'] });
+    } catch (err: any) {
+      toast.error(
+        err?.response?.data?.detail ||
+          err?.response?.data?.message ||
+          err?.message ||
+          'Failed to delete parameter.'
+      );
+    }
+  };
 
   // Fetch Laboratories (for Super Admin filter & assignment)
   const { data: laboratories = [] } = useQuery<Laboratory[]>({
@@ -443,9 +500,25 @@ export const TestCatalogPage: React.FC = () => {
                           </div>
                         )}
 
-                        <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                          Sub-Parameters & Biological Reference Intervals
-                        </h4>
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                            Sub-Parameters & Biological Reference Intervals ({test.parameters?.length || 0})
+                          </h4>
+                          {isSuperAdmin && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-xs flex items-center gap-1.5 py-1 px-2.5 h-auto text-brand-700 border-brand-300 hover:bg-brand-50"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenAddParameter(test);
+                              }}
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                              <span>Add Parameter</span>
+                            </Button>
+                          )}
+                        </div>
 
                         {test.parameters?.length > 0 ? (
                           <div className="border border-slate-200 rounded-lg overflow-x-auto">
@@ -457,6 +530,7 @@ export const TestCatalogPage: React.FC = () => {
                                   <th className="px-3 py-2 text-left">Unit</th>
                                   <th className="px-3 py-2 text-left">Type</th>
                                   <th className="px-3 py-2 text-left">Biological Reference Interval</th>
+                                  {isSuperAdmin && <th className="px-3 py-2 text-right">Actions</th>}
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-slate-100 bg-white">
@@ -488,15 +562,59 @@ export const TestCatalogPage: React.FC = () => {
                                         <span className="text-slate-400">Not specified</span>
                                       )}
                                     </td>
+                                    {isSuperAdmin && (
+                                      <td className="px-3 py-2 text-right">
+                                        <div className="flex items-center justify-end gap-1">
+                                          <button
+                                            type="button"
+                                            title="Edit Analyte Parameter"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleOpenEditParameter(test, param);
+                                            }}
+                                            className="p-1 text-slate-500 hover:text-brand-600 hover:bg-brand-50 rounded transition-colors"
+                                          >
+                                            <Edit2 className="w-3.5 h-3.5" />
+                                          </button>
+                                          <button
+                                            type="button"
+                                            title="Delete Analyte Parameter"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleDeleteParameter(test, param);
+                                            }}
+                                            className="p-1 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                          </button>
+                                        </div>
+                                      </td>
+                                    )}
                                   </tr>
                                 ))}
                               </tbody>
                             </table>
                           </div>
                         ) : (
-                          <p className="text-xs text-slate-400 italic">
-                            No discrete sub-parameters configured for this test.
-                          </p>
+                          <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                            <p className="text-xs text-slate-400 italic">
+                              No discrete sub-parameters configured for this test.
+                            </p>
+                            {isSuperAdmin && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-xs flex items-center gap-1.5 py-1 px-2.5 h-auto text-brand-700 border-brand-300 hover:bg-brand-50"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenAddParameter(test);
+                                }}
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                                <span>Add Parameter</span>
+                              </Button>
+                            )}
+                          </div>
                         )}
                       </div>
                     )}
@@ -593,9 +711,18 @@ export const TestCatalogPage: React.FC = () => {
             test={editingTest}
             categories={categories}
           />
+          <ParameterModal
+            isOpen={paramModalConfig.isOpen}
+            onClose={() => setParamModalConfig((prev) => ({ ...prev, isOpen: false }))}
+            onSuccess={() => {
+              queryClient.invalidateQueries({ queryKey: ['tests'] });
+            }}
+            testId={paramModalConfig.testId}
+            testName={paramModalConfig.testName}
+            parameter={paramModalConfig.parameter}
+          />
         </>
       )}
-
 
       <PricingOverrideModal
         isOpen={!!pricingTest}
