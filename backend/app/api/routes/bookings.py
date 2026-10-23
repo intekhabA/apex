@@ -415,7 +415,7 @@ async def create_booking(
             template_params={
                 "patient_name": patient.full_name,
                 "booking_id_display": created_booking.booking_id_display,
-                "lab_name": "DiagnoLab",
+                "lab_name": "TrustMyLab",
                 "appointment_date": str(created_booking.appointment_date or created_booking.booking_date),
                 "appointment_time": str(created_booking.appointment_time or "Scheduled"),
             },
@@ -586,7 +586,7 @@ async def download_booking_reports_pdf(
 
     # 4. Prepare data payloads
     lab_info = {
-        "name": lab.name if lab else "DiagnoLab Diagnostic Services",
+        "name": lab.name if lab else "TrustMyLab Diagnostic Services",
         "address": f"{lab.address_street or ''}, {lab.city or ''} {lab.state or ''}" if lab else "Medical Center Way",
         "phone": lab.phone if lab else "N/A",
         "email": lab.email if lab else "N/A",

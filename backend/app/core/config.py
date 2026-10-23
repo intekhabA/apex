@@ -14,7 +14,7 @@ class Settings(BaseSettings):
 
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
-    APP_NAME: str = "DiagnoLab SaaS"
+    APP_NAME: str = "TrustMyLab SaaS"
     APP_URL: str = "http://localhost:5173"
     API_V1_PREFIX: str = "/api"
 

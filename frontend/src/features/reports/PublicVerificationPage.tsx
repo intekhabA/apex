@@ -43,9 +43,9 @@ export const PublicVerificationPage: React.FC = () => {
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 mb-2">
             <div className="w-9 h-9 rounded-xl bg-teal-600 flex items-center justify-center text-white font-bold text-lg shadow-md shadow-teal-500/20">
-              DL
+              TML
             </div>
-            <span className="text-xl font-bold text-slate-900 tracking-tight">DiagnoLab</span>
+            <span className="text-xl font-bold text-slate-900 tracking-tight">TrustMyLab</span>
           </div>
           <p className="text-xs uppercase tracking-widest font-semibold text-teal-700">
             Public Digital Signature &amp; Authenticity Verification Registry
@@ -168,7 +168,7 @@ export const PublicVerificationPage: React.FC = () => {
               </div>
 
               <div className="text-[11px] text-slate-400 text-center leading-relaxed">
-                Notice: This public verification service verifies the tamper-proof authenticity and official finalization of diagnostic reports generated on the DiagnoLab platform.
+                Notice: This public verification service verifies the tamper-proof authenticity and official finalization of diagnostic reports generated on the TrustMyLab platform.
               </div>
             </div>
           </div>
@@ -176,7 +176,7 @@ export const PublicVerificationPage: React.FC = () => {
 
         {/* Footer */}
         <div className="mt-8 text-center text-xs text-slate-400">
-          Powered by <span className="font-semibold text-slate-600">DiagnoLab Healthcare OS</span> • Strict HIPAA &amp; ISO 15189 Multi-Tenant Security
+          Powered by <span className="font-semibold text-slate-600">TrustMyLab Healthcare OS</span> • Strict HIPAA &amp; ISO 15189 Multi-Tenant Security
         </div>
       </div>
     </div>

@@ -157,7 +157,7 @@ async def verify_report_public(
     # Fetch lab name
     lab_res = await db.execute(select(Laboratory).where(Laboratory.id == report.lab_id))
     lab = lab_res.scalar_one_or_none()
-    lab_name = lab.name if lab else "DiagnoLab Diagnostics"
+    lab_name = lab.name if lab else "TrustMyLab Diagnostics"
 
     patient_name = report.patient.full_name if report.patient else "Patient"
     patient_masked = mask_patient_name(patient_name)

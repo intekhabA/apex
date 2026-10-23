@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Card, Button, Input, Badge, Alert, Modal, toast } from '@/components/ui';
 import { patientPortalService } from '@/api/patientPortalService';
 import { ReportListItem, ReportDetail } from '@/types/report';
+import { formatResultValue } from '@/utils/formatters';
 import {
   FileCheck2,
   Download,
@@ -286,7 +287,7 @@ export const PatientReportsPage: React.FC = () => {
                         <tr key={v.id} className="hover:bg-slate-50">
                           <td className="p-2.5 font-medium text-slate-800">{v.parameter_name}</td>
                           <td className="p-2.5 text-right font-bold text-slate-900">
-                            {v.numeric_value !== null ? v.numeric_value : v.text_value || '—'}
+                            {formatResultValue(v.numeric_value, v.text_value)}
                           </td>
                           <td className="p-2.5 text-slate-500">{v.unit || '—'}</td>
                           <td className="p-2.5 text-slate-600">{v.reference_range_display || '—'}</td>

@@ -59,7 +59,7 @@ def test_get_signature_flowable_with_data_uri():
 def test_generate_medical_report_pdf_with_signature(tmp_path):
     """Verify medical report PDF renders successfully with signature."""
     lab_info = {
-        "name": "DiagnoLab Certified",
+        "name": "TrustMyLab Certified",
         "address": "123 Medical Center",
         "phone": "555-0100",
         "email": "lab@diagnolab.com",
@@ -110,3 +110,31 @@ def test_generate_medical_report_pdf_with_signature(tmp_path):
 
     assert os.path.exists(res)
     assert os.path.getsize(res) > 1000
+
+
+def test_format_result_value():
+    """Verify test results display integers without decimal and floats with 2 decimal places."""
+    from app.services.pdf_engine import format_result_value
+    from decimal import Decimal
+
+    # Non-floating integers -> without decimals
+    assert format_result_value(12) == "12"
+    assert format_result_value(12.0) == "12"
+    assert format_result_value(Decimal("12.0000")) == "12"
+    assert format_result_value("12.00") == "12"
+    assert format_result_value(0) == "0"
+    assert format_result_value(0.0) == "0"
+
+    # Floats -> 2 digits after decimal
+    assert format_result_value(12.5) == "12.50"
+    assert format_result_value(12.345) == "12.35"
+    assert format_result_value(Decimal("12.5000")) == "12.50"
+    assert format_result_value(0.7) == "0.70"
+
+    # Text results and nulls
+    assert format_result_value(None, "Reactive") == "Reactive"
+    assert format_result_value(None, "Negative") == "Negative"
+    assert format_result_value(None, "14.00") == "14"
+    assert format_result_value(None, "14.5") == "14.50"
+    assert format_result_value(None, None) == "—"
+

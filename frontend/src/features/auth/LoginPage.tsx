@@ -60,7 +60,7 @@ export const LoginPage: React.FC = () => {
             <ShieldCheck className="w-6 h-6" />
           </div>
           <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-            Sign In to DiagnoLab
+            Sign In to TrustMyLab
           </h2>
           <p className="text-sm text-slate-500 mt-1">
             Access your laboratory workstation or patient portal

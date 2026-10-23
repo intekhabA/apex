@@ -13,6 +13,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { ReportAmendModal } from './ReportAmendModal';
+import { formatResultValue } from '@/utils/formatters';
 
 export interface ReportDetailsModalProps {
   isOpen: boolean;
@@ -217,9 +218,7 @@ export const ReportDetailsModal: React.FC<ReportDetailsModalProps> = ({
                                 <div className="text-xs font-mono text-slate-400">{v.parameter_code}</div>
                               </td>
                               <td className="px-4 py-2.5 font-semibold text-slate-900">
-                                {v.numeric_value !== null && v.numeric_value !== undefined
-                                  ? v.numeric_value
-                                  : v.text_value || '—'}
+                                {formatResultValue(v.numeric_value, v.text_value)}
                               </td>
                               <td className="px-3 py-2.5 text-xs text-slate-500 font-mono">
                                 {v.unit || '—'}

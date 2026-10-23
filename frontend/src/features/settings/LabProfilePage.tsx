@@ -162,7 +162,7 @@ export const LabProfilePage: React.FC = () => {
               />
               <Input
                 label="Website URL"
-                placeholder="https://demolab.diagnolab.internal"
+                placeholder="https://demolab.trustmylab.in"
                 error={errors.website?.message}
                 {...register('website')}
               />

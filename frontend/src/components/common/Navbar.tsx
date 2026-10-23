@@ -40,7 +40,7 @@ export const Navbar: React.FC = () => {
             </div>
             <div>
               <span className="font-extrabold text-lg text-slate-900 tracking-tight flex items-center gap-1.5">
-                Diagno<span className="text-brand-600">Lab</span>
+                TrustMy<span className="text-brand-600">Lab</span>
               </span>
               <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold block -mt-1">
                 LIMS Enterprise

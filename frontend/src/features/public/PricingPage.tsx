@@ -454,7 +454,7 @@ export const PricingPage: React.FC = () => {
             Start Your 14-Day Free Trial Today
           </h2>
           <p className="text-slate-400 text-base max-w-xl mx-auto">
-            Experience the speed, accuracy, and security of DiagnoLab. No credit card required.
+            Experience the speed, accuracy, and security of TrustMyLab. No credit card required.
           </p>
           <div className="flex justify-center">
             <Link

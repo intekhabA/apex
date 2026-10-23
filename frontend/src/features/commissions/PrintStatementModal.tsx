@@ -466,7 +466,7 @@ export const PrintStatementModal: React.FC<Props> = ({
   isOpen,
   onClose,
   report,
-  labName = 'DiagnoLab Diagnostic Services',
+  labName = 'TrustMyLab Diagnostic Services',
   defaultMode = 'ledger',
 }) => {
   const [statementType, setStatementType] = useState<'ledger' | 'tests' | 'complete'>(defaultMode);

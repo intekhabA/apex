@@ -46,7 +46,7 @@ export function printReceiptOnly(data: ReceiptPrintData): void {
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Receipt - ${data.receiptNumber || data.invoiceNumber || 'DiagnoLab'}</title>
+  <title>Receipt - ${data.receiptNumber || data.invoiceNumber || 'TrustMyLab'}</title>
   <style>
     @page {
       size: A4 portrait;
@@ -227,7 +227,7 @@ export function printReceiptOnly(data: ReceiptPrintData): void {
   <div class="receipt-container">
     <div class="header">
       <div>
-        <h1 class="lab-title">${data.labName || 'DiagnoLab Diagnostics'}</h1>
+        <h1 class="lab-title">${data.labName || 'TrustMyLab Diagnostics'}</h1>
         <p class="lab-meta">${data.labAddress || 'Accredited Pathology & Diagnostic Healthcare Center'}</p>
         ${data.labPhone ? `<p class="lab-meta">Phone: ${data.labPhone}</p>` : ''}
       </div>
@@ -289,7 +289,7 @@ export function printReceiptOnly(data: ReceiptPrintData): void {
 
     <div class="footer">
       <div>
-        <p style="margin: 0;"><i>Official computer-generated receipt issued by DiagnoLab Healthcare.</i></p>
+        <p style="margin: 0;"><i>Official computer-generated receipt issued by TrustMyLab Healthcare.</i></p>
         <p style="margin: 2px 0 0 0; color: #94a3b8; font-size: 10px;">Retain this receipt for insurance claims and specimen tracking.</p>
       </div>
       <div class="sign-area">
@@ -365,7 +365,7 @@ export function printReceiptFromBooking(
   }));
 
   const data: ReceiptPrintData = {
-    labName: labName || 'DiagnoLab Diagnostics',
+    labName: labName || 'TrustMyLab Diagnostics',
     labAddress: 'Accredited Pathology & Diagnostic Healthcare Center',
     receiptNumber: booking.invoice_id_display || `REC-${booking.booking_id_display}`,
     invoiceNumber: booking.invoice_id_display || undefined,
@@ -413,7 +413,7 @@ export function printReceiptFromInvoice(
         ];
 
   const data: ReceiptPrintData = {
-    labName: labName || 'DiagnoLab Diagnostics',
+    labName: labName || 'TrustMyLab Diagnostics',
     labAddress: 'Accredited Pathology & Diagnostic Healthcare Center',
     receiptNumber: latestPayment?.receipt_id_display || `BILL-${inv.invoice_id_display}`,
     invoiceNumber: inv.invoice_id_display,

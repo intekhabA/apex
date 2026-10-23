@@ -87,10 +87,10 @@ class NotificationService:
         event_type: NotificationEventType, params: Dict[str, Any]
     ) -> Dict[str, str]:
         tmpl = TEMPLATES.get(event_type, {
-            "subject": "DiagnoLab Notification",
+            "subject": "TrustMyLab Notification",
             "body": "Dear Patient, this is an update regarding your diagnostic service.",
         })
-        subject_tpl = tmpl.get("subject", "DiagnoLab Notification")
+        subject_tpl = tmpl.get("subject", "TrustMyLab Notification")
         body_tpl = tmpl.get("body", "")
 
         def safe_format(template_str: str, values: Dict[str, Any]) -> str:

@@ -140,6 +140,33 @@ def mask_patient_name(full_name: str) -> str:
     return " ".join(masked)
 
 
+def format_result_value(numeric_val: Any, text_val: Any = None) -> str:
+    """Format an observed test result value for reports.
+    If the result is a whole number (non-floating / integer), display without decimals (no '.00').
+    If the result is a floating number, display with exactly 2 digits after decimal.
+    """
+    if numeric_val is not None and str(numeric_val).strip() != "":
+        try:
+            val_float = float(numeric_val)
+            if val_float.is_integer():
+                return str(int(val_float))
+            return f"{val_float:.2f}"
+        except (ValueError, TypeError):
+            return str(numeric_val)
+
+    if text_val is not None and str(text_val).strip() != "":
+        s_val = str(text_val).strip()
+        try:
+            val_float = float(s_val)
+            if val_float.is_integer():
+                return str(int(val_float))
+            return f"{val_float:.2f}"
+        except (ValueError, TypeError):
+            return s_val
+
+    return "—"
+
+
 def generate_medical_report_pdf(
     lab_info: dict,
     patient_info: dict,
@@ -265,7 +292,7 @@ def generate_medical_report_pdf(
     story = []
 
     # 1. Header: Laboratory Banner
-    lab_text = f"<b>{lab_info.get('name', 'DiagnoLab Diagnostic Services')}</b>"
+    lab_text = f"<b>{lab_info.get('name', 'TrustMyLab Diagnostic Services')}</b>"
     lab_details = (
         f"{lab_info.get('address', '123 Medical Center Way')}<br/>"
         f"Phone: {lab_info.get('phone', 'N/A')} | Email: {lab_info.get('email', 'N/A')}<br/>"
@@ -365,7 +392,7 @@ def generate_medical_report_pdf(
             else:
                 f_style = table_cell
 
-            val_display = str(v.get("numeric_value", "")) if v.get("numeric_value") is not None else str(v.get("text_value", "—"))
+            val_display = format_result_value(v.get("numeric_value"), v.get("text_value"))
 
             table_rows.append(
                 [
@@ -589,7 +616,7 @@ def generate_payment_receipt_pdf(
     story = []
 
     # 1. Header: Laboratory details on left, Receipt badge & date on right
-    lab_text = f"<b>{lab_info.get('name', 'DiagnoLab Diagnostics').upper()}</b>"
+    lab_text = f"<b>{lab_info.get('name', 'TrustMyLab Diagnostics').upper()}</b>"
     lab_phone = lab_info.get("phone")
     phone_part = f"Phone: {lab_phone} | " if lab_phone and lab_phone != "N/A" else ""
     lab_details = (
@@ -932,7 +959,7 @@ def generate_payment_receipt_pdf(
         [
             [
                 Paragraph(
-                    "<i>Official computer-generated receipt issued by DiagnoLab Healthcare.</i><br/>"
+                    "<i>Official computer-generated receipt issued by TrustMyLab Healthcare.</i><br/>"
                     "<font color='#94A3B8'>Retain this receipt for insurance claims and specimen tracking.</font>",
                     ParagraphStyle("FootText", parent=styles["Normal"], fontSize=8, leading=11, textColor=slate_muted),
                 ),
@@ -984,14 +1011,14 @@ class NumberedCanvas(canvas.Canvas):
             self.setStrokeColor(colors.HexColor("#CBD5E1"))
             self.setLineWidth(0.5)
             self.line(36, A4[1] - 30, A4[0] - 36, A4[1] - 30)
-            self.drawString(36, A4[1] - 24, "DiagnoLab Consolidated Diagnostic Report")
+            self.drawString(36, A4[1] - 24, "TrustMyLab Consolidated Diagnostic Report")
             self.drawRightString(A4[0] - 36, A4[1] - 24, "Confidential Medical Record")
 
         # Running bottom footer
         self.setStrokeColor(colors.HexColor("#CBD5E1"))
         self.setLineWidth(0.5)
         self.line(36, 30, A4[0] - 36, 30)
-        self.drawString(36, 18, "DiagnoLab — Validated Electronic Health Record — Strictly Confidential")
+        self.drawString(36, 18, "TrustMyLab — Validated Electronic Health Record — Strictly Confidential")
         page_text = f"Page {self._pageNumber} of {page_count}"
         self.drawRightString(A4[0] - 36, 18, page_text)
         self.restoreState()
@@ -1145,7 +1172,7 @@ def generate_consolidated_booking_report_pdf(
     story = []
 
     # 1. Header: Laboratory Banner & Consolidated Document Identification
-    lab_text = f"<b>{lab_info.get('name', 'DiagnoLab Diagnostic Services')}</b>"
+    lab_text = f"<b>{lab_info.get('name', 'TrustMyLab Diagnostic Services')}</b>"
     lab_details = (
         f"{lab_info.get('address', '123 Medical Center Way')}<br/>"
         f"Phone: {lab_info.get('phone', 'N/A')} | Email: {lab_info.get('email', 'N/A')}<br/>"
@@ -1357,7 +1384,7 @@ def generate_consolidated_booking_report_pdf(
                 else:
                     f_style = flag_normal
 
-                val_display = str(v.get("numeric_value", "")) if v.get("numeric_value") is not None else str(v.get("text_value", "—"))
+                val_display = format_result_value(v.get("numeric_value"), v.get("text_value"))
 
                 table_rows.append(
                     [
@@ -1490,7 +1517,7 @@ def generate_consolidated_booking_report_pdf(
         f"<b>Scan QR to Verify All Booking Reports Online</b><br/>"
         f"<font color='#0D9488'>Portal: {qr_url}</font><br/>"
         f"<font color='#64748B'>Booking Reference: #{booking_info.get('booking_id_display', '')}</font><br/>"
-        f"<i>This consolidated document is electronically certified by {lab_info.get('name', 'DiagnoLab')}.</i>"
+        f"<i>This consolidated document is electronically certified by {lab_info.get('name', 'TrustMyLab')}.</i>"
     )
 
     chief_sig_source = (

@@ -1,7 +1,7 @@
 from typing import List, Optional
 from datetime import datetime
 from decimal import Decimal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
 from app.models.result import ResultFlagEnum
 from app.models.report import ReportStatus
 
@@ -29,6 +29,15 @@ class ResultValueResponse(BaseModel):
     reference_range_display: Optional[str] = None
     flag: ResultFlagEnum
     technician_comment: Optional[str] = None
+
+    @field_serializer("numeric_value")
+    def serialize_numeric_value(self, v: Optional[Decimal], _info):
+        if v is None:
+            return None
+        f = float(v)
+        if f.is_integer():
+            return int(f)
+        return round(f, 2)
 
     class Config:
         from_attributes = True

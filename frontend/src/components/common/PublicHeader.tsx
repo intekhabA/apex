@@ -37,7 +37,7 @@ export const PublicHeader: React.FC = () => {
             </div>
             <div className="flex flex-col">
               <span className="text-xl font-black tracking-tight text-slate-900 group-hover:text-brand-700 transition-colors">
-                Diagno<span className="text-brand-600">Lab</span>
+                TrustMy<span className="text-brand-600">Lab</span>
               </span>
               <span className="text-[10px] text-slate-500 font-semibold tracking-wider uppercase -mt-1">
                 LIMS & Clinical Software

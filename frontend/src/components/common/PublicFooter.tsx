@@ -14,11 +14,11 @@ export const PublicFooter: React.FC = () => {
                 <Activity className="w-5 h-5" />
               </div>
               <span className="text-2xl font-black tracking-tight text-white">
-                Diagno<span className="text-brand-400">Lab</span>
+                TrustMy<span className="text-brand-400">Lab</span>
               </span>
             </Link>
             <p className="text-slate-400 text-sm leading-relaxed max-w-sm">
-              DiagnoLab Apex is a cloud-native, multi-tenant LIMS platform built for modern diagnostic centers, hospital networks, and pathology laboratories.
+              TrustMyLab is a cloud-native, multi-tenant LIMS platform built for modern diagnostic centers, hospital networks, and pathology laboratories.
             </p>
             <div className="flex flex-wrap gap-2 pt-2">
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-slate-800 text-teal-300 border border-slate-700">
@@ -111,7 +111,7 @@ export const PublicFooter: React.FC = () => {
         {/* Bottom copyright & disclosures */}
         <div className="mt-12 pt-8 border-t border-slate-800 flex flex-col md:flex-row items-center justify-between text-xs text-slate-500 gap-4">
           <div className="flex items-center gap-2">
-            <span>&copy; {new Date().getFullYear()} DiagnoLab Technologies Inc. All rights reserved.</span>
+            <span>&copy; {new Date().getFullYear()} TrustMyLab Technologies Inc. All rights reserved.</span>
           </div>
           <div className="flex items-center gap-6">
             <span className="hover:text-slate-400 transition-colors cursor-pointer">Privacy Policy</span>

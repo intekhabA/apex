@@ -23,19 +23,19 @@ export const HomePage: React.FC = () => {
 
   const faqs = [
     {
-      q: 'How fast can our laboratory get started with DiagnoLab Apex?',
+      q: 'How fast can our laboratory get started with TrustMyLab?',
       a: 'You can launch your lab account in less than 5 minutes! Our pre-configured test catalogs (CBC, LFT, KFT, Thyroid, Lipid, Urine) and built-in PDF report templates allow you to start booking patients immediately.',
     },
     {
       q: 'Is our patient health data secure and HIPAA compliant?',
-      a: 'Yes. DiagnoLab uses enterprise multi-tenant isolation at the database/ORM layer. All data is encrypted in transit (TLS 1.3) and at rest (AES-256). Reports feature cryptographic HMAC SHA-256 signatures and instant QR code verification.',
+      a: 'Yes. TrustMyLab uses enterprise multi-tenant isolation at the database/ORM layer. All data is encrypted in transit (TLS 1.3) and at rest (AES-256). Reports feature cryptographic HMAC SHA-256 signatures and instant QR code verification.',
     },
     {
       q: 'Can we customize report templates with our lab logo and doctor signatures?',
       a: 'Absolutely. You can upload custom header/footer logos, digital signatures of pathologists/radiologists, brand accent colors, and custom reference ranges.',
     },
     {
-      q: 'Does DiagnoLab support multi-branch collection centers?',
+      q: 'Does TrustMyLab support multi-branch collection centers?',
       a: 'Yes! Our Professional and Enterprise plans support multi-branch workflows where sample collection occurs at remote centers and processing happens at the central lab.',
     },
     {
@@ -112,7 +112,7 @@ export const HomePage: React.FC = () => {
                 <div className="w-3 h-3 rounded-full bg-rose-500/80" />
                 <div className="w-3 h-3 rounded-full bg-amber-500/80" />
                 <div className="w-3 h-3 rounded-full bg-emerald-500/80" />
-                <span className="ml-2 text-xs font-mono text-slate-400">diagnolab-apex.internal/workstation</span>
+                <span className="ml-2 text-xs font-mono text-slate-400">trustmylab.in/workstation</span>
                 <span className="ml-auto px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-300 font-semibold flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" /> LIVE SYSTEM
                 </span>
@@ -405,7 +405,7 @@ export const HomePage: React.FC = () => {
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
             <div className="flex text-amber-400 gap-1 text-sm">★★★★★</div>
             <p className="text-slate-600 text-sm italic leading-relaxed">
-              "DiagnoLab transformed our daily workflow. The biological reference flag calculation saves our pathologists hours every day, and patients love receiving instant WhatsApp report links."
+              "TrustMyLab transformed our daily workflow. The biological reference flag calculation saves our pathologists hours every day, and patients love receiving instant WhatsApp report links."
             </p>
             <div className="pt-2 border-t border-slate-100 flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-brand-100 text-brand-800 font-bold flex items-center justify-center text-sm">
@@ -437,7 +437,7 @@ export const HomePage: React.FC = () => {
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
             <div className="flex text-amber-400 gap-1 text-sm">★★★★★</div>
             <p className="text-slate-600 text-sm italic leading-relaxed">
-              "Managing referring doctor commission rates used to be a nightmare on spreadsheets. DiagnoLab calculates commissions and exports statements with one click."
+              "Managing referring doctor commission rates used to be a nightmare on spreadsheets. TrustMyLab calculates commissions and exports statements with one click."
             </p>
             <div className="pt-2 border-t border-slate-100 flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-800 font-bold flex items-center justify-center text-sm">

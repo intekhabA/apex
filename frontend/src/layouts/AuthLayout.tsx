@@ -22,7 +22,7 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
             </div>
             <div>
               <span className="text-2xl font-black tracking-tight text-white">
-                Diagno<span className="text-brand-400">Lab</span>
+                TrustMy<span className="text-brand-400">Lab</span>
               </span>
               <p className="text-xs text-brand-200 uppercase tracking-widest font-semibold">
                 Multi-Tenant LIMS Platform
@@ -80,7 +80,7 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
 
         {/* Footer */}
         <div className="relative z-10 flex items-center justify-between text-xs text-slate-400 border-t border-white/10 pt-6">
-          <span>&copy; {new Date().getFullYear()} DiagnoLab Platform</span>
+          <span>&copy; {new Date().getFullYear()} TrustMyLab Platform</span>
           <span className="flex items-center gap-1.5 text-brand-300 font-medium">
             <ShieldCheck className="w-4 h-4" /> HIPAA & Clinical Security Standard
           </span>

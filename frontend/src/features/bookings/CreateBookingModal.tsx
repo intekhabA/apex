@@ -353,7 +353,7 @@ export const CreateBookingModal: React.FC<CreateBookingModalProps> = ({
               <div className="flex justify-between items-start border-b pb-2">
                 <div>
                   <h4 className="font-bold text-slate-800 text-sm">
-                    {user?.lab_name || 'DiagnoLab Diagnostics'}
+                    {user?.lab_name || 'TrustMyLab Diagnostics'}
                   </h4>
                   <p className="text-slate-500 text-[11px]">Payment Receipt / Voucher</p>
                 </div>

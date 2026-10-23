@@ -477,7 +477,7 @@ async def get_patient_report_detail(
     # Fetch lab name
     lab_res = await db.execute(select(Laboratory).where(Laboratory.id == report.lab_id))
     lab = lab_res.scalar_one_or_none()
-    lab_name = lab.name if lab else "DiagnoLab Diagnostics"
+    lab_name = lab.name if lab else "TrustMyLab Diagnostics"
 
     # Approver name
     approver_name = None
@@ -654,7 +654,7 @@ async def download_patient_booking_reports_pdf(
         )
 
     lab_info = {
-        "name": lab.name if lab else "DiagnoLab Diagnostic Services",
+        "name": lab.name if lab else "TrustMyLab Diagnostic Services",
         "address": f"{lab.address_street or ''}, {lab.city or ''} {lab.state or ''}" if lab else "Medical Center Way",
         "phone": lab.phone if lab else "N/A",
         "email": lab.email if lab else "N/A",
@@ -860,7 +860,7 @@ async def download_patient_invoice_receipt(
 
     lab = inv.laboratory
     lab_info = {
-        "name": lab.name if lab else "DiagnoLab Diagnostics",
+        "name": lab.name if lab else "TrustMyLab Diagnostics",
         "address": f"{lab.address_street or ''}, {lab.city or ''} {lab.state or ''}" if lab else "Medical Diagnostic Center",
         "phone": (lab.phone or "N/A") if lab else "N/A",
         "license": (lab.registration_number or "Accredited Laboratory") if lab else "Accredited Laboratory",

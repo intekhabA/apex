@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Modal, Button, Alert, Badge, toast, confirmDialog } from '@/components/ui';
 import { resultService } from '@/api/resultService';
 import { ResultSheetResponse, ResultFlag } from '@/types';
+import { formatResultValue } from '@/utils/formatters';
 
 export interface ResultEntryModalProps {
   isOpen: boolean;
@@ -58,7 +59,7 @@ export const ResultEntryModal: React.FC<ResultEntryModalProps> = ({
         parameter_code: v.parameter_code,
         unit: v.unit || '',
         reference_range_display: v.reference_range_display || '—',
-        numeric_value: v.numeric_value !== null && v.numeric_value !== undefined ? String(v.numeric_value) : '',
+        numeric_value: v.numeric_value !== null && v.numeric_value !== undefined ? (formatResultValue(v.numeric_value) === '—' ? '' : formatResultValue(v.numeric_value)) : '',
         text_value: v.text_value || '',
         technician_comment: v.technician_comment || '',
         flag: v.flag || 'NORMAL',
@@ -117,7 +118,7 @@ export const ResultEntryModal: React.FC<ResultEntryModalProps> = ({
           parameter_code: v.parameter_code,
           unit: v.unit || '',
           reference_range_display: v.reference_range_display || '—',
-          numeric_value: v.numeric_value !== null && v.numeric_value !== undefined ? String(v.numeric_value) : '',
+          numeric_value: v.numeric_value !== null && v.numeric_value !== undefined ? (formatResultValue(v.numeric_value) === '—' ? '' : formatResultValue(v.numeric_value)) : '',
           text_value: v.text_value || '',
           technician_comment: v.technician_comment || '',
           flag: v.flag,
