@@ -6,6 +6,7 @@ export * from './Modal';
 export * from './Alert';
 export * from './ToastContainer';
 export * from './ConfirmDialog';
+export * from './RichTextEditor';
 export * from '@/store/toastStore';
 export * from '@/store/confirmStore';
 export * from '../common/LoadingSpinner';

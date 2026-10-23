@@ -317,33 +317,59 @@ export const PatientReportsPage: React.FC = () => {
               detailReport.imaging_findings ||
               detailReport.imaging_impression) && (
               <div className="space-y-4 border rounded-lg p-4 bg-slate-50/60">
-                {detailReport.clinical_history && (
+                {/* One-box consolidated findings */}
+                {detailReport.imaging_findings && !detailReport.clinical_history && !detailReport.imaging_impression ? (
                   <div>
-                    <h5 className="text-xs font-bold text-slate-500 uppercase">Clinical History</h5>
-                    <p className="text-xs text-slate-800 mt-1">{detailReport.clinical_history}</p>
+                    <h5 className="text-xs font-bold text-slate-500 uppercase mb-2">Radiological Report &amp; Findings</h5>
+                    {/<[a-z][\s\S]*>/i.test(detailReport.imaging_findings) ? (
+                      <div
+                        className="bg-white p-3.5 rounded-lg border border-slate-200 text-slate-800 leading-relaxed font-sans text-xs [&_b]:font-bold [&_b]:text-slate-900 [&_h3]:font-bold [&_h3]:text-sm [&_h3]:mt-2 [&_h4]:font-bold [&_ul]:list-disc [&_ul]:pl-4"
+                        dangerouslySetInnerHTML={{ __html: detailReport.imaging_findings }}
+                      />
+                    ) : (
+                      <p className="text-xs text-slate-800 mt-1 whitespace-pre-line bg-white p-3 rounded-lg border border-slate-200">
+                        {detailReport.imaging_findings}
+                      </p>
+                    )}
                   </div>
-                )}
-                {detailReport.imaging_findings && (
-                  <div>
-                    <h5 className="text-xs font-bold text-slate-500 uppercase">Findings</h5>
-                    <p className="text-xs text-slate-800 mt-1 whitespace-pre-line">
-                      {detailReport.imaging_findings}
-                    </p>
-                  </div>
-                )}
-                {detailReport.imaging_impression && (
-                  <div>
-                    <h5 className="text-xs font-bold text-slate-500 uppercase">Impression</h5>
-                    <p className="text-xs text-slate-900 font-semibold mt-1">
-                      {detailReport.imaging_impression}
-                    </p>
-                  </div>
-                )}
-                {detailReport.recommendations && (
-                  <div>
-                    <h5 className="text-xs font-bold text-slate-500 uppercase">Recommendations</h5>
-                    <p className="text-xs text-slate-700 mt-1">{detailReport.recommendations}</p>
-                  </div>
+                ) : (
+                  <>
+                    {detailReport.clinical_history && (
+                      <div>
+                        <h5 className="text-xs font-bold text-slate-500 uppercase">Clinical History</h5>
+                        <p className="text-xs text-slate-800 mt-1">{detailReport.clinical_history}</p>
+                      </div>
+                    )}
+                    {detailReport.imaging_findings && (
+                      <div>
+                        <h5 className="text-xs font-bold text-slate-500 uppercase">Findings</h5>
+                        {/<[a-z][\s\S]*>/i.test(detailReport.imaging_findings) ? (
+                          <div
+                            className="bg-white p-3 rounded-lg border border-slate-200 text-slate-800 leading-relaxed font-sans text-xs [&_b]:font-bold"
+                            dangerouslySetInnerHTML={{ __html: detailReport.imaging_findings }}
+                          />
+                        ) : (
+                          <p className="text-xs text-slate-800 mt-1 whitespace-pre-line">
+                            {detailReport.imaging_findings}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    {detailReport.imaging_impression && (
+                      <div>
+                        <h5 className="text-xs font-bold text-slate-500 uppercase">Impression</h5>
+                        <p className="text-xs text-slate-900 font-semibold mt-1">
+                          {detailReport.imaging_impression}
+                        </p>
+                      </div>
+                    )}
+                    {detailReport.recommendations && (
+                      <div>
+                        <h5 className="text-xs font-bold text-slate-500 uppercase">Recommendations</h5>
+                        <p className="text-xs text-slate-700 mt-1">{detailReport.recommendations}</p>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Button, Alert, Badge, toast, confirmDialog } from '@/components/ui';
+import { Modal, Button, Alert, Badge, toast, confirmDialog, RichTextEditor } from '@/components/ui';
 import { imagingService } from '@/api/imagingService';
 import { ImagingReport, ImagingTemplate } from '@/types';
-import { Upload, Trash2, FileImage, Sparkles } from 'lucide-react';
+import { Upload, Trash2, FileImage, Sparkles, FileText } from 'lucide-react';
 
 export interface ImagingReportEditorModalProps {
   isOpen: boolean;
@@ -22,11 +22,8 @@ export const ImagingReportEditorModal: React.FC<ImagingReportEditorModalProps> =
   const [templates, setTemplates] = useState<ImagingTemplate[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
 
-  // Form State
-  const [clinicalHistory, setClinicalHistory] = useState('');
-  const [imagingFindings, setImagingFindings] = useState('');
-  const [imagingImpression, setImagingImpression] = useState('');
-  const [recommendations, setRecommendations] = useState('');
+  // Form State: Unified Single Box Editor
+  const [reportContent, setReportContent] = useState('');
 
   // Upload State
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -38,19 +35,74 @@ export const ImagingReportEditorModal: React.FC<ImagingReportEditorModalProps> =
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
+  // Helpers to combine sections into one rich-text box
+  const combineReportToHtml = (rep: ImagingReport): string => {
+    if (rep.imaging_findings && /<[a-z][\s\S]*>/i.test(rep.imaging_findings)) {
+      return rep.imaging_findings;
+    }
+    const parts: string[] = [];
+    if (rep.clinical_history?.trim()) {
+      parts.push(
+        `<div><b>CLINICAL HISTORY &amp; INDICATION:</b></div><div>${rep.clinical_history.replace(/\n/g, '<br/>')}</div>`
+      );
+    }
+    if (rep.imaging_findings?.trim()) {
+      parts.push(
+        `<div><b>OBSERVATIONS &amp; FINDINGS:</b></div><div>${rep.imaging_findings.replace(/\n/g, '<br/>')}</div>`
+      );
+    }
+    if (rep.imaging_impression?.trim()) {
+      parts.push(
+        `<div><b>IMPRESSION:</b></div><div><b>${rep.imaging_impression.replace(/\n/g, '<br/>')}</b></div>`
+      );
+    }
+    if (rep.recommendations?.trim()) {
+      parts.push(
+        `<div><b>RECOMMENDATIONS &amp; ADVICE:</b></div><div>${rep.recommendations.replace(/\n/g, '<br/>')}</div>`
+      );
+    }
+    return parts.length > 0 ? parts.join('<div><br/></div>') : rep.imaging_findings || '';
+  };
+
+  const combineTemplateToHtml = (tpl: ImagingTemplate): string => {
+    if (tpl.findings_template && /<[a-z][\s\S]*>/i.test(tpl.findings_template)) {
+      return tpl.findings_template;
+    }
+    const parts: string[] = [];
+    if (tpl.clinical_history_template?.trim()) {
+      parts.push(
+        `<div><b>CLINICAL HISTORY &amp; INDICATION:</b></div><div>${tpl.clinical_history_template.replace(/\n/g, '<br/>')}</div>`
+      );
+    }
+    if (tpl.findings_template?.trim()) {
+      parts.push(
+        `<div><b>OBSERVATIONS &amp; FINDINGS:</b></div><div>${tpl.findings_template.replace(/\n/g, '<br/>')}</div>`
+      );
+    }
+    if (tpl.impression_template?.trim()) {
+      parts.push(
+        `<div><b>IMPRESSION:</b></div><div><b>${tpl.impression_template.replace(/\n/g, '<br/>')}</b></div>`
+      );
+    }
+    if (tpl.recommendations_template?.trim()) {
+      parts.push(
+        `<div><b>RECOMMENDATIONS &amp; ADVICE:</b></div><div>${tpl.recommendations_template.replace(/\n/g, '<br/>')}</div>`
+      );
+    }
+    return parts.length > 0 ? parts.join('<div><br/></div>') : tpl.findings_template || '';
+  };
+
   useEffect(() => {
     if (isOpen && reportId) {
       loadData(reportId);
     } else {
       setReport(null);
-      setClinicalHistory('');
-      setImagingFindings('');
-      setImagingImpression('');
-      setRecommendations('');
+      setReportContent('');
       setSelectedFile(null);
       setCaption('');
       setErrorMessage(null);
       setSuccessMessage(null);
+      setSelectedTemplateId('');
     }
   }, [isOpen, reportId]);
 
@@ -64,10 +116,7 @@ export const ImagingReportEditorModal: React.FC<ImagingReportEditorModalProps> =
       ]);
       setReport(reportData);
       setTemplates(templatesData);
-      setClinicalHistory(reportData.clinical_history || '');
-      setImagingFindings(reportData.imaging_findings || '');
-      setImagingImpression(reportData.imaging_impression || '');
-      setRecommendations(reportData.recommendations || '');
+      setReportContent(combineReportToHtml(reportData));
     } catch (err: unknown) {
       const errorObj = err as { response?: { data?: { message?: string } } };
       setErrorMessage(errorObj.response?.data?.message || 'Failed to load imaging report.');
@@ -80,10 +129,7 @@ export const ImagingReportEditorModal: React.FC<ImagingReportEditorModalProps> =
     const tpl = templates.find((t) => t.id === templateId);
     if (!tpl) return;
     setSelectedTemplateId(templateId);
-    setClinicalHistory(tpl.clinical_history_template || '');
-    setImagingFindings(tpl.findings_template || '');
-    setImagingImpression(tpl.impression_template || '');
-    setRecommendations(tpl.recommendations_template || '');
+    setReportContent(combineTemplateToHtml(tpl));
   };
 
   const handleUploadScan = async (e: React.FormEvent) => {
@@ -94,7 +140,6 @@ export const ImagingReportEditorModal: React.FC<ImagingReportEditorModalProps> =
     setErrorMessage(null);
     try {
       await imagingService.uploadAttachment(reportId, selectedFile, caption);
-      // Reload attachments
       const fresh = await imagingService.getImagingReport(reportId);
       setReport(fresh);
       setSelectedFile(null);
@@ -154,10 +199,10 @@ export const ImagingReportEditorModal: React.FC<ImagingReportEditorModalProps> =
     setSuccessMessage(null);
 
     const payload = {
-      clinical_history: clinicalHistory.trim() || null,
-      imaging_findings: imagingFindings.trim() || null,
-      imaging_impression: imagingImpression.trim() || null,
-      recommendations: recommendations.trim() || null,
+      clinical_history: null,
+      imaging_findings: reportContent.trim() || null,
+      imaging_impression: null,
+      recommendations: null,
       submit_for_review: submitForReview,
     };
 
@@ -246,61 +291,22 @@ export const ImagingReportEditorModal: React.FC<ImagingReportEditorModalProps> =
             </div>
           </div>
 
-          {/* Structured Textareas */}
-          <div className="space-y-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Clinical History &amp; Indication
+          {/* Unified One-Box Rich Text Editor */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                <FileText className="w-3.5 h-3.5 text-teal-600" />
+                Radiology &amp; Ultrasound Findings (All-in-One Formatted Editor)
               </label>
-              <textarea
-                rows={2}
-                value={clinicalHistory}
-                onChange={(e) => setClinicalHistory(e.target.value)}
-                placeholder="Indication for imaging study..."
-                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 font-sans"
-              />
+              <span className="text-xs text-slate-400">Bold text (Ctrl+B), add impressions, or insert sections</span>
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Imaging Findings (Organ-by-Organ / Anatomic Structure)
-              </label>
-              <textarea
-                rows={6}
-                value={imagingFindings}
-                onChange={(e) => setImagingFindings(e.target.value)}
-                placeholder="Structured anatomical observations..."
-                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 font-mono text-xs leading-relaxed"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Radiological Impression / Conclusion
-                </label>
-                <textarea
-                  rows={3}
-                  value={imagingImpression}
-                  onChange={(e) => setImagingImpression(e.target.value)}
-                  placeholder="Primary diagnostic impression..."
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 font-sans"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Recommendations &amp; Advice
-                </label>
-                <textarea
-                  rows={3}
-                  value={recommendations}
-                  onChange={(e) => setRecommendations(e.target.value)}
-                  placeholder="Clinical advice, follow-up, or correlation..."
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 font-sans"
-                />
-              </div>
-            </div>
+            <RichTextEditor
+              value={reportContent}
+              onChange={setReportContent}
+              placeholder="Enter structured observations, organ findings, clinical indication, and diagnostic impression. Use bold for organ names and impressions..."
+              minHeight="min-h-[350px]"
+            />
           </div>
 
           {/* Attached Scans Gallery */}
@@ -318,20 +324,28 @@ export const ImagingReportEditorModal: React.FC<ImagingReportEditorModalProps> =
                     className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs"
                   >
                     <div className="flex items-center gap-3 overflow-hidden">
-                      <div className="w-9 h-9 rounded-lg bg-teal-100 text-teal-700 flex items-center justify-center shrink-0">
-                        <FileImage className="w-5 h-5" />
+                      <div className="w-10 h-10 rounded-lg bg-teal-100 flex items-center justify-center text-teal-800 font-bold shrink-0">
+                        {att.file_type.toUpperCase().slice(0, 4)}
                       </div>
                       <div className="truncate">
-                        <div className="font-semibold text-slate-800 truncate">{att.file_name}</div>
-                        <div className="text-slate-400 font-mono text-[10px]">
-                          {(att.file_size_bytes / 1024).toFixed(1)} KB • {att.caption || 'No caption'}
-                        </div>
+                        <a
+                          href={att.storage_path}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="font-semibold text-slate-800 hover:text-teal-600 block truncate"
+                        >
+                          {att.file_name}
+                        </a>
+                        <span className="text-slate-400 text-[10px]">
+                          {(att.file_size_bytes / 1024).toFixed(1)} KB {att.caption ? `· ${att.caption}` : ''}
+                        </span>
                       </div>
                     </div>
+
                     <button
                       type="button"
                       onClick={() => handleDeleteAttachment(att.id)}
-                      className="text-slate-400 hover:text-rose-600 p-1 rounded-lg transition-colors ml-2"
+                      className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg transition-colors ml-2"
                       title="Delete attachment"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -341,46 +355,49 @@ export const ImagingReportEditorModal: React.FC<ImagingReportEditorModalProps> =
               </div>
             )}
 
-            {/* Upload New Attachment Form */}
-            <form onSubmit={handleUploadScan} className="bg-slate-50 p-3 rounded-xl border border-dashed border-slate-300 flex flex-col sm:flex-row items-center gap-3">
-              <input
-                type="file"
-                accept="image/*,.pdf,.dcm"
-                onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-                className="text-xs text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100"
-              />
-              <input
-                type="text"
-                value={caption}
-                onChange={(e) => setCaption(e.target.value)}
-                placeholder="Optional scan caption..."
-                className="flex-1 px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-500"
-              />
-              <Button
-                type="submit"
-                size="sm"
-                variant="secondary"
-                disabled={!selectedFile || isUploading}
-                className="shrink-0 flex items-center gap-1.5"
-              >
-                <Upload className="w-3.5 h-3.5" />
-                <span>{isUploading ? 'Uploading...' : 'Attach Scan'}</span>
-              </Button>
+            {/* Upload Scan Form */}
+            <form onSubmit={handleUploadScan} className="bg-slate-50/70 p-3.5 rounded-xl border border-dashed border-slate-300 space-y-3">
+              <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+                <input
+                  type="file"
+                  accept="image/*,application/pdf"
+                  onChange={(e) => setSelectedFile(e.target.files ? e.target.files[0] : null)}
+                  className="text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100 cursor-pointer"
+                />
+                <input
+                  type="text"
+                  placeholder="Caption / View (e.g. Chest AP, Transverse Pelvic Scan)"
+                  value={caption}
+                  onChange={(e) => setCaption(e.target.value)}
+                  className="flex-1 px-3 py-1.5 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  type="submit"
+                  isLoading={isUploading}
+                  disabled={!selectedFile || isUploading}
+                  className="text-xs flex items-center gap-1 shrink-0"
+                >
+                  <Upload className="w-3.5 h-3.5" /> Attach Scan
+                </Button>
+              </div>
             </form>
           </div>
 
-          {/* Action Footer */}
-          <div className="flex justify-between items-center pt-3 border-t border-slate-100">
-            <div className="text-xs text-slate-400">
-              * Findings and impressions are recorded under the radiologist&apos;s digital audit identity.
-            </div>
-            <div className="flex items-center gap-3">
-              <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
+          {/* Action Buttons */}
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-3 pt-4 border-t border-slate-200">
+            <span className="text-xs text-slate-400">
+              * Draft can be saved anytime. Submitting for sign-off locks edits and moves to review queue.
+            </span>
+            <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+              <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
                 Cancel
               </Button>
               <Button
                 variant="secondary"
                 onClick={() => handleSave(false)}
+                isLoading={isSubmitting}
                 disabled={isSubmitting || report?.status === 'FINAL'}
               >
                 Save Draft
@@ -388,6 +405,7 @@ export const ImagingReportEditorModal: React.FC<ImagingReportEditorModalProps> =
               <Button
                 variant="primary"
                 onClick={() => handleSave(true)}
+                isLoading={isSubmitting}
                 disabled={isSubmitting || report?.status === 'FINAL'}
               >
                 Submit for Sign-off

@@ -1,4 +1,6 @@
 import os
+import re
+import html
 import datetime
 import io
 import base64
@@ -111,6 +113,71 @@ def get_signature_flowable(
     except Exception as exc:
         logger.warning("Could not render human signature image: %s", exc)
         return None
+
+
+
+def clean_html_for_reportlab(content: Optional[str]) -> str:
+    """
+    Sanitizes and transforms HTML from the rich text editor into valid ReportLab Paragraph XML.
+    ReportLab requires:
+    - Strict self-closing <br/> tags (unclosed <br> causes crash)
+    - Entities properly handled
+    - Headings converted to bold text with font styling
+    - Lists converted to bullet points (&bull;)
+    - Divs and Ps converted to line-broken blocks
+    - Unsupported tags stripped while preserving text
+    """
+    if not content:
+        return ""
+
+    text = str(content)
+
+    # Normalize line breaks
+    text = re.sub(r'<br\s*/?>', '<br/>', text, flags=re.IGNORECASE)
+
+    # Headings
+    text = re.sub(r'<h[1-6][^>]*>(.*?)</h[1-6]>', r'<b>\1</b><br/>', text, flags=re.IGNORECASE | re.DOTALL)
+
+    # Lists
+    text = re.sub(r'<li[^>]*>(.*?)</li>', r'&bull; \1<br/>', text, flags=re.IGNORECASE | re.DOTALL)
+    text = re.sub(r'</?(?:ul|ol)[^>]*>', '', text, flags=re.IGNORECASE)
+
+    # Paragraphs and divs
+    text = re.sub(r'<(?:p|div)[^>]*>(.*?)</(?:\1)>', r'\1<br/>', text, flags=re.IGNORECASE | re.DOTALL)
+
+    # Strong and em
+    text = re.sub(r'</?strong[^>]*>', lambda m: '<b>' if '<strong' in m.group(0).lower() else '</b>', text, flags=re.IGNORECASE)
+    text = re.sub(r'</?em[^>]*>', lambda m: '<i>' if '<em' in m.group(0).lower() else '</i>', text, flags=re.IGNORECASE)
+
+    # Strip other unsupported tags while preserving inner content
+    text = re.sub(r'</?(?!(?:b|i|u|font|br|sub|super)\b)[a-zA-Z0-9_-]+[^>]*>', '', text, flags=re.IGNORECASE)
+
+    # Convert remaining newlines
+    text = text.replace('\r\n', '\n').replace('\r', '\n')
+    text = text.replace('\n', '<br/>')
+
+    # Compress multiple br tags
+    text = re.sub(r'(<br/>\s*){3,}', '<br/><br/>', text)
+    text = re.sub(r'^(<br/>\s*)+|(<br/>\s*)+$', '', text)
+
+    return text.strip()
+
+
+def safe_reportlab_paragraph(raw_content: Optional[str], style: ParagraphStyle, fallback_text: Optional[str] = None) -> Paragraph:
+    """
+    Creates a ReportLab Paragraph safely. Cleans rich text HTML; if XML parsing fails,
+    defensively falls back to escaped plain text to ensure PDF generation never crashes.
+    """
+    if not raw_content:
+        return Paragraph("", style)
+
+    cleaned = clean_html_for_reportlab(raw_content)
+    try:
+        return Paragraph(cleaned, style)
+    except Exception:
+        fallback = fallback_text if fallback_text is not None else raw_content
+        escaped = html.escape(str(fallback)).replace("\n", "<br/>")
+        return Paragraph(escaped, style)
 
 
 
@@ -423,24 +490,36 @@ def generate_medical_report_pdf(
     else:
         # Radiology Narrative Findings
         narrative_elements = []
-        if narrative_info.get("clinical_history"):
-            narrative_elements.append(Paragraph("<b>CLINICAL HISTORY &amp; INDICATION:</b>", meta_label))
-            narrative_elements.append(Paragraph(narrative_info["clinical_history"].replace("\n", "<br/>"), meta_value))
+        is_single_box = bool(narrative_info.get("imaging_findings")) and not bool(narrative_info.get("clinical_history")) and not bool(narrative_info.get("imaging_impression"))
+
+        if is_single_box:
+            narrative_elements.append(Paragraph("<b>RADIOLOGICAL REPORT &amp; FINDINGS:</b>", meta_label))
+            narrative_elements.append(Spacer(1, 4))
+            narrative_elements.append(safe_reportlab_paragraph(narrative_info["imaging_findings"], meta_value))
             narrative_elements.append(Spacer(1, 6))
 
-        if narrative_info.get("imaging_findings"):
-            narrative_elements.append(Paragraph("<b>FINDINGS:</b>", meta_label))
-            narrative_elements.append(Paragraph(narrative_info["imaging_findings"].replace("\n", "<br/>"), meta_value))
-            narrative_elements.append(Spacer(1, 6))
+            if narrative_info.get("recommendations"):
+                narrative_elements.append(Paragraph("<b>RECOMMENDATIONS:</b>", meta_label))
+                narrative_elements.append(safe_reportlab_paragraph(narrative_info["recommendations"], meta_value))
+        else:
+            if narrative_info.get("clinical_history"):
+                narrative_elements.append(Paragraph("<b>CLINICAL HISTORY &amp; INDICATION:</b>", meta_label))
+                narrative_elements.append(safe_reportlab_paragraph(narrative_info["clinical_history"], meta_value))
+                narrative_elements.append(Spacer(1, 6))
 
-        if narrative_info.get("imaging_impression"):
-            narrative_elements.append(Paragraph("<b>IMPRESSION:</b>", meta_label))
-            narrative_elements.append(Paragraph(f"<b>{narrative_info['imaging_impression'].replace(chr(10), '<br/>')}</b>", meta_value))
-            narrative_elements.append(Spacer(1, 6))
+            if narrative_info.get("imaging_findings"):
+                narrative_elements.append(Paragraph("<b>FINDINGS:</b>", meta_label))
+                narrative_elements.append(safe_reportlab_paragraph(narrative_info["imaging_findings"], meta_value))
+                narrative_elements.append(Spacer(1, 6))
 
-        if narrative_info.get("recommendations"):
-            narrative_elements.append(Paragraph("<b>RECOMMENDATIONS:</b>", meta_label))
-            narrative_elements.append(Paragraph(narrative_info["recommendations"].replace("\n", "<br/>"), meta_value))
+            if narrative_info.get("imaging_impression"):
+                narrative_elements.append(Paragraph("<b>IMPRESSION:</b>", meta_label))
+                narrative_elements.append(safe_reportlab_paragraph(f"<b>{narrative_info['imaging_impression']}</b>", meta_value))
+                narrative_elements.append(Spacer(1, 6))
+
+            if narrative_info.get("recommendations"):
+                narrative_elements.append(Paragraph("<b>RECOMMENDATIONS:</b>", meta_label))
+                narrative_elements.append(safe_reportlab_paragraph(narrative_info["recommendations"], meta_value))
 
         story.append(KeepTogether(narrative_elements))
 
@@ -1415,24 +1494,36 @@ def generate_consolidated_booking_report_pdf(
 
         elif narrative and (narrative.get("clinical_history") or narrative.get("imaging_findings") or narrative.get("imaging_impression")):
             narrative_elements = []
-            if narrative.get("clinical_history"):
-                narrative_elements.append(Paragraph("<b>CLINICAL HISTORY &amp; INDICATION:</b>", meta_label))
-                narrative_elements.append(Paragraph(narrative["clinical_history"].replace("\n", "<br/>"), meta_value))
+            is_single_box = bool(narrative.get("imaging_findings")) and not bool(narrative.get("clinical_history")) and not bool(narrative.get("imaging_impression"))
+
+            if is_single_box:
+                narrative_elements.append(Paragraph("<b>RADIOLOGICAL REPORT &amp; FINDINGS:</b>", meta_label))
+                narrative_elements.append(Spacer(1, 3))
+                narrative_elements.append(safe_reportlab_paragraph(narrative["imaging_findings"], meta_value))
                 narrative_elements.append(Spacer(1, 4))
 
-            if narrative.get("imaging_findings"):
-                narrative_elements.append(Paragraph("<b>FINDINGS:</b>", meta_label))
-                narrative_elements.append(Paragraph(narrative["imaging_findings"].replace("\n", "<br/>"), meta_value))
-                narrative_elements.append(Spacer(1, 4))
+                if narrative.get("recommendations"):
+                    narrative_elements.append(Paragraph("<b>RECOMMENDATIONS:</b>", meta_label))
+                    narrative_elements.append(safe_reportlab_paragraph(narrative["recommendations"], meta_value))
+            else:
+                if narrative.get("clinical_history"):
+                    narrative_elements.append(Paragraph("<b>CLINICAL HISTORY &amp; INDICATION:</b>", meta_label))
+                    narrative_elements.append(safe_reportlab_paragraph(narrative["clinical_history"], meta_value))
+                    narrative_elements.append(Spacer(1, 4))
 
-            if narrative.get("imaging_impression"):
-                narrative_elements.append(Paragraph("<b>IMPRESSION:</b>", meta_label))
-                narrative_elements.append(Paragraph(f"<b>{narrative['imaging_impression'].replace(chr(10), '<br/>')}</b>", meta_value))
-                narrative_elements.append(Spacer(1, 4))
+                if narrative.get("imaging_findings"):
+                    narrative_elements.append(Paragraph("<b>FINDINGS:</b>", meta_label))
+                    narrative_elements.append(safe_reportlab_paragraph(narrative["imaging_findings"], meta_value))
+                    narrative_elements.append(Spacer(1, 4))
 
-            if narrative.get("recommendations"):
-                narrative_elements.append(Paragraph("<b>RECOMMENDATIONS:</b>", meta_label))
-                narrative_elements.append(Paragraph(narrative["recommendations"].replace("\n", "<br/>"), meta_value))
+                if narrative.get("imaging_impression"):
+                    narrative_elements.append(Paragraph("<b>IMPRESSION:</b>", meta_label))
+                    narrative_elements.append(safe_reportlab_paragraph(f"<b>{narrative['imaging_impression']}</b>", meta_value))
+                    narrative_elements.append(Spacer(1, 4))
+
+                if narrative.get("recommendations"):
+                    narrative_elements.append(Paragraph("<b>RECOMMENDATIONS:</b>", meta_label))
+                    narrative_elements.append(safe_reportlab_paragraph(narrative["recommendations"], meta_value))
 
             narrative_table = Table([[narrative_elements]], colWidths=[520])
             narrative_table.setStyle(

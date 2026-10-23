@@ -279,11 +279,18 @@ export const ImagingTemplatesPage: React.FC = () => {
                     <div>
                       <span className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-1 flex items-center gap-1.5">
                         <Sparkles className="w-3.5 h-3.5 text-brand-600" />
-                        Organ-by-Organ Findings Template:
+                        Radiology Template Content:
                       </span>
-                      <pre className="text-xs font-mono bg-white p-3.5 rounded-lg border border-slate-200 text-slate-800 whitespace-pre-wrap leading-relaxed overflow-x-auto">
-                        {tpl.findings_template}
-                      </pre>
+                      {/<[a-z][\s\S]*>/i.test(tpl.findings_template) ? (
+                        <div
+                          className="text-xs bg-white p-3.5 rounded-lg border border-slate-200 text-slate-800 leading-relaxed font-sans [&_b]:font-bold [&_b]:text-slate-900 [&_h3]:font-bold [&_h3]:text-sm [&_h3]:mt-2 [&_h4]:font-bold [&_ul]:list-disc [&_ul]:pl-4"
+                          dangerouslySetInnerHTML={{ __html: tpl.findings_template }}
+                        />
+                      ) : (
+                        <pre className="text-xs font-mono bg-white p-3.5 rounded-lg border border-slate-200 text-slate-800 whitespace-pre-wrap leading-relaxed overflow-x-auto">
+                          {tpl.findings_template}
+                        </pre>
+                      )}
                     </div>
 
                     {/* Impression & Recommendations */}

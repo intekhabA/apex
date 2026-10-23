@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Input, Button, Alert, toast } from '@/components/ui';
+import { Modal, Input, Button, Alert, toast, RichTextEditor } from '@/components/ui';
 import { imagingService } from '@/api/imagingService';
 import { testService } from '@/api/testService';
 import { ImagingTemplate, DiagnosticTest } from '@/types';
-import { FileText, Sparkles } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 
 export interface ImagingTemplateModalProps {
   isOpen: boolean;
@@ -25,10 +25,7 @@ export const ImagingTemplateModal: React.FC<ImagingTemplateModalProps> = ({
   const [code, setCode] = useState('');
   const [modality, setModality] = useState('USG');
   const [testId, setTestId] = useState('');
-  const [clinicalHistory, setClinicalHistory] = useState('');
-  const [findings, setFindings] = useState('');
-  const [impression, setImpression] = useState('');
-  const [recommendations, setRecommendations] = useState('');
+  const [templateContent, setTemplateContent] = useState('');
   const [displayOrder, setDisplayOrder] = useState<number>(0);
   const [isActive, setIsActive] = useState(true);
 
@@ -40,6 +37,35 @@ export const ImagingTemplateModal: React.FC<ImagingTemplateModalProps> = ({
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Helper to convert existing templates into one consolidated rich-text block
+  const combineToSingleBox = (tpl: ImagingTemplate): string => {
+    if (tpl.findings_template && /<[a-z][\s\S]*>/i.test(tpl.findings_template)) {
+      return tpl.findings_template;
+    }
+    const parts: string[] = [];
+    if (tpl.clinical_history_template?.trim()) {
+      parts.push(
+        `<div><b>CLINICAL HISTORY &amp; INDICATION:</b></div><div>${tpl.clinical_history_template.replace(/\n/g, '<br/>')}</div>`
+      );
+    }
+    if (tpl.findings_template?.trim()) {
+      parts.push(
+        `<div><b>OBSERVATIONS &amp; FINDINGS:</b></div><div>${tpl.findings_template.replace(/\n/g, '<br/>')}</div>`
+      );
+    }
+    if (tpl.impression_template?.trim()) {
+      parts.push(
+        `<div><b>IMPRESSION:</b></div><div><b>${tpl.impression_template.replace(/\n/g, '<br/>')}</b></div>`
+      );
+    }
+    if (tpl.recommendations_template?.trim()) {
+      parts.push(
+        `<div><b>RECOMMENDATIONS &amp; ADVICE:</b></div><div>${tpl.recommendations_template.replace(/\n/g, '<br/>')}</div>`
+      );
+    }
+    return parts.length > 0 ? parts.join('<div><br/></div>') : tpl.findings_template || '';
+  };
+
   useEffect(() => {
     if (isOpen) {
       loadTests();
@@ -48,10 +74,7 @@ export const ImagingTemplateModal: React.FC<ImagingTemplateModalProps> = ({
         setCode(templateToEdit.code);
         setModality(templateToEdit.modality);
         setTestId(templateToEdit.test_id || '');
-        setClinicalHistory(templateToEdit.clinical_history_template || '');
-        setFindings(templateToEdit.findings_template || '');
-        setImpression(templateToEdit.impression_template || '');
-        setRecommendations(templateToEdit.recommendations_template || '');
+        setTemplateContent(combineToSingleBox(templateToEdit));
         setDisplayOrder(templateToEdit.display_order ?? 0);
         setIsActive(templateToEdit.is_active ?? true);
       } else {
@@ -59,10 +82,7 @@ export const ImagingTemplateModal: React.FC<ImagingTemplateModalProps> = ({
         setCode('');
         setModality('USG');
         setTestId('');
-        setClinicalHistory('');
-        setFindings('');
-        setImpression('');
-        setRecommendations('');
+        setTemplateContent('');
         setDisplayOrder(0);
         setIsActive(true);
       }
@@ -74,7 +94,6 @@ export const ImagingTemplateModal: React.FC<ImagingTemplateModalProps> = ({
     setLoadingTests(true);
     try {
       const tests = await testService.getTests();
-      // Prioritize radiology & imaging tests
       setAvailableTests(tests);
     } catch {
       // fallback
@@ -85,7 +104,6 @@ export const ImagingTemplateModal: React.FC<ImagingTemplateModalProps> = ({
 
   const handleNameChange = (val: string) => {
     setName(val);
-    // Auto-generate code if adding new
     if (!isEditing && (!code || code === generateCode(name))) {
       setCode(generateCode(val));
     }
@@ -109,8 +127,9 @@ export const ImagingTemplateModal: React.FC<ImagingTemplateModalProps> = ({
       setErrorMessage('Please provide a unique template code.');
       return;
     }
-    if (!findings.trim() || findings.trim().length < 5) {
-      setErrorMessage('Please provide clinical findings template content.');
+    const strippedText = templateContent.replace(/<[^>]*>/g, '').trim();
+    if (!strippedText || strippedText.length < 5) {
+      setErrorMessage('Please provide template content in the editor box (minimum 5 characters).');
       return;
     }
 
@@ -122,10 +141,10 @@ export const ImagingTemplateModal: React.FC<ImagingTemplateModalProps> = ({
       code: code.trim().toUpperCase(),
       modality: modality.trim().toUpperCase(),
       test_id: testId || null,
-      clinical_history_template: clinicalHistory.trim() || null,
-      findings_template: findings.trim(),
-      impression_template: impression.trim() || null,
-      recommendations_template: recommendations.trim() || null,
+      clinical_history_template: null,
+      findings_template: templateContent.trim(),
+      impression_template: null,
+      recommendations_template: null,
       is_active: isActive,
       display_order: Number(displayOrder) || 0,
     };
@@ -158,7 +177,7 @@ export const ImagingTemplateModal: React.FC<ImagingTemplateModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       title={isEditing ? `Edit Imaging Template: ${templateToEdit?.name}` : 'Create New Imaging / X-Ray / USG Template'}
-      description="Configure standardized anatomical observations, indications, and conclusions for diagnostic radiology."
+      description="Configure standardized radiography and ultrasound observations, impressions, and findings in a single formatted editor box."
       maxWidth="4xl"
     >
       {errorMessage && (
@@ -267,67 +286,22 @@ export const ImagingTemplateModal: React.FC<ImagingTemplateModalProps> = ({
           </div>
         </div>
 
-        {/* Clinical History / Indication */}
-        <div>
-          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-            <FileText className="w-3.5 h-3.5 text-slate-400" />
-            Clinical History &amp; Indication Template
-          </label>
-          <textarea
-            rows={2}
-            value={clinicalHistory}
-            onChange={(e) => setClinicalHistory(e.target.value)}
-            placeholder="e.g. Patient presents with acute abdominal pain / routine pre-operative screening."
-            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 font-sans"
-          />
-        </div>
-
-        {/* Organ-by-organ Findings */}
+        {/* Unified One-Box Rich Text Editor */}
         <div>
           <div className="flex items-center justify-between mb-1.5">
             <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-brand-600" />
-              Standard Anatomical / Organ Findings Template <span className="text-rose-500">*</span>
+              <Sparkles className="w-3.5 h-3.5 text-teal-600" />
+              Standard Radiology / Ultrasound Template (All-in-One Editor) <span className="text-rose-500">*</span>
             </label>
-            <span className="text-xs text-slate-400">Organ-by-organ structure</span>
+            <span className="text-xs text-slate-400">Use toolbar to bold, italicize, bullet, or insert quick sections</span>
           </div>
-          <textarea
-            rows={8}
-            value={findings}
-            onChange={(e) => setFindings(e.target.value)}
-            placeholder={`LIVER: Normal size and shape. Normal parenchymal echogenicity. No focal lesion.\nGALLBLADDER: Normal wall thickness. Lumen is clear of calculi.\nPANCREAS: Unremarkable.\nSPLEEN: Normal in size.\nKIDNEYS: Both kidneys are normal in size, shape, and position.`}
-            className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-xs font-mono leading-relaxed focus:outline-none focus:ring-2 focus:ring-brand-500 bg-slate-50/50"
-            required
+
+          <RichTextEditor
+            value={templateContent}
+            onChange={setTemplateContent}
+            placeholder="Type or format your template observations, findings, and impressions here. Use bold (Ctrl+B) for organ names and impressions..."
+            minHeight="min-h-[340px]"
           />
-        </div>
-
-        {/* Impression & Recommendations */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-              Radiological Impression / Conclusion Template
-            </label>
-            <textarea
-              rows={3}
-              value={impression}
-              onChange={(e) => setImpression(e.target.value)}
-              placeholder="e.g. Normal whole abdomen ultrasound study. No focal lesion or calculus noted."
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 font-sans"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-              Advice &amp; Recommendations Template
-            </label>
-            <textarea
-              rows={3}
-              value={recommendations}
-              onChange={(e) => setRecommendations(e.target.value)}
-              placeholder="e.g. Clinical and biochemical correlation advised / follow-up as indicated."
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 font-sans"
-            />
-          </div>
         </div>
 
         {/* Form Action Buttons */}

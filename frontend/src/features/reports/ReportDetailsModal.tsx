@@ -242,39 +242,67 @@ export const ReportDetailsModal: React.FC<ReportDetailsModalProps> = ({
                 {/* Radiology Narrative Section */}
                 {(report.imaging_findings || report.clinical_history || report.imaging_impression) && (
                   <div className="space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
-                    {report.clinical_history && (
+                    {/* One-box consolidated findings */}
+                    {report.imaging_findings && !report.clinical_history && !report.imaging_impression ? (
                       <div>
-                        <span className="font-bold text-slate-700 block uppercase tracking-wider mb-0.5">
-                          Clinical History:
+                        <span className="font-bold text-slate-700 block uppercase tracking-wider mb-2">
+                          Radiological Report &amp; Findings:
                         </span>
-                        <p className="text-slate-600 font-sans">{report.clinical_history}</p>
+                        {/<[a-z][\s\S]*>/i.test(report.imaging_findings) ? (
+                          <div
+                            className="bg-white p-3.5 rounded-lg border border-slate-200 text-slate-800 leading-relaxed font-sans text-xs [&_b]:font-bold [&_b]:text-slate-900 [&_h3]:font-bold [&_h3]:text-sm [&_h3]:mt-2 [&_h4]:font-bold [&_ul]:list-disc [&_ul]:pl-4"
+                            dangerouslySetInnerHTML={{ __html: report.imaging_findings }}
+                          />
+                        ) : (
+                          <pre className="text-slate-700 font-mono text-[11px] whitespace-pre-wrap leading-relaxed bg-white p-3 rounded-lg border border-slate-200">
+                            {report.imaging_findings}
+                          </pre>
+                        )}
                       </div>
-                    )}
-                    {report.imaging_findings && (
-                      <div>
-                        <span className="font-bold text-slate-700 block uppercase tracking-wider mb-0.5">
-                          Imaging Findings:
-                        </span>
-                        <pre className="text-slate-700 font-mono text-[11px] whitespace-pre-wrap leading-relaxed">
-                          {report.imaging_findings}
-                        </pre>
-                      </div>
-                    )}
-                    {report.imaging_impression && (
-                      <div>
-                        <span className="font-bold text-slate-700 block uppercase tracking-wider mb-0.5">
-                          Impression:
-                        </span>
-                        <p className="text-slate-900 font-semibold">{report.imaging_impression}</p>
-                      </div>
-                    )}
-                    {report.recommendations && (
-                      <div>
-                        <span className="font-bold text-slate-700 block uppercase tracking-wider mb-0.5">
-                          Recommendations:
-                        </span>
-                        <p className="text-slate-600">{report.recommendations}</p>
-                      </div>
+                    ) : (
+                      <>
+                        {report.clinical_history && (
+                          <div>
+                            <span className="font-bold text-slate-700 block uppercase tracking-wider mb-0.5">
+                              Clinical History:
+                            </span>
+                            <p className="text-slate-600 font-sans">{report.clinical_history}</p>
+                          </div>
+                        )}
+                        {report.imaging_findings && (
+                          <div>
+                            <span className="font-bold text-slate-700 block uppercase tracking-wider mb-0.5">
+                              Imaging Findings:
+                            </span>
+                            {/<[a-z][\s\S]*>/i.test(report.imaging_findings) ? (
+                              <div
+                                className="bg-white p-3 rounded-lg border border-slate-200 text-slate-800 leading-relaxed font-sans text-xs [&_b]:font-bold"
+                                dangerouslySetInnerHTML={{ __html: report.imaging_findings }}
+                              />
+                            ) : (
+                              <pre className="text-slate-700 font-mono text-[11px] whitespace-pre-wrap leading-relaxed">
+                                {report.imaging_findings}
+                              </pre>
+                            )}
+                          </div>
+                        )}
+                        {report.imaging_impression && (
+                          <div>
+                            <span className="font-bold text-slate-700 block uppercase tracking-wider mb-0.5">
+                              Impression:
+                            </span>
+                            <p className="text-slate-900 font-semibold">{report.imaging_impression}</p>
+                          </div>
+                        )}
+                        {report.recommendations && (
+                          <div>
+                            <span className="font-bold text-slate-700 block uppercase tracking-wider mb-0.5">
+                              Recommendations:
+                            </span>
+                            <p className="text-slate-600">{report.recommendations}</p>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 )}

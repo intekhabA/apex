@@ -173,3 +173,33 @@ async def test_phase6_imaging_report_gate_check(client: AsyncClient, seed_test_d
         headers={"Authorization": f"Bearer {lab2_token}"},
     )
     assert cross_del.status_code == 403
+
+
+def test_imaging_rich_text_pdf_rendering():
+    """Verify that rich text HTML in imaging findings is properly cleaned and rendered in PDF engine."""
+    from app.services.pdf_engine import clean_html_for_reportlab, safe_reportlab_paragraph
+    from reportlab.lib.styles import getSampleStyleSheet
+
+    style = getSampleStyleSheet()["Normal"]
+
+    # 1. Clean rich text
+    raw_html = (
+        "<h3>CHEST X-RAY PA</h3>"
+        "<p><b>INDICATION:</b> Persistent cough.</p>"
+        "<ul><li>Bilateral fields clear.</li><li>No effusion.</li></ul>"
+        "<p><b>IMPRESSION:</b> Normal study.</p>"
+    )
+    cleaned = clean_html_for_reportlab(raw_html)
+    assert "<b>CHEST X-RAY PA</b>" in cleaned
+    assert "&bull; Bilateral fields clear." in cleaned
+    assert "<br/>" in cleaned
+
+    # 2. Render Paragraph safely
+    p = safe_reportlab_paragraph(raw_html, style)
+    assert p is not None
+
+    # 3. Defensive fallback on broken/unclosed tags
+    broken_html = "<b>Unclosed bold without closing tag"
+    p_broken = safe_reportlab_paragraph(broken_html, style)
+    assert p_broken is not None
+
