@@ -250,7 +250,7 @@ export const ReportDetailsModal: React.FC<ReportDetailsModalProps> = ({
                         </span>
                         {/<[a-z][\s\S]*>/i.test(report.imaging_findings) ? (
                           <div
-                            className="bg-white p-3.5 rounded-lg border border-slate-200 text-slate-800 leading-relaxed font-sans text-xs [&_b]:font-bold [&_b]:text-slate-900 [&_h3]:font-bold [&_h3]:text-sm [&_h3]:mt-2 [&_h4]:font-bold [&_ul]:list-disc [&_ul]:pl-4"
+                            className="bg-white p-3.5 rounded-lg border border-slate-200 text-slate-800 leading-relaxed font-sans text-xs [&_b]:font-bold [&_h3]:font-bold [&_h3]:text-sm [&_h3]:mt-2 [&_h4]:font-bold [&_ul]:list-disc [&_ul]:pl-4"
                             dangerouslySetInnerHTML={{ __html: report.imaging_findings }}
                           />
                         ) : (

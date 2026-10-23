@@ -118,45 +118,79 @@ def get_signature_flowable(
 
 def clean_html_for_reportlab(content: Optional[str]) -> str:
     """
-    Sanitizes and transforms HTML from the rich text editor into valid ReportLab Paragraph XML.
+    Sanitizes and transforms HTML from the rich text editor or pasted Word/Doc documents
+    into valid ReportLab Paragraph XML.
     ReportLab requires:
     - Strict self-closing <br/> tags (unclosed <br> causes crash)
     - Entities properly handled
     - Headings converted to bold text with font styling
     - Lists converted to bullet points (&bull;)
-    - Divs and Ps converted to line-broken blocks
-    - Unsupported tags stripped while preserving text
+    - Divs, Ps, and Table rows converted to clean line-broken blocks
+    - Span styles for font color and highlight converted to <font color="..." backColor="...">
+    - MS Word / Office metadata, scripts, styles, and conditional comments stripped
+    - Unsupported tags stripped while preserving inner text
     """
     if not content:
         return ""
 
     text = str(content)
 
-    # Normalize line breaks
+    # 0. Strip MS Office / Word comments, XML blocks, styles, scripts
+    text = re.sub(r'<!--\[if[\s\S]*?<!\[endif\]-->', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'<!--[\s\S]*?-->', '', text)
+    text = re.sub(r'<style[\s\S]*?</style>', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'<script[\s\S]*?</script>', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'<xml[\s\S]*?</xml>', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'</?(?:meta|link|title|o:[a-z0-9_-]+|w:[a-z0-9_-]+|m:[a-z0-9_-]+)[^>]*>', '', text, flags=re.IGNORECASE)
+
+    # 1. Normalize line breaks
     text = re.sub(r'<br\s*/?>', '<br/>', text, flags=re.IGNORECASE)
 
-    # Headings
+    # 2. Headings
     text = re.sub(r'<h[1-6][^>]*>(.*?)</h[1-6]>', r'<b>\1</b><br/>', text, flags=re.IGNORECASE | re.DOTALL)
 
-    # Lists
+    # 3. Lists
     text = re.sub(r'<li[^>]*>(.*?)</li>', r'&bull; \1<br/>', text, flags=re.IGNORECASE | re.DOTALL)
     text = re.sub(r'</?(?:ul|ol)[^>]*>', '', text, flags=re.IGNORECASE)
 
-    # Paragraphs and divs
+    # 4. Tables: format cells and rows cleanly
+    text = re.sub(r'<t[dh][^>]*>(.*?)</t[dh]>', r'\1 &nbsp; ', text, flags=re.IGNORECASE | re.DOTALL)
+    text = re.sub(r'<tr[^>]*>(.*?)</tr>', r'\1<br/>', text, flags=re.IGNORECASE | re.DOTALL)
+    text = re.sub(r'</?(?:table|thead|tbody|tfoot)[^>]*>', '', text, flags=re.IGNORECASE)
+
+    # 5. Convert span styles (color and background-color) to ReportLab font tags
+    def span_to_font(match):
+        style = match.group(1)
+        inner = match.group(2)
+        c_m = re.search(r'(?:^|;)\s*color:\s*([^;\"]+)', style, re.I)
+        bg_m = re.search(r'(?:^|;)\s*background(?:-color)?:\s*([^;\"]+)', style, re.I)
+        attrs = []
+        if c_m and not re.search(r'windowtext|#000000|rgb\(0,\s*0,\s*0\)', c_m.group(1), re.I):
+            attrs.append(f'color="{c_m.group(1).strip()}"')
+        if bg_m and not re.search(r'transparent|#ffffff|rgb\(255,\s*255,\s*255\)', bg_m.group(1), re.I):
+            attrs.append(f'backColor="{bg_m.group(1).strip()}"')
+        if attrs:
+            return f'<font {" ".join(attrs)}>{inner}</font>'
+        return inner
+
+    for _ in range(3):
+        text = re.sub(r'<span[^>]*style=[\"\']([^\"\']*)[\"\'][^>]*>(.*?)</span>', span_to_font, text, flags=re.I | re.DOTALL)
+
+    # 6. Paragraphs and divs
     text = re.sub(r'<(?:p|div)[^>]*>(.*?)</(?:\1)>', r'\1<br/>', text, flags=re.IGNORECASE | re.DOTALL)
 
-    # Strong and em
+    # 7. Strong and em
     text = re.sub(r'</?strong[^>]*>', lambda m: '<b>' if '<strong' in m.group(0).lower() else '</b>', text, flags=re.IGNORECASE)
     text = re.sub(r'</?em[^>]*>', lambda m: '<i>' if '<em' in m.group(0).lower() else '</i>', text, flags=re.IGNORECASE)
 
-    # Strip other unsupported tags while preserving inner content
+    # 8. Strip other unsupported tags while preserving inner content
     text = re.sub(r'</?(?!(?:b|i|u|font|br|sub|super)\b)[a-zA-Z0-9_-]+[^>]*>', '', text, flags=re.IGNORECASE)
 
-    # Convert remaining newlines
+    # 9. Convert remaining newlines
     text = text.replace('\r\n', '\n').replace('\r', '\n')
     text = text.replace('\n', '<br/>')
 
-    # Compress multiple br tags
+    # 10. Compress multiple br tags
     text = re.sub(r'(<br/>\s*){3,}', '<br/><br/>', text)
     text = re.sub(r'^(<br/>\s*)+|(<br/>\s*)+$', '', text)
 

@@ -198,7 +198,21 @@ def test_imaging_rich_text_pdf_rendering():
     p = safe_reportlab_paragraph(raw_html, style)
     assert p is not None
 
-    # 3. Defensive fallback on broken/unclosed tags
+    # 3. Word MSO and Color styling conversion
+    word_html_with_color = (
+        '<!--[if gte mso 9]><xml><w:WordDocument></w:WordDocument></xml><![endif]-->'
+        '<p class="MsoNormal">'
+        '<span style="color: #dc2626; font-weight: bold;">ABNORMAL:</span> '
+        '<span style="background-color: yellow;">Pneumothorax observed</span>'
+        '</p>'
+    )
+    cleaned_color = clean_html_for_reportlab(word_html_with_color)
+    assert '<font color="#dc2626">' in cleaned_color
+    assert '<font backColor="yellow">' in cleaned_color
+    p_color = safe_reportlab_paragraph(word_html_with_color, style)
+    assert p_color is not None
+
+    # 4. Defensive fallback on broken/unclosed tags
     broken_html = "<b>Unclosed bold without closing tag"
     p_broken = safe_reportlab_paragraph(broken_html, style)
     assert p_broken is not None
