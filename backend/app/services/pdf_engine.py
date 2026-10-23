@@ -149,9 +149,9 @@ def clean_html_for_reportlab(content: Optional[str]) -> str:
     # 2. Headings
     text = re.sub(r'<h[1-6][^>]*>(.*?)</h[1-6]>', r'<b>\1</b><br/>', text, flags=re.IGNORECASE | re.DOTALL)
 
-    # 3. Lists
+    # 3. Lists: handle list items and wrappers
     text = re.sub(r'<li[^>]*>(.*?)</li>', r'&bull; \1<br/>', text, flags=re.IGNORECASE | re.DOTALL)
-    text = re.sub(r'</?(?:ul|ol)[^>]*>', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'</?(?:ul|ol)[^>]*>', '<br/>', text, flags=re.IGNORECASE)
 
     # 4. Tables: format cells and rows cleanly
     text = re.sub(r'<t[dh][^>]*>(.*?)</t[dh]>', r'\1 &nbsp; ', text, flags=re.IGNORECASE | re.DOTALL)
@@ -176,8 +176,14 @@ def clean_html_for_reportlab(content: Optional[str]) -> str:
     for _ in range(3):
         text = re.sub(r'<span[^>]*style=[\"\']([^\"\']*)[\"\'][^>]*>(.*?)</span>', span_to_font, text, flags=re.I | re.DOTALL)
 
-    # 6. Paragraphs and divs
-    text = re.sub(r'<(?:p|div)[^>]*>(.*?)</(?:\1)>', r'\1<br/>', text, flags=re.IGNORECASE | re.DOTALL)
+    # 6. Paragraphs and divs:
+    # Empty paragraphs (<p>&nbsp;</p>, <p><br/></p>, etc.) become line breaks
+    text = re.sub(r'<p[^>]*>(?:\s|&nbsp;|<br\s*/?>)*</p>', '<br/>', text, flags=re.IGNORECASE)
+    # Closing paragraph and div tags become line breaks
+    text = re.sub(r'</p\s*>', '<br/>', text, flags=re.IGNORECASE)
+    text = re.sub(r'</div\s*>', '<br/>', text, flags=re.IGNORECASE)
+    # Remove opening paragraph and div tags
+    text = re.sub(r'<(?:p|div)[^>]*>', '', text, flags=re.IGNORECASE)
 
     # 7. Strong and em
     text = re.sub(r'</?strong[^>]*>', lambda m: '<b>' if '<strong' in m.group(0).lower() else '</b>', text, flags=re.IGNORECASE)
@@ -186,11 +192,13 @@ def clean_html_for_reportlab(content: Optional[str]) -> str:
     # 8. Strip other unsupported tags while preserving inner content
     text = re.sub(r'</?(?!(?:b|i|u|font|br|sub|super)\b)[a-zA-Z0-9_-]+[^>]*>', '', text, flags=re.IGNORECASE)
 
-    # 9. Convert remaining newlines
+    # 9. Convert remaining raw newlines
     text = text.replace('\r\n', '\n').replace('\r', '\n')
     text = text.replace('\n', '<br/>')
 
-    # 10. Compress multiple br tags
+    # 10. Clean up empty/redundant spaces before/after br and compress 3+ breaks to 2
+    text = re.sub(r'(?:&nbsp;|\s)+<br/>', '<br/>', text)
+    text = re.sub(r'<br/>(?:&nbsp;|\s)+', '<br/>', text)
     text = re.sub(r'(<br/>\s*){3,}', '<br/><br/>', text)
     text = re.sub(r'^(<br/>\s*)+|(<br/>\s*)+$', '', text)
 

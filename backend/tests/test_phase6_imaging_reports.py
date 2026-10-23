@@ -212,7 +212,21 @@ def test_imaging_rich_text_pdf_rendering():
     p_color = safe_reportlab_paragraph(word_html_with_color, style)
     assert p_color is not None
 
-    # 4. Defensive fallback on broken/unclosed tags
+    # 4. Paragraphs and newlines from pasted doc files
+    pasted_doc_html = (
+        '<p style="text-align: justify;"><u><b>LIVER-:</b></u></p>'
+        '<p style="text-align: justify;">Liver parenchymal echotexture is normal.</p>'
+        '<p style="text-align: justify;">&nbsp;</p>'
+        '<p style="text-align: justify;"><u><b>GALL BLADDER-:</b></u></p>'
+        '<p style="text-align: justify;">Lumen is clear.</p>'
+    )
+    cleaned_doc = clean_html_for_reportlab(pasted_doc_html)
+    assert "<u><b>LIVER-:</b></u><br/>" in cleaned_doc
+    assert "<br/><br/><u><b>GALL BLADDER-:</b></u>" in cleaned_doc
+    p_doc = safe_reportlab_paragraph(pasted_doc_html, style)
+    assert p_doc is not None
+
+    # 5. Defensive fallback on broken/unclosed tags
     broken_html = "<b>Unclosed bold without closing tag"
     p_broken = safe_reportlab_paragraph(broken_html, style)
     assert p_broken is not None
