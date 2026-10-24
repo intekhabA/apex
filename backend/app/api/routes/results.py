@@ -2,7 +2,7 @@ from typing import List, Optional
 from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, or_, desc
+from sqlalchemy import select, or_, desc, func
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
@@ -15,7 +15,7 @@ from app.models.sample import Sample
 from app.models.booking import Booking
 from app.models.report import Report, ReportStatus
 from app.models.result import TestResultValue, ResultFlagEnum
-from app.schemas.common import APIResponse
+from app.schemas.common import APIResponse, paginate_meta
 from app.schemas.result import (
     ResultEntryPayload,
     ResultSheetResponse,
@@ -30,6 +30,10 @@ router = APIRouter(prefix="/results", tags=["Results Entry & Calculation Engine"
 
 @router.get("/pending", response_model=APIResponse[List[PendingWorklistResponse]])
 async def list_pending_results(
+    search: Optional[str] = Query(None, description="Search by report ID, booking ID, patient name/ID, test name"),
+    page: int = Query(1, ge=1, description="Page number"),
+    limit: Optional[int] = Query(20, ge=1, le=500, description="Items per page"),
+    all: bool = Query(False, description="Fetch all without pagination"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_lab_staff),
 ):
@@ -45,15 +49,37 @@ async def list_pending_results(
         )
         .where(Report.status.in_([ReportStatus.DRAFT, ReportStatus.PENDING_REVIEW]))
     )
+    count_query = select(func.count(Report.id)).where(Report.status.in_([ReportStatus.DRAFT, ReportStatus.PENDING_REVIEW]))
 
     if current_user.lab_id:
         query = query.where(Report.lab_id == current_user.lab_id)
+        count_query = count_query.where(Report.lab_id == current_user.lab_id)
+
+    if search:
+        term = f"%{search.strip()}%"
+        search_filter = or_(
+            Report.report_id_display.ilike(term),
+            Patient.first_name.ilike(term),
+            Patient.last_name.ilike(term),
+            Patient.patient_id_display.ilike(term),
+            Test.name.ilike(term),
+            Test.code.ilike(term),
+            Booking.booking_id_display.ilike(term),
+        )
+        query = query.outerjoin(Report.patient).outerjoin(Report.test).outerjoin(Report.booking).where(search_filter)
+        count_query = count_query.outerjoin(Report.patient).outerjoin(Report.test).outerjoin(Report.booking).where(search_filter)
+
+    total_res = await db.execute(count_query)
+    total = total_res.scalar() or 0
 
     query = query.order_by(desc(Report.created_at))
+    if not all and limit:
+        query = query.offset((page - 1) * limit).limit(limit)
+
     res = await db.execute(query)
     reports = res.scalars().all()
 
-    # Pre-fetch patients
+    # Pre-fetch patients for this page
     patient_ids = [r.patient_id for r in reports]
     patients_map = {}
     if patient_ids:
@@ -80,7 +106,15 @@ async def list_pending_results(
             )
         )
 
-    return APIResponse(success=True, message=f"Retrieved {len(output)} pending reports.", data=output)
+    effective_limit = limit if (not all and limit) else (total or 20)
+    meta = paginate_meta(page=page, limit=effective_limit, total=total)
+
+    return APIResponse(
+        success=True,
+        message=f"Retrieved {len(output)} pending reports.",
+        data=output,
+        meta=meta,
+    )
 
 
 @router.get("/{report_id}", response_model=APIResponse[ResultSheetResponse])

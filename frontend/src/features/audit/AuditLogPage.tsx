@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Card, Input, Badge, Button, Alert } from '@/components/ui';
+import { Card, Input, Badge, Button, Alert, Pagination } from '@/components/ui';
 import { auditService } from '@/api/auditService';
 import { AuditLog } from '@/types/audit';
+import { PaginationMeta } from '@/types';
 import {
   ShieldCheck,
   Search,
@@ -17,6 +18,9 @@ import {
 
 export const AuditLogPage: React.FC = () => {
   const [logs, setLogs] = useState<AuditLog[]>([]);
+  const [meta, setMeta] = useState<PaginationMeta | null>(null);
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -30,11 +34,14 @@ export const AuditLogPage: React.FC = () => {
     setLoading(true);
     setErrorMessage(null);
     try {
-      const data = await auditService.getAuditLogs({
+      const res = await auditService.getAuditLogs({
         action: actionFilter || undefined,
         entity_name: entityFilter || undefined,
+        page,
+        limit,
       });
-      setLogs(data);
+      setLogs(res.items);
+      setMeta(res.meta);
     } catch (err: unknown) {
       const errorObj = err as { response?: { data?: { message?: string } } };
       setErrorMessage(errorObj.response?.data?.message || 'Failed to fetch audit logs.');
@@ -45,8 +52,7 @@ export const AuditLogPage: React.FC = () => {
 
   useEffect(() => {
     fetchLogs();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [actionFilter, entityFilter]);
+  }, [actionFilter, entityFilter, page, limit]);
 
   const filteredLogs = useMemo(() => {
     return logs.filter((log) => {
@@ -120,7 +126,10 @@ export const AuditLogPage: React.FC = () => {
             <Input
               placeholder="Filter by action (e.g. CREATE_BOOKING)..."
               value={actionFilter}
-              onChange={(e) => setActionFilter(e.target.value)}
+              onChange={(e) => {
+                setActionFilter(e.target.value);
+                setPage(1);
+              }}
               className="pl-9 bg-white"
             />
           </div>
@@ -129,7 +138,10 @@ export const AuditLogPage: React.FC = () => {
             <Input
               placeholder="Filter by entity (e.g. Booking, Report)..."
               value={entityFilter}
-              onChange={(e) => setEntityFilter(e.target.value)}
+              onChange={(e) => {
+                setEntityFilter(e.target.value);
+                setPage(1);
+              }}
               className="pl-9 bg-white"
             />
           </div>
@@ -261,6 +273,18 @@ export const AuditLogPage: React.FC = () => {
           </div>
         )}
       </Card>
+
+      {/* Pagination Controls */}
+      {meta && meta.total > 0 && (
+        <Pagination
+          page={page}
+          limit={limit}
+          total={meta.total}
+          totalPages={meta.total_pages}
+          onPageChange={setPage}
+          onLimitChange={setLimit}
+        />
+      )}
     </div>
   );
 };

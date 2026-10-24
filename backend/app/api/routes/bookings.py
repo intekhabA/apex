@@ -5,7 +5,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, or_, desc
+from sqlalchemy import select, or_, desc, func
 from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
@@ -23,7 +23,7 @@ from app.models.invoice import Invoice, Payment, PaymentMethod
 from app.models.notification import NotificationEventType, NotificationChannel
 from app.services.pdf_engine import generate_consolidated_booking_report_pdf
 from app.services.storage_service import storage_service
-from app.schemas.common import APIResponse, MessageResponse
+from app.schemas.common import APIResponse, MessageResponse, paginate_meta
 from app.schemas.booking import (
     BookingCreate,
     BookingResponse,
@@ -97,6 +97,9 @@ async def list_bookings(
     status_filter: Optional[BookingStatus] = Query(None, alias="status"),
     patient_id: Optional[str] = Query(None),
     search: Optional[str] = Query(None, description="Search by booking ID, patient name/ID, phone, or referring doctor"),
+    page: int = Query(1, ge=1, description="Page number"),
+    limit: Optional[int] = Query(20, ge=1, le=500, description="Items per page"),
+    all: bool = Query(False, description="Fetch all without pagination"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission("bookings")),
 ):
@@ -111,36 +114,51 @@ async def list_bookings(
             selectinload(Booking.patient),
         )
     )
+    count_query = select(func.count(Booking.id))
+
     if current_user.lab_id:
         query = query.where(Booking.lab_id == current_user.lab_id)
+        count_query = count_query.where(Booking.lab_id == current_user.lab_id)
 
     if status_filter:
         query = query.where(Booking.status == status_filter)
+        count_query = count_query.where(Booking.status == status_filter)
 
     if patient_id:
         query = query.where(Booking.patient_id == patient_id)
+        count_query = count_query.where(Booking.patient_id == patient_id)
 
     if search:
         term = f"%{search}%"
-        query = query.outerjoin(Booking.patient).where(
-            or_(
-                Booking.booking_id_display.ilike(term),
-                Booking.referring_doctor.ilike(term),
-                Patient.first_name.ilike(term),
-                Patient.last_name.ilike(term),
-                Patient.patient_id_display.ilike(term),
-                Patient.phone.ilike(term),
-            )
+        search_filter = or_(
+            Booking.booking_id_display.ilike(term),
+            Booking.referring_doctor.ilike(term),
+            Patient.first_name.ilike(term),
+            Patient.last_name.ilike(term),
+            Patient.patient_id_display.ilike(term),
+            Patient.phone.ilike(term),
         )
+        query = query.outerjoin(Booking.patient).where(search_filter)
+        count_query = count_query.outerjoin(Booking.patient).where(search_filter)
+
+    total_res = await db.execute(count_query)
+    total = total_res.scalar() or 0
 
     query = query.order_by(desc(Booking.created_at))
+    if not all and limit:
+        query = query.offset((page - 1) * limit).limit(limit)
+
     res = await db.execute(query)
     bookings = res.scalars().all()
+
+    effective_limit = limit if (not all and limit) else (total or 20)
+    meta = paginate_meta(page=page, limit=effective_limit, total=total)
 
     return APIResponse(
         success=True,
         message=f"Retrieved {len(bookings)} bookings.",
         data=[map_booking_to_response(b) for b in bookings],
+        meta=meta,
     )
 
 

@@ -1,18 +1,20 @@
+export interface PaginationMeta {
+  page: number;
+  limit: number;
+  total: number;
+  total_pages: number;
+  has_next?: boolean;
+  has_prev?: boolean;
+  per_page?: number;
+  total_count?: number;
+}
+
 export interface APIResponse<T = any> {
   success: boolean;
   message: string;
   data?: T;
-  meta?: any;
+  meta?: PaginationMeta;
   errors?: Record<string, string>;
-}
-
-export interface PaginationMeta {
-  page: number;
-  per_page: number;
-  total_count: number;
-  total_pages: number;
-  has_next: boolean;
-  has_prev: boolean;
 }
 
 export interface PaginatedResponse<T> {

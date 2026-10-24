@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Card, Input, Badge, Button, Alert } from '@/components/ui';
+import React, { useState, useEffect } from 'react';
+import { Card, Input, Badge, Button, Alert, Pagination } from '@/components/ui';
 import { notificationService } from '@/api/notificationService';
 import { NotificationLog, NotificationEventType, NotificationChannel, NotificationStatus } from '@/types/notification';
+import { PaginationMeta } from '@/types';
 import {
   Bell,
   Search,
@@ -17,6 +18,9 @@ import {
 
 export const NotificationsLogPage: React.FC = () => {
   const [logs, setLogs] = useState<NotificationLog[]>([]);
+  const [meta, setMeta] = useState<PaginationMeta | null>(null);
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -29,11 +33,15 @@ export const NotificationsLogPage: React.FC = () => {
     setLoading(true);
     setErrorMessage(null);
     try {
-      const data = await notificationService.getNotifications({
+      const res = await notificationService.getNotifications({
+        recipient: search || undefined,
         channel: channelFilter === 'ALL' ? undefined : channelFilter,
         status: statusFilter === 'ALL' ? undefined : statusFilter,
+        page,
+        limit,
       });
-      setLogs(data);
+      setLogs(res.items);
+      setMeta(res.meta);
     } catch (err: unknown) {
       const errorObj = err as { response?: { data?: { message?: string } } };
       setErrorMessage(errorObj.response?.data?.message || 'Failed to fetch notification logs.');
@@ -44,22 +52,7 @@ export const NotificationsLogPage: React.FC = () => {
 
   useEffect(() => {
     fetchLogs();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [channelFilter, statusFilter]);
-
-  const filteredLogs = useMemo(() => {
-    return logs.filter((log) => {
-      const s = search.toLowerCase();
-      if (!s) return true;
-      return (
-        log.recipient.toLowerCase().includes(s) ||
-        (log.recipient_name && log.recipient_name.toLowerCase().includes(s)) ||
-        (log.subject && log.subject.toLowerCase().includes(s)) ||
-        log.message_body.toLowerCase().includes(s) ||
-        log.event_type.toLowerCase().includes(s)
-      );
-    });
-  }, [logs, search]);
+  }, [search, channelFilter, statusFilter, page, limit]);
 
   const getEventBadge = (type: NotificationEventType) => {
     switch (type) {
@@ -122,7 +115,10 @@ export const NotificationsLogPage: React.FC = () => {
             <Input
               placeholder="Search recipient, patient, or body..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
               className="pl-9 bg-white"
             />
           </div>
@@ -131,7 +127,10 @@ export const NotificationsLogPage: React.FC = () => {
               aria-label="Filter by notification channel"
               className="w-full h-10 px-3 border border-gray-300 rounded-md bg-white text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
               value={channelFilter}
-              onChange={(e) => setChannelFilter(e.target.value as 'ALL' | NotificationChannel)}
+              onChange={(e) => {
+                setChannelFilter(e.target.value as 'ALL' | NotificationChannel);
+                setPage(1);
+              }}
             >
               <option value="ALL">All Delivery Channels</option>
               <option value="EMAIL">Email (SMTP)</option>
@@ -144,7 +143,10 @@ export const NotificationsLogPage: React.FC = () => {
               aria-label="Filter by delivery status"
               className="w-full h-10 px-3 border border-gray-300 rounded-md bg-white text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as 'ALL' | NotificationStatus)}
+              onChange={(e) => {
+                setStatusFilter(e.target.value as 'ALL' | NotificationStatus);
+                setPage(1);
+              }}
             >
               <option value="ALL">All Delivery Statuses</option>
               <option value="SENT">Delivered / Sent</option>
@@ -162,7 +164,7 @@ export const NotificationsLogPage: React.FC = () => {
             <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-3 text-sky-600" />
             <p>Fetching communication dispatches...</p>
           </div>
-        ) : filteredLogs.length === 0 ? (
+        ) : logs.length === 0 ? (
           <div className="p-12 text-center text-gray-500">
             <Bell className="w-12 h-12 text-gray-300 mx-auto mb-3" />
             <p className="text-base font-medium">No notification events recorded</p>
@@ -182,7 +184,7 @@ export const NotificationsLogPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filteredLogs.map((log) => {
+                {logs.map((log) => {
                   return (
                     <tr key={log.id} className="hover:bg-gray-50/80 transition-colors">
                       <td className="py-3 px-4 whitespace-nowrap">{getEventBadge(log.event_type)}</td>
@@ -232,6 +234,18 @@ export const NotificationsLogPage: React.FC = () => {
           </div>
         )}
       </Card>
+
+      {/* Pagination Controls */}
+      {meta && meta.total > 0 && (
+        <Pagination
+          page={page}
+          limit={limit}
+          total={meta.total}
+          totalPages={meta.total_pages}
+          onPageChange={setPage}
+          onLimitChange={setLimit}
+        />
+      )}
     </div>
   );
 };

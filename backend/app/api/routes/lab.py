@@ -2,7 +2,7 @@ import os
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Request, UploadFile, File, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func, or_
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
@@ -17,7 +17,7 @@ from app.core.permissions import (
 from app.core.security import get_password_hash
 from app.models.laboratory import Laboratory, LaboratorySettings
 from app.models.user import User, UserRole
-from app.schemas.common import APIResponse
+from app.schemas.common import APIResponse, paginate_meta
 from app.schemas.laboratory import (
     LaboratoryResponse,
     LaboratoryUpdate,
@@ -256,6 +256,9 @@ async def delete_lab_default_signature(
 
 @router.get("/users", response_model=APIResponse[List[UserResponse]])
 async def list_lab_staff(
+    page: int = Query(1, ge=1, description="Page number"),
+    limit: Optional[int] = Query(20, ge=1, le=500, description="Items per page"),
+    all: bool = Query(False, description="Fetch all without pagination"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_lab_admin),
 ):
@@ -263,17 +266,25 @@ async def list_lab_staff(
     if not current_user.lab_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No active laboratory.")
 
-    res = await db.execute(
-        select(User)
-        .where(User.lab_id == current_user.lab_id, User.deleted_at.is_(None))
-        .order_by(User.created_at.desc())
-    )
+    count_query = select(func.count(User.id)).where(User.lab_id == current_user.lab_id, User.deleted_at.is_(None))
+    total_res = await db.execute(count_query)
+    total = total_res.scalar() or 0
+
+    query = select(User).where(User.lab_id == current_user.lab_id, User.deleted_at.is_(None)).order_by(User.created_at.desc())
+    if not all and limit:
+        query = query.offset((page - 1) * limit).limit(limit)
+
+    res = await db.execute(query)
     staff = res.scalars().all()
+
+    effective_limit = limit if (not all and limit) else (total or 20)
+    meta = paginate_meta(page=page, limit=effective_limit, total=total)
 
     return APIResponse(
         success=True,
         message=f"Retrieved {len(staff)} staff members.",
         data=[UserResponse.model_validate(u) for u in staff],
+        meta=meta,
     )
 
 

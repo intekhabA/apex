@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CalendarDays, Search, Plus, Filter, ChevronRight, Download } from 'lucide-react';
-import { Card, Button, Badge, toast } from '@/components/ui';
+import { Card, Button, Badge, toast, Pagination } from '@/components/ui';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { bookingService } from '@/api/bookingService';
 import { Booking, BookingStatus } from '@/types';
@@ -12,6 +12,8 @@ export const BookingsPage: React.FC = () => {
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [downloadingBookingId, setDownloadingBookingId] = useState<string | null>(null);
@@ -32,14 +34,19 @@ export const BookingsPage: React.FC = () => {
     }
   };
 
-  const { data: bookings = [], isLoading } = useQuery<Booking[]>({
-    queryKey: ['bookings', statusFilter, searchQuery],
+  const { data: responseData, isLoading } = useQuery({
+    queryKey: ['bookings', statusFilter, searchQuery, page, limit],
     queryFn: () =>
       bookingService.getBookings({
         status: statusFilter === 'ALL' ? undefined : (statusFilter as BookingStatus),
         search: searchQuery || undefined,
+        page,
+        limit,
       }),
   });
+
+  const bookings = responseData?.items || [];
+  const meta = responseData?.meta;
 
   const handleRefresh = () => {
     queryClient.invalidateQueries({ queryKey: ['bookings'] });
@@ -94,7 +101,10 @@ export const BookingsPage: React.FC = () => {
             type="text"
             placeholder="Search by patient name, patient ID, phone, booking ID, or doctor..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setPage(1);
+            }}
             className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
           />
         </div>
@@ -102,7 +112,10 @@ export const BookingsPage: React.FC = () => {
           <Filter className="w-4 h-4 text-slate-400" />
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setPage(1);
+            }}
             className="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
           >
             <option value="ALL">All Statuses</option>
@@ -249,6 +262,18 @@ export const BookingsPage: React.FC = () => {
             </table>
           </div>
         </Card>
+      )}
+
+      {/* Pagination Controls */}
+      {meta && meta.total > 0 && (
+        <Pagination
+          page={page}
+          limit={limit}
+          total={meta.total}
+          totalPages={meta.total_pages}
+          onPageChange={setPage}
+          onLimitChange={setLimit}
+        />
       )}
 
       {/* Modals */}

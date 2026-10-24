@@ -1,20 +1,33 @@
 import { apiClient } from './client';
 import {
   APIResponse,
+  PaginatedResponse,
   SpecimenSample,
   SampleStatus,
   SampleTrackingEvent,
 } from '@/types';
 
+export interface SampleQueryParams {
+  status?: SampleStatus;
+  booking_id?: string;
+  patient_id?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+  all?: boolean;
+}
+
 export const sampleService = {
-  async getSamples(params?: {
-    status?: SampleStatus;
-    booking_id?: string;
-    patient_id?: string;
-    search?: string;
-  }): Promise<SpecimenSample[]> {
+  async getSamples(params?: SampleQueryParams): Promise<PaginatedResponse<SpecimenSample>> {
     const res = await apiClient.get<APIResponse<SpecimenSample[]>>('/samples', { params });
-    return res.data.data || [];
+    const items = res.data.data || [];
+    const meta = res.data.meta || {
+      page: params?.page || 1,
+      limit: params?.limit || items.length || 20,
+      total: items.length,
+      total_pages: 1,
+    };
+    return { items, meta };
   },
 
   async collectSample(payload: {

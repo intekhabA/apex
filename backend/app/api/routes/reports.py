@@ -5,7 +5,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, or_, desc
+from sqlalchemy import select, or_, desc, func
 from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
@@ -23,7 +23,7 @@ from app.models.test import Test
 from app.models.booking import Booking
 from app.models.report import Report, ReportStatus, ReportVersion, ReportAttachment
 from app.models.result import TestResultValue
-from app.schemas.common import APIResponse, MessageResponse
+from app.schemas.common import APIResponse, MessageResponse, paginate_meta
 from app.schemas.result import ResultValueResponse
 from app.schemas.imaging import ImagingAttachmentResponse
 from app.schemas.report import (
@@ -54,6 +54,9 @@ async def list_reports(
     search: Optional[str] = Query(None),
     patient_id: Optional[str] = Query(None),
     booking_id: Optional[str] = Query(None),
+    page: int = Query(1, ge=1, description="Page number"),
+    limit: Optional[int] = Query(20, ge=1, le=500, description="Items per page"),
+    all: bool = Query(False, description="Fetch all without pagination"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_lab_staff),
 ):
@@ -65,23 +68,47 @@ async def list_reports(
             selectinload(Report.patient),
             selectinload(Report.test),
         )
-        .order_by(desc(Report.created_at))
     )
+    count_query = select(func.count(Report.id))
 
     if current_user.role.value != "SUPER_ADMIN":
         query = query.where(Report.lab_id == current_user.lab_id)
+        count_query = count_query.where(Report.lab_id == current_user.lab_id)
 
     if status_filter:
         query = query.where(Report.status == status_filter)
+        count_query = count_query.where(Report.status == status_filter)
     if patient_id:
         query = query.where(Report.patient_id == patient_id)
+        count_query = count_query.where(Report.patient_id == patient_id)
     if booking_id:
         query = query.where(Report.booking_id == booking_id)
+        count_query = count_query.where(Report.booking_id == booking_id)
+
+    if search:
+        term = f"%{search.strip()}%"
+        search_cond = or_(
+            Report.report_id_display.ilike(term),
+            Patient.first_name.ilike(term),
+            Patient.last_name.ilike(term),
+            Patient.patient_id_display.ilike(term),
+            Test.name.ilike(term),
+            Test.code.ilike(term),
+        )
+        query = query.outerjoin(Report.patient).outerjoin(Report.test).where(search_cond)
+        count_query = count_query.outerjoin(Report.patient).outerjoin(Report.test).where(search_cond)
+
+    total_res = await db.execute(count_query)
+    total = total_res.scalar() or 0
+
+    query = query.order_by(desc(Report.created_at))
+    if not all and limit:
+        query = query.offset((page - 1) * limit).limit(limit)
 
     res = await db.execute(query)
     reports = res.scalars().all()
 
-    # Pre-fetch approver users
+    # Pre-fetch approver users for this page
     approver_ids = [r.approved_by for r in reports if r.approved_by]
     approvers_map = {}
     if approver_ids:
@@ -95,17 +122,6 @@ async def list_reports(
         p_id_disp = r.patient.patient_id_display if r.patient else ""
         t_name = r.test.name if r.test else ""
         t_code = r.test.code if r.test else ""
-
-        if search:
-            s = search.lower()
-            if not (
-                s in r.report_id_display.lower()
-                or s in p_name.lower()
-                or s in p_id_disp.lower()
-                or s in t_name.lower()
-                or s in t_code.lower()
-            ):
-                continue
 
         output.append(
             ReportListItemResponse(
@@ -130,7 +146,15 @@ async def list_reports(
             )
         )
 
-    return APIResponse(success=True, message=f"Retrieved {len(output)} reports.", data=output)
+    effective_limit = limit if (not all and limit) else (total or 20)
+    meta = paginate_meta(page=page, limit=effective_limit, total=total)
+
+    return APIResponse(
+        success=True,
+        message=f"Retrieved {len(output)} reports.",
+        data=output,
+        meta=meta,
+    )
 
 
 @router.get("/verify/{token}", response_model=APIResponse[PublicVerificationResponse])

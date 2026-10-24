@@ -1,7 +1,7 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, desc
+from sqlalchemy import select, desc, func
 
 from app.core.database import get_db
 from app.core.permissions import require_lab_staff, verify_tenant_access
@@ -12,7 +12,7 @@ from app.models.notification import (
     NotificationChannel,
     NotificationStatus,
 )
-from app.schemas.common import APIResponse
+from app.schemas.common import APIResponse, paginate_meta
 from app.schemas.notification import NotificationLogResponse, NotificationDispatchRequest
 from app.services.notification_service import NotificationService
 
@@ -25,11 +25,15 @@ async def list_notifications(
     channel: Optional[NotificationChannel] = Query(None),
     status: Optional[NotificationStatus] = Query(None),
     recipient: Optional[str] = Query(None),
+    page: int = Query(1, ge=1, description="Page number"),
+    limit: Optional[int] = Query(20, ge=1, le=500, description="Items per page"),
+    all: bool = Query(False, description="Fetch all without pagination"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_lab_staff),
 ):
     """Retrieve communication and notification dispatch logs."""
-    query = select(NotificationLog).order_by(desc(NotificationLog.created_at))
+    query = select(NotificationLog)
+    count_query = select(func.count(NotificationLog.id))
 
     if current_user.role.value != "SUPER_ADMIN":
         if not current_user.lab_id:
@@ -38,15 +42,28 @@ async def list_notifications(
                 detail="User has no assigned laboratory.",
             )
         query = query.where(NotificationLog.lab_id == current_user.lab_id)
+        count_query = count_query.where(NotificationLog.lab_id == current_user.lab_id)
 
     if event_type:
         query = query.where(NotificationLog.event_type == event_type)
+        count_query = count_query.where(NotificationLog.event_type == event_type)
     if channel:
         query = query.where(NotificationLog.channel == channel)
+        count_query = count_query.where(NotificationLog.channel == channel)
     if status:
         query = query.where(NotificationLog.status == status)
+        count_query = count_query.where(NotificationLog.status == status)
     if recipient:
-        query = query.where(NotificationLog.recipient.ilike(f"%{recipient}%"))
+        filter_recip = NotificationLog.recipient.ilike(f"%{recipient}%")
+        query = query.where(filter_recip)
+        count_query = count_query.where(filter_recip)
+
+    total_res = await db.execute(count_query)
+    total = total_res.scalar() or 0
+
+    query = query.order_by(desc(NotificationLog.created_at))
+    if not all and limit:
+        query = query.offset((page - 1) * limit).limit(limit)
 
     res = await db.execute(query)
     logs = res.scalars().all()
@@ -70,7 +87,15 @@ async def list_notifications(
         for log in logs
     ]
 
-    return APIResponse(success=True, message=f"Retrieved {len(output)} notification logs.", data=output)
+    effective_limit = limit if (not all and limit) else (total or 20)
+    meta = paginate_meta(page=page, limit=effective_limit, total=total)
+
+    return APIResponse(
+        success=True,
+        message=f"Retrieved {len(output)} notification logs.",
+        data=output,
+        meta=meta,
+    )
 
 
 @router.post("/dispatch", response_model=APIResponse[NotificationLogResponse])

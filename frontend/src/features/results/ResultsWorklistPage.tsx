@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Button, Input, Badge, Alert } from '@/components/ui';
+import { Button, Input, Badge, Alert, Pagination } from '@/components/ui';
 import { resultService } from '@/api/resultService';
-import { PendingWorklistReport, ReportStatus } from '@/types';
+import { PendingWorklistReport, ReportStatus, PaginationMeta } from '@/types';
 import { ResultEntryModal } from './ResultEntryModal';
 import { ImagingReportEditorModal } from '@/features/imaging/ImagingReportEditorModal';
 
 export const ResultsWorklistPage: React.FC = () => {
   const [reports, setReports] = useState<PendingWorklistReport[]>([]);
+  const [meta, setMeta] = useState<PaginationMeta | null>(null);
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -24,8 +27,13 @@ export const ResultsWorklistPage: React.FC = () => {
     setLoading(true);
     setErrorMessage(null);
     try {
-      const data = await resultService.getPendingWorklist();
-      setReports(data);
+      const res = await resultService.getPendingWorklist({
+        search: search || undefined,
+        page,
+        limit,
+      });
+      setReports(res.items);
+      setMeta(res.meta);
     } catch (err: unknown) {
       const errorObj = err as { response?: { data?: { message?: string } } };
       setErrorMessage(errorObj.response?.data?.message || 'Failed to fetch results worklist.');
@@ -36,24 +44,12 @@ export const ResultsWorklistPage: React.FC = () => {
 
   useEffect(() => {
     fetchWorklist();
-  }, []);
+  }, [search, page, limit]);
 
   const filteredReports = useMemo(() => {
-    return reports.filter((r) => {
-      const matchesSearch =
-        search === '' ||
-        r.report_id_display.toLowerCase().includes(search.toLowerCase()) ||
-        r.patient_name.toLowerCase().includes(search.toLowerCase()) ||
-        r.patient_id_display.toLowerCase().includes(search.toLowerCase()) ||
-        r.test_name.toLowerCase().includes(search.toLowerCase()) ||
-        r.booking_id_display.toLowerCase().includes(search.toLowerCase());
-
-      const matchesStatus =
-        statusFilter === 'ALL' || r.status === statusFilter;
-
-      return matchesSearch && matchesStatus;
-    });
-  }, [reports, search, statusFilter]);
+    if (statusFilter === 'ALL') return reports;
+    return reports.filter((r) => r.status === statusFilter);
+  }, [reports, statusFilter]);
 
   const handleOpenEntry = (report: PendingWorklistReport) => {
     if (report.sample_type === 'IMAGING') {
@@ -118,7 +114,10 @@ export const ResultsWorklistPage: React.FC = () => {
           <Input
             placeholder="Search by patient, test, report ID..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
           />
         </div>
 
@@ -130,7 +129,10 @@ export const ResultsWorklistPage: React.FC = () => {
             {(['ALL', 'DRAFT', 'PENDING_REVIEW'] as const).map((s) => (
               <button
                 key={s}
-                onClick={() => setStatusFilter(s)}
+                onClick={() => {
+                  setStatusFilter(s);
+                  setPage(1);
+                }}
                 className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${
                   statusFilter === s
                     ? 'bg-white text-teal-700 shadow-sm'
@@ -210,6 +212,18 @@ export const ResultsWorklistPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Pagination Controls */}
+      {meta && meta.total > 0 && (
+        <Pagination
+          page={page}
+          limit={limit}
+          total={meta.total}
+          totalPages={meta.total_pages}
+          onPageChange={setPage}
+          onLimitChange={setLimit}
+        />
+      )}
 
       {/* Pathology / Biochemistry Entry Modal */}
       <ResultEntryModal

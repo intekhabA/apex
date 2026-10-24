@@ -2,12 +2,23 @@ import { apiClient } from './client';
 import { API_ENDPOINTS } from './endpoints';
 import {
   APIResponse,
+  PaginatedResponse,
   TestCategory,
   DiagnosticTest,
   LabTestPriceOverride,
   TestPackage,
   TestParameter,
 } from '@/types';
+
+export interface TestQueryParams {
+  category_id?: string;
+  search?: string;
+  lab_id?: string;
+  assigned_only?: boolean;
+  page?: number;
+  limit?: number;
+  all?: boolean;
+}
 
 export const testService = {
   // Categories
@@ -31,9 +42,23 @@ export const testService = {
   },
 
   // Master Tests
-  async getTests(params?: { category_id?: string; search?: string }): Promise<DiagnosticTest[]> {
+  async getTests(params?: TestQueryParams): Promise<PaginatedResponse<DiagnosticTest>> {
     const res = await apiClient.get<APIResponse<DiagnosticTest[]>>(API_ENDPOINTS.TESTS.TESTS, {
       params,
+    });
+    const items = res.data.data || [];
+    const meta = res.data.meta || {
+      page: params?.page || 1,
+      limit: params?.limit || items.length || 20,
+      total: items.length,
+      total_pages: 1,
+    };
+    return { items, meta };
+  },
+
+  async getAllTests(params?: { category_id?: string; search?: string }): Promise<DiagnosticTest[]> {
+    const res = await apiClient.get<APIResponse<DiagnosticTest[]>>(API_ENDPOINTS.TESTS.TESTS, {
+      params: { ...params, all: true },
     });
     return res.data.data || [];
   },

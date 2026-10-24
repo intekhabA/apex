@@ -1,21 +1,34 @@
 import { apiClient } from './client';
 import {
   APIResponse,
+  PaginatedResponse,
   ReportListItem,
   ReportDetail,
   ReportStatus,
   PublicVerification,
 } from '@/types';
 
+export interface ReportQueryParams {
+  status?: ReportStatus;
+  search?: string;
+  patient_id?: string;
+  booking_id?: string;
+  page?: number;
+  limit?: number;
+  all?: boolean;
+}
+
 export const reportService = {
-  async getReports(params?: {
-    status?: ReportStatus;
-    search?: string;
-    patient_id?: string;
-    booking_id?: string;
-  }): Promise<ReportListItem[]> {
+  async getReports(params?: ReportQueryParams): Promise<PaginatedResponse<ReportListItem>> {
     const res = await apiClient.get<APIResponse<ReportListItem[]>>('/reports', { params });
-    return res.data.data || [];
+    const items = res.data.data || [];
+    const meta = res.data.meta || {
+      page: params?.page || 1,
+      limit: params?.limit || items.length || 20,
+      total: items.length,
+      total_pages: 1,
+    };
+    return { items, meta };
   },
 
   async getReportDetail(reportId: string): Promise<ReportDetail> {

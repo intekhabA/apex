@@ -12,7 +12,7 @@ from app.core.permissions import require_lab_staff, require_lab_admin
 from app.models.user import User
 from app.models.doctor import Doctor, DoctorTestCommission
 from app.models.test import Test
-from app.schemas.common import APIResponse, MessageResponse
+from app.schemas.common import APIResponse, MessageResponse, paginate_meta
 from app.schemas.doctor import (
     DoctorCreate,
     DoctorUpdate,
@@ -37,6 +37,9 @@ router = APIRouter(tags=["Doctor Commissions & Management"])
 async def list_doctors(
     search: Optional[str] = Query(None, description="Search by name, phone, or specialization"),
     is_active: Optional[bool] = Query(None),
+    page: int = Query(1, ge=1, description="Page number"),
+    limit: Optional[int] = Query(20, ge=1, le=500, description="Items per page"),
+    all: bool = Query(False, description="Fetch all without pagination"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_lab_staff),
 ):
@@ -77,10 +80,20 @@ async def list_doctors(
             seen_names.add(norm)
             unique_doctors.append(d)
 
+    total = len(unique_doctors)
+    if not all and limit:
+        paged_doctors = unique_doctors[(page - 1) * limit : page * limit]
+    else:
+        paged_doctors = unique_doctors
+
+    effective_limit = limit if (not all and limit) else (total or 20)
+    meta = paginate_meta(page=page, limit=effective_limit, total=total)
+
     return APIResponse(
         success=True,
-        message=f"Retrieved {len(unique_doctors)} doctors.",
-        data=[DoctorResponse.model_validate(d) for d in unique_doctors],
+        message=f"Retrieved {len(paged_doctors)} doctors.",
+        data=[DoctorResponse.model_validate(d) for d in paged_doctors],
+        meta=meta,
     )
 
 

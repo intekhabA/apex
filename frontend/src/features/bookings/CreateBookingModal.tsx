@@ -19,7 +19,7 @@ import { invoiceService } from '@/api/invoiceService';
 import { AddPatientModal } from '@/features/patients/AddPatientModal';
 import { useAuth } from '@/hooks/useAuth';
 import { printReceiptFromBooking } from '@/utils/receiptPrinter';
-import { Patient, DiagnosticTest, TestPackage, Booking } from '@/types';
+import { Patient, TestPackage, Booking } from '@/types';
 
 export interface CreateBookingModalProps {
   isOpen: boolean;
@@ -115,17 +115,19 @@ export const CreateBookingModal: React.FC<CreateBookingModalProps> = ({
   }, []);
 
   // Queries
-  const { data: patients = [] } = useQuery<Patient[]>({
+  const { data: patientsData } = useQuery({
     queryKey: ['patients-search', patientSearch],
-    queryFn: () => patientService.getPatients(patientSearch || undefined),
+    queryFn: () => patientService.getPatients({ search: patientSearch || undefined, limit: 30 }),
     enabled: isOpen,
   });
+  const patients = patientsData?.items || [];
 
-  const { data: tests = [] } = useQuery<DiagnosticTest[]>({
+  const { data: testsData } = useQuery({
     queryKey: ['tests-active'],
-    queryFn: () => testService.getTests(),
+    queryFn: () => testService.getAllTests(),
     enabled: isOpen,
   });
+  const tests = testsData || [];
 
   const { data: packages = [] } = useQuery<TestPackage[]>({
     queryKey: ['packages-active'],

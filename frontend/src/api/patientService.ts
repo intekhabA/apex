@@ -1,12 +1,29 @@
 import { apiClient } from './client';
-import { APIResponse, Patient, PatientCreatePayload, TimelineEvent } from '@/types';
+import { APIResponse, PaginatedResponse, Patient, PatientCreatePayload, TimelineEvent } from '@/types';
+
+export interface PatientQueryParams {
+  search?: string;
+  page?: number;
+  limit?: number;
+  all?: boolean;
+}
 
 export const patientService = {
-  async getPatients(search?: string): Promise<Patient[]> {
+  async getPatients(
+    params?: string | PatientQueryParams
+  ): Promise<PaginatedResponse<Patient>> {
+    const queryParams = typeof params === 'string' ? { search: params } : params;
     const res = await apiClient.get<APIResponse<Patient[]>>('/patients', {
-      params: { search },
+      params: queryParams,
     });
-    return res.data.data || [];
+    const items = res.data.data || [];
+    const meta = res.data.meta || {
+      page: queryParams?.page || 1,
+      limit: queryParams?.limit || items.length || 20,
+      total: items.length,
+      total_pages: 1,
+    };
+    return { items, meta };
   },
 
   async getPatientById(id: string): Promise<Patient> {

@@ -5,7 +5,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, desc
+from sqlalchemy import select, desc, or_, func
 from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
@@ -17,7 +17,7 @@ from app.models.patient import Patient
 from app.models.booking import Booking, PaymentStatus as BookingPaymentStatus
 from app.models.invoice import Invoice, Payment, PaymentMethod
 from app.models.notification import NotificationEventType, NotificationChannel
-from app.schemas.common import APIResponse, MessageResponse
+from app.schemas.common import APIResponse, MessageResponse, paginate_meta
 from app.schemas.invoice import (
     InvoiceResponse,
     PaymentResponse,
@@ -36,6 +36,9 @@ async def list_invoices(
     payment_status: Optional[str] = Query(None),
     patient_id: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
+    page: int = Query(1, ge=1, description="Page number"),
+    limit: Optional[int] = Query(20, ge=1, le=500, description="Items per page"),
+    all: bool = Query(False, description="Fetch all without pagination"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_lab_staff),
 ):
@@ -47,16 +50,38 @@ async def list_invoices(
             selectinload(Invoice.patient),
             selectinload(Invoice.payments).selectinload(Payment.received_by_user),
         )
-        .order_by(desc(Invoice.created_at))
     )
+    count_query = select(func.count(Invoice.id))
 
     if current_user.role.value != "SUPER_ADMIN":
         query = query.where(Invoice.lab_id == current_user.lab_id)
+        count_query = count_query.where(Invoice.lab_id == current_user.lab_id)
 
     if payment_status:
         query = query.where(Invoice.payment_status == payment_status)
+        count_query = count_query.where(Invoice.payment_status == payment_status)
     if patient_id:
         query = query.where(Invoice.patient_id == patient_id)
+        count_query = count_query.where(Invoice.patient_id == patient_id)
+
+    if search:
+        term = f"%{search.strip()}%"
+        search_cond = or_(
+            Invoice.invoice_id_display.ilike(term),
+            Patient.first_name.ilike(term),
+            Patient.last_name.ilike(term),
+            Patient.patient_id_display.ilike(term),
+            Booking.booking_id_display.ilike(term),
+        )
+        query = query.outerjoin(Invoice.patient).outerjoin(Invoice.booking).where(search_cond)
+        count_query = count_query.outerjoin(Invoice.patient).outerjoin(Invoice.booking).where(search_cond)
+
+    total_res = await db.execute(count_query)
+    total = total_res.scalar() or 0
+
+    query = query.order_by(desc(Invoice.created_at))
+    if not all and limit:
+        query = query.offset((page - 1) * limit).limit(limit)
 
     res = await db.execute(query)
     invoices = res.scalars().all()
@@ -66,16 +91,6 @@ async def list_invoices(
         p_name = inv.patient.full_name if inv.patient else "Patient"
         p_id_disp = inv.patient.patient_id_display if inv.patient else ""
         bk_disp = inv.booking.booking_id_display if inv.booking else ""
-
-        if search:
-            s = search.lower()
-            if not (
-                s in inv.invoice_id_display.lower()
-                or s in p_name.lower()
-                or s in p_id_disp.lower()
-                or s in bk_disp.lower()
-            ):
-                continue
 
         pmts = [
             PaymentResponse(
@@ -119,7 +134,15 @@ async def list_invoices(
             )
         )
 
-    return APIResponse(success=True, message=f"Retrieved {len(output)} invoices.", data=output)
+    effective_limit = limit if (not all and limit) else (total or 20)
+    meta = paginate_meta(page=page, limit=effective_limit, total=total)
+
+    return APIResponse(
+        success=True,
+        message=f"Retrieved {len(output)} invoices.",
+        data=output,
+        meta=meta,
+    )
 
 
 @router.get("/{invoice_id}", response_model=APIResponse[InvoiceResponse])

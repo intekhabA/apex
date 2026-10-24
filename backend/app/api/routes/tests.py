@@ -18,7 +18,7 @@ from app.models.test import (
     TestPackage,
     TestPackageItem,
 )
-from app.schemas.common import APIResponse, MessageResponse
+from app.schemas.common import APIResponse, MessageResponse, paginate_meta
 from app.schemas.test import (
     TestCategoryCreate,
     TestCategoryUpdate,
@@ -330,6 +330,9 @@ async def list_tests(
     search: Optional[str] = Query(None, description="Search by test code or name"),
     lab_id: Optional[str] = Query(None, description="Filter by laboratory assignment (Super Admin or Lab context)"),
     assigned_only: Optional[bool] = Query(None, description="Filter by assignment status: True=assigned, False=unassigned"),
+    page: int = Query(1, ge=1, description="Page number"),
+    limit: Optional[int] = Query(20, ge=1, le=500, description="Items per page"),
+    all: bool = Query(False, description="Fetch all without pagination"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -442,10 +445,20 @@ async def list_tests(
         )
         output.append(t_resp)
 
+    total = len(output)
+    if not all and limit:
+        paged_output = output[(page - 1) * limit : page * limit]
+    else:
+        paged_output = output
+
+    effective_limit = limit if (not all and limit) else (total or 20)
+    meta = paginate_meta(page=page, limit=effective_limit, total=total)
+
     return APIResponse(
         success=True,
-        message=f"Retrieved {len(output)} tests.",
-        data=output,
+        message=f"Retrieved {len(paged_output)} tests.",
+        data=paged_output,
+        meta=meta,
     )
 
 

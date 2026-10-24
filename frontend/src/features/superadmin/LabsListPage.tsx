@@ -12,7 +12,7 @@ import {
   FileText,
 } from 'lucide-react';
 import { adminApi } from '@/api/adminService';
-import { Button, Input, Badge, Card, CardContent, LoadingSpinner, toast, confirmDialog } from '@/components/ui';
+import { Button, Input, Badge, Card, CardContent, LoadingSpinner, toast, confirmDialog, Pagination } from '@/components/ui';
 import { AddLabModal } from './AddLabModal';
 import { LabDetailsModal } from './LabDetailsModal';
 import { ManageLabTestsModal } from './ManageLabTestsModal';
@@ -22,6 +22,8 @@ export const LabsListPage: React.FC = () => {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'SUSPENDED'>('ALL');
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedLabId, setSelectedLabId] = useState<string | null>(null);
   const [managingLabTests, setManagingLabTests] = useState<{
@@ -31,15 +33,20 @@ export const LabsListPage: React.FC = () => {
   } | null>(null);
 
 
-  const { data: labs = [], isLoading } = useQuery({
-    queryKey: ['adminLaboratories', searchTerm, statusFilter],
+  const { data: responseData, isLoading } = useQuery({
+    queryKey: ['adminLaboratories', searchTerm, statusFilter, page, limit],
     queryFn: () =>
-      adminApi.listLaboratories({
+      adminApi.listLaboratoriesPaginated({
         search: searchTerm || undefined,
         is_active:
           statusFilter === 'ALL' ? undefined : statusFilter === 'ACTIVE' ? true : false,
+        page,
+        limit,
       }),
   });
+
+  const labs = responseData?.items || [];
+  const meta = responseData?.meta;
 
   const toggleStatusMutation = useMutation({
     mutationFn: ({ id, isActive }: { id: string; isActive: boolean; labName: string }) =>
@@ -144,7 +151,10 @@ export const LabsListPage: React.FC = () => {
             placeholder="Search by lab name, code, or city..."
             leftIcon={<Search className="w-4 h-4" />}
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setPage(1);
+            }}
           />
         </div>
 
@@ -152,7 +162,10 @@ export const LabsListPage: React.FC = () => {
           {(['ALL', 'ACTIVE', 'SUSPENDED'] as const).map((filter) => (
             <button
               key={filter}
-              onClick={() => setStatusFilter(filter)}
+              onClick={() => {
+                setStatusFilter(filter);
+                setPage(1);
+              }}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                 statusFilter === filter
                   ? 'bg-slate-900 text-white'
@@ -258,6 +271,18 @@ export const LabsListPage: React.FC = () => {
           </div>
         )}
       </Card>
+
+      {/* Pagination Controls */}
+      {meta && meta.total > 0 && (
+        <Pagination
+          page={page}
+          limit={limit}
+          total={meta.total}
+          totalPages={meta.total_pages}
+          onPageChange={setPage}
+          onLimitChange={setLimit}
+        />
+      )}
 
       {/* Modals */}
       <AddLabModal

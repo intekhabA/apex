@@ -17,7 +17,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 
-import { Card, Button, Badge, toast, confirmDialog } from '@/components/ui';
+import { Card, Button, Badge, toast, confirmDialog, Pagination } from '@/components/ui';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { usePermissions } from '@/hooks/usePermissions';
 import { testService } from '@/api/testService';
@@ -38,6 +38,8 @@ export const TestCatalogPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [selectedLabId, setSelectedLabId] = useState<string>('ALL');
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
   const [expandedTestId, setExpandedTestId] = useState<string | null>(null);
 
   // Modals state
@@ -117,17 +119,21 @@ export const TestCatalogPage: React.FC = () => {
 
   // Fetch Tests
   const {
-    data: tests = [],
+    data: testsData,
     isLoading: isTestsLoading,
-  } = useQuery<DiagnosticTest[]>({
-    queryKey: ['tests', selectedCategory, searchQuery, selectedLabId],
+  } = useQuery({
+    queryKey: ['tests', selectedCategory, searchQuery, selectedLabId, page, limit],
     queryFn: () =>
       testService.getTests({
         category_id: selectedCategory === 'ALL' ? undefined : selectedCategory,
         search: searchQuery || undefined,
         ...(selectedLabId !== 'ALL' ? { lab_id: selectedLabId } : {}),
-      } as any),
+        page,
+        limit,
+      }),
   });
+  const tests = testsData?.items || [];
+  const testsMeta = testsData?.meta;
 
 
   // Fetch Packages
@@ -284,7 +290,10 @@ export const TestCatalogPage: React.FC = () => {
                 type="text"
                 placeholder="Search tests by name, code, or short name (e.g. CBC, Bilirubin)..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setPage(1);
+                }}
                 className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
               />
             </div>
@@ -294,7 +303,10 @@ export const TestCatalogPage: React.FC = () => {
               <Filter className="w-4 h-4 text-slate-400" />
               <select
                 value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
+                onChange={(e) => {
+                  setSelectedCategory(e.target.value);
+                  setPage(1);
+                }}
                 className="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
               >
                 <option value="ALL">All Categories</option>
@@ -313,7 +325,10 @@ export const TestCatalogPage: React.FC = () => {
                   <Building2 className="w-4 h-4 text-slate-400" />
                   <select
                     value={selectedLabId}
-                    onChange={(e) => setSelectedLabId(e.target.value)}
+                    onChange={(e) => {
+                      setSelectedLabId(e.target.value);
+                      setPage(1);
+                    }}
                     className="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 font-medium text-slate-700"
                   >
                     <option value="ALL">All Laboratories (Master Catalog)</option>
@@ -622,6 +637,18 @@ export const TestCatalogPage: React.FC = () => {
                 );
               })}
             </div>
+          )}
+
+          {/* Pagination Controls for Tests */}
+          {testsMeta && testsMeta.total > 0 && (
+            <Pagination
+              page={page}
+              limit={limit}
+              total={testsMeta.total}
+              totalPages={testsMeta.total_pages}
+              onPageChange={setPage}
+              onLimitChange={setLimit}
+            />
           )}
         </>
       ) : (

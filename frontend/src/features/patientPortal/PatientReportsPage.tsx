@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Card, Button, Input, Badge, Alert, Modal, toast } from '@/components/ui';
+import { Card, Button, Input, Badge, Alert, Modal, toast, Pagination } from '@/components/ui';
 import { patientPortalService } from '@/api/patientPortalService';
 import { ReportListItem, ReportDetail } from '@/types/report';
+import { PaginationMeta } from '@/types';
 import { formatResultValue } from '@/utils/formatters';
 import {
   FileCheck2,
@@ -15,6 +16,9 @@ import {
 
 export const PatientReportsPage: React.FC = () => {
   const [reports, setReports] = useState<ReportListItem[]>([]);
+  const [meta, setMeta] = useState<PaginationMeta | null>(null);
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -48,14 +52,15 @@ export const PatientReportsPage: React.FC = () => {
 
   useEffect(() => {
     fetchReports();
-  }, []);
+  }, [page, limit]);
 
   const fetchReports = async () => {
     setLoading(true);
     setErrorMessage(null);
     try {
-      const data = await patientPortalService.getReports();
-      setReports(data);
+      const res = await patientPortalService.getReportsPaginated({ page, limit });
+      setReports(res.items);
+      setMeta(res.meta);
     } catch (err: unknown) {
       const errorObj = err as { response?: { data?: { message?: string } } };
       setErrorMessage(errorObj.response?.data?.message || 'Failed to fetch medical reports.');
@@ -228,6 +233,18 @@ export const PatientReportsPage: React.FC = () => {
           </div>
         )}
       </Card>
+
+      {/* Pagination Controls */}
+      {meta && meta.total > 0 && (
+        <Pagination
+          page={page}
+          limit={limit}
+          total={meta.total}
+          totalPages={meta.total_pages}
+          onPageChange={setPage}
+          onLimitChange={setLimit}
+        />
+      )}
 
       {/* Report Detail Modal */}
       <Modal

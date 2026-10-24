@@ -1,16 +1,28 @@
 import { apiClient } from './client';
-import { APIResponse } from '@/types/api';
+import { APIResponse, PaginatedResponse } from '@/types/api';
 import { InvoiceResponse, PaymentResponse, PaymentCreate } from '@/types/invoice';
 import { printReceiptFromInvoice } from '@/utils/receiptPrinter';
 
+export interface InvoiceQueryParams {
+  payment_status?: string;
+  patient_id?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+  all?: boolean;
+}
+
 export const invoiceService = {
-  async getInvoices(params?: {
-    payment_status?: string;
-    patient_id?: string;
-    search?: string;
-  }): Promise<InvoiceResponse[]> {
+  async getInvoices(params?: InvoiceQueryParams): Promise<PaginatedResponse<InvoiceResponse>> {
     const res = await apiClient.get<APIResponse<InvoiceResponse[]>>('/invoices', { params });
-    return res.data.data || [];
+    const items = res.data.data || [];
+    const meta = res.data.meta || {
+      page: params?.page || 1,
+      limit: params?.limit || items.length || 20,
+      total: items.length,
+      total_pages: 1,
+    };
+    return { items, meta };
   },
 
   async getInvoice(id: string): Promise<InvoiceResponse> {

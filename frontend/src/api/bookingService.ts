@@ -1,14 +1,26 @@
 import { apiClient } from './client';
-import { APIResponse, Booking, BookingCreatePayload, BookingStatus } from '@/types';
+import { APIResponse, PaginatedResponse, Booking, BookingCreatePayload, BookingStatus } from '@/types';
+
+export interface BookingQueryParams {
+  status?: BookingStatus;
+  patient_id?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+  all?: boolean;
+}
 
 export const bookingService = {
-  async getBookings(params?: {
-    status?: BookingStatus;
-    patient_id?: string;
-    search?: string;
-  }): Promise<Booking[]> {
+  async getBookings(params?: BookingQueryParams): Promise<PaginatedResponse<Booking>> {
     const res = await apiClient.get<APIResponse<Booking[]>>('/bookings', { params });
-    return res.data.data || [];
+    const items = res.data.data || [];
+    const meta = res.data.meta || {
+      page: params?.page || 1,
+      limit: params?.limit || items.length || 20,
+      total: items.length,
+      total_pages: 1,
+    };
+    return { items, meta };
   },
 
   async getBookingById(id: string): Promise<Booking> {

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Pipette, Search, Filter } from 'lucide-react';
-import { Card, Button, Badge } from '@/components/ui';
+import { Card, Button, Badge, Pagination } from '@/components/ui';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { sampleService } from '@/api/sampleService';
 import { SpecimenSample, SampleStatus } from '@/types';
@@ -11,19 +11,26 @@ export const PhlebotomyWorklistPage: React.FC = () => {
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
 
   // Action modal state
   const [selectedSample, setSelectedSample] = useState<SpecimenSample | null>(null);
   const [actionType, setActionType] = useState<'collect' | 'receive' | 'reject' | null>(null);
 
-  const { data: samples = [], isLoading } = useQuery<SpecimenSample[]>({
-    queryKey: ['samples', statusFilter, searchQuery],
+  const { data: responseData, isLoading } = useQuery({
+    queryKey: ['samples', statusFilter, searchQuery, page, limit],
     queryFn: () =>
       sampleService.getSamples({
         status: statusFilter === 'ALL' ? undefined : (statusFilter as SampleStatus),
         search: searchQuery || undefined,
+        page,
+        limit,
       }),
   });
+
+  const samples = responseData?.items || [];
+  const meta = responseData?.meta;
 
   const handleRefresh = () => {
     queryClient.invalidateQueries({ queryKey: ['samples'] });
@@ -77,7 +84,10 @@ export const PhlebotomyWorklistPage: React.FC = () => {
             type="text"
             placeholder="Search by Specimen ID (e.g. SMP-2026-000001) or barcode..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setPage(1);
+            }}
             className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
           />
         </div>
@@ -85,7 +95,10 @@ export const PhlebotomyWorklistPage: React.FC = () => {
           <Filter className="w-4 h-4 text-slate-400" />
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setPage(1);
+            }}
             className="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
           >
             <option value="ALL">All Specimen States</option>
@@ -214,6 +227,18 @@ export const PhlebotomyWorklistPage: React.FC = () => {
             </table>
           </div>
         </Card>
+      )}
+
+      {/* Pagination Controls */}
+      {meta && meta.total > 0 && (
+        <Pagination
+          page={page}
+          limit={limit}
+          total={meta.total}
+          totalPages={meta.total_pages}
+          onPageChange={setPage}
+          onLimitChange={setLimit}
+        />
       )}
 
       {/* Modal */}

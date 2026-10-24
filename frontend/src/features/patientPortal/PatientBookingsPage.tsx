@@ -1,25 +1,30 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Card, Input, Badge, Alert } from '@/components/ui';
+import { Card, Input, Badge, Alert, Pagination } from '@/components/ui';
 import { patientPortalService } from '@/api/patientPortalService';
 import { BookingResponse } from '@/types/booking';
+import { PaginationMeta } from '@/types';
 import { CalendarDays, Search, Clock, User } from 'lucide-react';
 
 export const PatientBookingsPage: React.FC = () => {
   const [bookings, setBookings] = useState<BookingResponse[]>([]);
+  const [meta, setMeta] = useState<PaginationMeta | null>(null);
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [search, setSearch] = useState('');
 
   useEffect(() => {
     fetchBookings();
-  }, []);
+  }, [page, limit]);
 
   const fetchBookings = async () => {
     setLoading(true);
     setErrorMessage(null);
     try {
-      const data = await patientPortalService.getBookings();
-      setBookings(data);
+      const res = await patientPortalService.getBookingsPaginated({ page, limit });
+      setBookings(res.items);
+      setMeta(res.meta);
     } catch (err: unknown) {
       const errorObj = err as { response?: { data?: { message?: string } } };
       setErrorMessage(errorObj.response?.data?.message || 'Failed to fetch appointments.');
@@ -175,6 +180,18 @@ export const PatientBookingsPage: React.FC = () => {
           </div>
         )}
       </Card>
+
+      {/* Pagination Controls */}
+      {meta && meta.total > 0 && (
+        <Pagination
+          page={page}
+          limit={limit}
+          total={meta.total}
+          totalPages={meta.total_pages}
+          onPageChange={setPage}
+          onLimitChange={setLimit}
+        />
+      )}
     </div>
   );
 };

@@ -1,11 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Card, Button, Input, Badge, Alert, toast } from '@/components/ui';
+import { Card, Button, Input, Badge, Alert, toast, Pagination } from '@/components/ui';
 import { patientPortalService } from '@/api/patientPortalService';
 import { InvoiceResponse } from '@/types/invoice';
+import { PaginationMeta } from '@/types';
 import { Receipt, Download, Search } from 'lucide-react';
 
 export const PatientInvoicesPage: React.FC = () => {
   const [invoices, setInvoices] = useState<InvoiceResponse[]>([]);
+  const [meta, setMeta] = useState<PaginationMeta | null>(null);
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -13,14 +17,15 @@ export const PatientInvoicesPage: React.FC = () => {
 
   useEffect(() => {
     fetchInvoices();
-  }, []);
+  }, [page, limit]);
 
   const fetchInvoices = async () => {
     setLoading(true);
     setErrorMessage(null);
     try {
-      const data = await patientPortalService.getInvoices();
-      setInvoices(data);
+      const res = await patientPortalService.getInvoicesPaginated({ page, limit });
+      setInvoices(res.items);
+      setMeta(res.meta);
     } catch (err: unknown) {
       const errorObj = err as { response?: { data?: { message?: string } } };
       setErrorMessage(errorObj.response?.data?.message || 'Failed to fetch billing receipts.');
@@ -168,6 +173,18 @@ export const PatientInvoicesPage: React.FC = () => {
           </div>
         )}
       </Card>
+
+      {/* Pagination Controls */}
+      {meta && meta.total > 0 && (
+        <Pagination
+          page={page}
+          limit={limit}
+          total={meta.total}
+          totalPages={meta.total_pages}
+          onPageChange={setPage}
+          onLimitChange={setLimit}
+        />
+      )}
     </div>
   );
 };

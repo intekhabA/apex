@@ -1,7 +1,7 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, or_, desc
+from sqlalchemy import select, or_, desc, func
 
 from app.core.database import get_db
 from app.core.permissions import require_lab_staff, require_lab_admin, require_permission
@@ -10,7 +10,7 @@ from app.models.user import User
 from app.models.patient import Patient
 from app.models.booking import Booking
 from app.models.sample import Sample
-from app.schemas.common import APIResponse
+from app.schemas.common import APIResponse, paginate_meta
 from app.schemas.patient import (
     PatientCreate,
     PatientUpdate,
@@ -26,6 +26,9 @@ router = APIRouter(prefix="/patients", tags=["Patients"])
 @router.get("", response_model=APIResponse[List[PatientResponse]])
 async def list_patients(
     search: Optional[str] = Query(None, description="Search by name, phone, or patient ID"),
+    page: int = Query(1, ge=1, description="Page number"),
+    limit: Optional[int] = Query(20, ge=1, le=500, description="Items per page"),
+    all: bool = Query(False, description="Fetch all without pagination"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission("patients")),
 ):
@@ -34,28 +37,41 @@ async def list_patients(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No active laboratory context.")
 
     query = select(Patient)
+    count_query = select(func.count(Patient.id))
+
     if current_user.lab_id:
         query = query.where(Patient.lab_id == current_user.lab_id)
+        count_query = count_query.where(Patient.lab_id == current_user.lab_id)
 
     if search:
         term = f"%{search}%"
-        query = query.where(
-            or_(
-                Patient.first_name.ilike(term),
-                Patient.last_name.ilike(term),
-                Patient.phone.ilike(term),
-                Patient.patient_id_display.ilike(term),
-            )
+        filter_cond = or_(
+            Patient.first_name.ilike(term),
+            Patient.last_name.ilike(term),
+            Patient.phone.ilike(term),
+            Patient.patient_id_display.ilike(term),
         )
+        query = query.where(filter_cond)
+        count_query = count_query.where(filter_cond)
+
+    total_res = await db.execute(count_query)
+    total = total_res.scalar() or 0
 
     query = query.order_by(desc(Patient.created_at))
+    if not all and limit:
+        query = query.offset((page - 1) * limit).limit(limit)
+
     res = await db.execute(query)
     patients = res.scalars().all()
+
+    effective_limit = limit if (not all and limit) else (total or 20)
+    meta = paginate_meta(page=page, limit=effective_limit, total=total)
 
     return APIResponse(
         success=True,
         message=f"Retrieved {len(patients)} patients.",
         data=[PatientResponse.model_validate(p) for p in patients],
+        meta=meta,
     )
 
 

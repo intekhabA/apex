@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Button, Input, Badge, Alert, Card, toast } from '@/components/ui';
+import { Button, Input, Badge, Alert, Card, toast, Pagination } from '@/components/ui';
 import { invoiceService } from '@/api/invoiceService';
 import { InvoiceResponse, InvoicePaymentStatus } from '@/types/invoice';
+import { PaginationMeta } from '@/types';
 import {
   CreditCard,
   Download,
@@ -18,6 +19,9 @@ import { RecordPaymentModal } from './RecordPaymentModal';
 
 export const InvoicesListPage: React.FC = () => {
   const [invoices, setInvoices] = useState<InvoiceResponse[]>([]);
+  const [meta, setMeta] = useState<PaginationMeta | null>(null);
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -34,8 +38,14 @@ export const InvoicesListPage: React.FC = () => {
     setLoading(true);
     setErrorMessage(null);
     try {
-      const data = await invoiceService.getInvoices();
-      setInvoices(data);
+      const res = await invoiceService.getInvoices({
+        search: search || undefined,
+        payment_status: statusFilter === 'ALL' ? undefined : statusFilter,
+        page,
+        limit,
+      });
+      setInvoices(res.items);
+      setMeta(res.meta);
     } catch (err: unknown) {
       const errorObj = err as { response?: { data?: { message?: string } } };
       setErrorMessage(errorObj.response?.data?.message || 'Failed to fetch billing invoices.');
@@ -46,23 +56,7 @@ export const InvoicesListPage: React.FC = () => {
 
   useEffect(() => {
     fetchInvoices();
-  }, []);
-
-  const filteredInvoices = useMemo(() => {
-    return invoices.filter((inv) => {
-      const s = search.toLowerCase();
-      const matchesSearch =
-        search === '' ||
-        inv.invoice_id_display.toLowerCase().includes(s) ||
-        inv.patient_name.toLowerCase().includes(s) ||
-        inv.patient_id_display.toLowerCase().includes(s) ||
-        inv.booking_id_display.toLowerCase().includes(s);
-
-      const matchesStatus = statusFilter === 'ALL' || inv.payment_status === statusFilter;
-
-      return matchesSearch && matchesStatus;
-    });
-  }, [invoices, search, statusFilter]);
+  }, [search, statusFilter, page, limit]);
 
   // Aggregate Metrics
   const metrics = useMemo(() => {
@@ -214,7 +208,10 @@ export const InvoicesListPage: React.FC = () => {
               type="text"
               placeholder="Search by invoice #, patient, patient ID, booking #..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
               className="pl-9"
             />
           </div>
@@ -223,7 +220,10 @@ export const InvoicesListPage: React.FC = () => {
             <Filter className="w-4 h-4 text-slate-400" />
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as 'ALL' | InvoicePaymentStatus)}
+              onChange={(e) => {
+                setStatusFilter(e.target.value as 'ALL' | InvoicePaymentStatus);
+                setPage(1);
+              }}
               className="h-10 px-3 border border-slate-300 rounded-md bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="ALL">All Payment Statuses</option>
@@ -239,7 +239,7 @@ export const InvoicesListPage: React.FC = () => {
       <Card className="overflow-hidden border border-slate-200 bg-white">
         {loading ? (
           <div className="p-8 text-center text-slate-500 text-sm">Loading billing invoices...</div>
-        ) : filteredInvoices.length === 0 ? (
+        ) : invoices.length === 0 ? (
           <div className="p-8 text-center text-slate-500 text-sm">
             No invoices matching the selected criteria.
           </div>
@@ -260,7 +260,7 @@ export const InvoicesListPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredInvoices.map((inv) => (
+                {invoices.map((inv) => (
                   <tr
                     key={inv.id}
                     onClick={() => handleOpenLedger(inv)}
@@ -331,6 +331,18 @@ export const InvoicesListPage: React.FC = () => {
           </div>
         )}
       </Card>
+
+      {/* Pagination Controls */}
+      {meta && meta.total > 0 && (
+        <Pagination
+          page={page}
+          limit={limit}
+          total={meta.total}
+          totalPages={meta.total_pages}
+          onPageChange={setPage}
+          onLimitChange={setLimit}
+        />
+      )}
 
       {/* Record Payment / Ledger Modal */}
       <RecordPaymentModal

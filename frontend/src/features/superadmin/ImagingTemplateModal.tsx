@@ -93,7 +93,7 @@ export const ImagingTemplateModal: React.FC<ImagingTemplateModalProps> = ({
   const loadTests = async () => {
     setLoadingTests(true);
     try {
-      const tests = await testService.getTests();
+      const tests = await testService.getAllTests();
       setAvailableTests(tests);
     } catch {
       // fallback

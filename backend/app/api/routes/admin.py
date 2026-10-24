@@ -14,7 +14,7 @@ from app.models.user import User, UserRole
 from app.models.patient import Patient
 from app.models.test import Test, TestCategory, LabTestPrice
 from app.models.imaging_template import ImagingTemplate
-from app.schemas.common import APIResponse, MessageResponse
+from app.schemas.common import APIResponse, MessageResponse, paginate_meta
 from app.schemas.laboratory import (
     LaboratoryCreate,
     LaboratoryUpdate,
@@ -48,34 +48,49 @@ router = APIRouter(prefix="/admin", tags=["Super Admin Platform Management"])
 async def list_laboratories(
     search: Optional[str] = Query(None, description="Search by name, code, city, or email"),
     is_active: Optional[bool] = Query(None, description="Filter by active status"),
+    page: int = Query(1, ge=1, description="Page number"),
+    limit: Optional[int] = Query(20, ge=1, le=500, description="Items per page"),
+    all: bool = Query(False, description="Fetch all without pagination"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_super_admin),
 ):
     """List all onboarded diagnostic laboratories with filtering and search."""
     query = select(Laboratory).where(Laboratory.deleted_at.is_(None))
+    count_query = select(func.count(Laboratory.id)).where(Laboratory.deleted_at.is_(None))
 
     if is_active is not None:
         query = query.where(Laboratory.is_active == is_active)
+        count_query = count_query.where(Laboratory.is_active == is_active)
 
     if search:
         term = f"%{search}%"
-        query = query.where(
-            or_(
-                Laboratory.name.ilike(term),
-                Laboratory.code.ilike(term),
-                Laboratory.city.ilike(term),
-                Laboratory.email.ilike(term),
-            )
+        search_filter = or_(
+            Laboratory.name.ilike(term),
+            Laboratory.code.ilike(term),
+            Laboratory.city.ilike(term),
+            Laboratory.email.ilike(term),
         )
+        query = query.where(search_filter)
+        count_query = count_query.where(search_filter)
+
+    total_res = await db.execute(count_query)
+    total = total_res.scalar() or 0
 
     query = query.order_by(Laboratory.created_at.desc())
+    if not all and limit:
+        query = query.offset((page - 1) * limit).limit(limit)
+
     result = await db.execute(query)
     labs = result.scalars().all()
+
+    effective_limit = limit if (not all and limit) else (total or 20)
+    meta = paginate_meta(page=page, limit=effective_limit, total=total)
 
     return APIResponse(
         success=True,
         message=f"Retrieved {len(labs)} laboratories.",
         data=[LaboratoryResponse.model_validate(lab) for lab in labs],
+        meta=meta,
     )
 
 

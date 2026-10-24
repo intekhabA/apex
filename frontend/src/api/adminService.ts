@@ -1,6 +1,7 @@
 import { apiClient } from './client';
 import {
   APIResponse,
+  PaginatedResponse,
   Laboratory,
   LaboratoryDetail,
   LaboratoryCreatePayload,
@@ -13,6 +14,9 @@ import {
 export interface ListLabsParams {
   search?: string;
   is_active?: boolean;
+  page?: number;
+  limit?: number;
+  all?: boolean;
 }
 
 export interface SuperAdminDashboardStats {
@@ -24,9 +28,23 @@ export interface SuperAdminDashboardStats {
 }
 
 export const adminApi = {
-  listLaboratories: async (params?: ListLabsParams): Promise<Laboratory[]> => {
+  listLaboratoriesPaginated: async (params?: ListLabsParams): Promise<PaginatedResponse<Laboratory>> => {
     const res = await apiClient.get<APIResponse<Laboratory[]>>('/admin/laboratories', {
       params,
+    });
+    const items = res.data.data || [];
+    const meta = res.data.meta || {
+      page: params?.page || 1,
+      limit: params?.limit || items.length || 20,
+      total: items.length,
+      total_pages: 1,
+    };
+    return { items, meta };
+  },
+
+  listLaboratories: async (params?: ListLabsParams): Promise<Laboratory[]> => {
+    const res = await apiClient.get<APIResponse<Laboratory[]>>('/admin/laboratories', {
+      params: { ...params, all: true },
     });
     return res.data.data || [];
   },

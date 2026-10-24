@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Users, Search, Plus, History, Receipt } from 'lucide-react';
-import { Card, Button, Badge } from '@/components/ui';
+import { Card, Button, Badge, Pagination } from '@/components/ui';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { patientService } from '@/api/patientService';
 import { Patient } from '@/types';
@@ -12,15 +12,20 @@ import { CreateBookingModal } from '@/features/bookings/CreateBookingModal';
 export const PatientsPage: React.FC = () => {
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
   const [isAddPatientOpen, setIsAddPatientOpen] = useState(false);
   const [selectedTimelinePatient, setSelectedTimelinePatient] = useState<Patient | null>(null);
   const [selectedPatientForBooking, setSelectedPatientForBooking] = useState<Patient | null>(null);
   const [isBillingModalOpen, setIsBillingModalOpen] = useState(false);
 
-  const { data: patients = [], isLoading } = useQuery<Patient[]>({
-    queryKey: ['patients', searchQuery],
-    queryFn: () => patientService.getPatients(searchQuery || undefined),
+  const { data: responseData, isLoading } = useQuery({
+    queryKey: ['patients', searchQuery, page, limit],
+    queryFn: () => patientService.getPatients({ search: searchQuery || undefined, page, limit }),
   });
+
+  const patients = responseData?.items || [];
+  const meta = responseData?.meta;
 
   const handleRefresh = () => {
     queryClient.invalidateQueries({ queryKey: ['patients'] });
@@ -65,7 +70,10 @@ export const PatientsPage: React.FC = () => {
           type="text"
           placeholder="Search by patient name, mobile phone, or ID (e.g. PAT-2026-000001)..."
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={(e) => {
+            setSearchQuery(e.target.value);
+            setPage(1);
+          }}
           className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
         />
       </div>
@@ -154,6 +162,18 @@ export const PatientsPage: React.FC = () => {
             </table>
           </div>
         </Card>
+      )}
+
+      {/* Pagination Controls */}
+      {meta && meta.total > 0 && (
+        <Pagination
+          page={page}
+          limit={limit}
+          total={meta.total}
+          totalPages={meta.total_pages}
+          onPageChange={setPage}
+          onLimitChange={setLimit}
+        />
       )}
 
       {/* Modals */}

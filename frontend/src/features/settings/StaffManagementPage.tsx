@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Users, Plus, Search, Power, Mail, FileBadge, Shield } from 'lucide-react';
 import { labApi } from '@/api/labService';
 import { useAuthStore } from '@/store/authStore';
-import { Button, Input, Badge, Card, LoadingSpinner, toast, confirmDialog } from '@/components/ui';
+import { Button, Input, Badge, Card, LoadingSpinner, toast, confirmDialog, Pagination } from '@/components/ui';
 import { AddStaffModal } from './AddStaffModal';
 import { StaffPermissionsModal } from './StaffPermissionsModal';
 import { UserResponse } from '@/types';
@@ -13,14 +13,18 @@ export const StaffManagementPage: React.FC = () => {
   const queryClient = useQueryClient();
   const currentUser = useAuthStore((state) => state.user);
   const [searchTerm, setSearchTerm] = useState('');
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedStaffForPerms, setSelectedStaffForPerms] = useState<UserResponse | null>(null);
   const [isPermissionsModalOpen, setIsPermissionsModalOpen] = useState(false);
 
-  const { data: staff = [], isLoading } = useQuery({
-    queryKey: ['labStaffList'],
-    queryFn: labApi.listStaff,
+  const { data: staffData, isLoading } = useQuery({
+    queryKey: ['labStaffList', page, limit],
+    queryFn: () => labApi.listStaffPaginated({ page, limit }),
   });
+  const staff = staffData?.items || [];
+  const meta = staffData?.meta;
 
   const toggleStatusMutation = useMutation({
     mutationFn: ({ userId, isActive }: { userId: string; isActive: boolean; fullName: string }) =>
@@ -236,6 +240,18 @@ export const StaffManagementPage: React.FC = () => {
           </div>
         )}
       </Card>
+
+      {/* Pagination Controls */}
+      {meta && meta.total > 0 && (
+        <Pagination
+          page={page}
+          limit={limit}
+          total={meta.total}
+          totalPages={meta.total_pages}
+          onPageChange={setPage}
+          onLimitChange={setLimit}
+        />
+      )}
 
       <AddStaffModal
         isOpen={isAddModalOpen}

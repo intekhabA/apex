@@ -1,12 +1,15 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Button, Input, Badge, Alert, toast } from '@/components/ui';
+import React, { useState, useEffect } from 'react';
+import { Button, Input, Badge, Alert, toast, Pagination } from '@/components/ui';
 import { reportService } from '@/api/reportService';
-import { ReportListItem, ReportStatus } from '@/types';
+import { ReportListItem, ReportStatus, PaginationMeta } from '@/types';
 import { Download, FileCheck2 } from 'lucide-react';
 import { ReportDetailsModal } from './ReportDetailsModal';
 
 export const ReportsListPage: React.FC = () => {
   const [reports, setReports] = useState<ReportListItem[]>([]);
+  const [meta, setMeta] = useState<PaginationMeta | null>(null);
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -22,8 +25,14 @@ export const ReportsListPage: React.FC = () => {
     setLoading(true);
     setErrorMessage(null);
     try {
-      const data = await reportService.getReports();
-      setReports(data);
+      const res = await reportService.getReports({
+        search: search || undefined,
+        status: statusFilter === 'ALL' ? undefined : statusFilter,
+        page,
+        limit,
+      });
+      setReports(res.items);
+      setMeta(res.meta);
     } catch (err: unknown) {
       const errorObj = err as { response?: { data?: { message?: string } } };
       setErrorMessage(errorObj.response?.data?.message || 'Failed to fetch medical reports.');
@@ -34,24 +43,7 @@ export const ReportsListPage: React.FC = () => {
 
   useEffect(() => {
     fetchReports();
-  }, []);
-
-  const filteredReports = useMemo(() => {
-    return reports.filter((r) => {
-      const matchesSearch =
-        search === '' ||
-        r.report_id_display.toLowerCase().includes(search.toLowerCase()) ||
-        r.patient_name.toLowerCase().includes(search.toLowerCase()) ||
-        r.patient_id_display.toLowerCase().includes(search.toLowerCase()) ||
-        r.test_name.toLowerCase().includes(search.toLowerCase()) ||
-        r.booking_id_display.toLowerCase().includes(search.toLowerCase());
-
-      const matchesStatus =
-        statusFilter === 'ALL' || r.status === statusFilter;
-
-      return matchesSearch && matchesStatus;
-    });
-  }, [reports, search, statusFilter]);
+  }, [search, statusFilter, page, limit]);
 
   const handleOpenDetails = (reportId: string) => {
     setSelectedReportId(reportId);
@@ -115,7 +107,10 @@ export const ReportsListPage: React.FC = () => {
           <Input
             placeholder="Search report ID, patient, test..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
           />
         </div>
 
@@ -127,7 +122,10 @@ export const ReportsListPage: React.FC = () => {
             {(['ALL', 'PENDING_REVIEW', 'APPROVED', 'FINAL', 'DRAFT'] as const).map((s) => (
               <button
                 key={s}
-                onClick={() => setStatusFilter(s)}
+                onClick={() => {
+                  setStatusFilter(s);
+                  setPage(1);
+                }}
                 className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors shrink-0 ${
                   statusFilter === s
                     ? 'bg-white text-teal-700 shadow-sm'
@@ -156,7 +154,7 @@ export const ReportsListPage: React.FC = () => {
             <div className="w-8 h-8 border-4 border-teal-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
             Loading diagnostic reports...
           </div>
-        ) : filteredReports.length === 0 ? (
+        ) : reports.length === 0 ? (
           <div className="p-12 text-center text-slate-500">
             No diagnostic reports found matching your selected criteria.
           </div>
@@ -175,7 +173,7 @@ export const ReportsListPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredReports.map((report) => (
+                {reports.map((report) => (
                   <tr
                     key={report.id}
                     onClick={() => handleOpenDetails(report.id)}
@@ -243,6 +241,18 @@ export const ReportsListPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Pagination Controls */}
+      {meta && meta.total > 0 && (
+        <Pagination
+          page={page}
+          limit={limit}
+          total={meta.total}
+          totalPages={meta.total_pages}
+          onPageChange={setPage}
+          onLimitChange={setLimit}
+        />
+      )}
 
       {/* Detail Modal */}
       <ReportDetailsModal

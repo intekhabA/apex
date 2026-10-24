@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Button, Card, Badge, Alert, Modal, Input, toast } from '@/components/ui';
+import { Button, Card, Badge, Alert, Modal, Input, toast, Pagination } from '@/components/ui';
 import { expenseService } from '@/api/expenseService';
 import {
   Expense,
@@ -52,6 +52,8 @@ export const DailyExpensesPage: React.FC = () => {
 
   // Data State
   const [summary, setSummary] = useState<ExpenseSummary | null>(null);
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
   const [categoryPresets, setCategoryPresets] = useState<CategoryPresetItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -749,7 +751,7 @@ export const DailyExpensesPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
-                {summary.expenses.map((item) => (
+                {summary.expenses.slice((page - 1) * limit, page * limit).map((item) => (
                   <tr key={item.id} className="hover:bg-slate-50/60 transition-colors">
                     {/* Date */}
                     <td className="px-4 py-3.5 whitespace-nowrap text-xs font-semibold text-slate-600">
@@ -842,6 +844,17 @@ export const DailyExpensesPage: React.FC = () => {
           </div>
         )}
       </Card>
+
+      {/* Pagination Controls */}
+      {summary && summary.expenses && summary.expenses.length > limit && (
+        <Pagination
+          page={page}
+          limit={limit}
+          total={summary.expenses.length}
+          onPageChange={setPage}
+          onLimitChange={setLimit}
+        />
+      )}
 
       {/* Add / Edit Expense Modal */}
       <ExpenseModal

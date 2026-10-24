@@ -2,7 +2,7 @@ import datetime
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, or_, desc
+from sqlalchemy import select, or_, desc, func
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
@@ -12,7 +12,7 @@ from app.models.user import User
 from app.models.sample import Sample, SampleTrackingEvent, SampleStatus
 from app.models.notification import NotificationEventType, NotificationChannel
 from app.services.notification_service import NotificationService
-from app.schemas.common import APIResponse
+from app.schemas.common import APIResponse, paginate_meta
 from app.schemas.sample import (
     SampleResponse,
     SampleTrackingEventResponse,
@@ -30,6 +30,9 @@ async def list_samples(
     booking_id: Optional[str] = Query(None),
     patient_id: Optional[str] = Query(None),
     search: Optional[str] = Query(None, description="Search by sample ID or barcode"),
+    page: int = Query(1, ge=1, description="Page number"),
+    limit: Optional[int] = Query(20, ge=1, le=500, description="Items per page"),
+    all: bool = Query(False, description="Fetch all without pagination"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_lab_staff),
 ):
@@ -38,35 +41,51 @@ async def list_samples(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No active laboratory.")
 
     query = select(Sample).options(selectinload(Sample.events))
+    count_query = select(func.count(Sample.id))
+
     if current_user.lab_id:
         query = query.where(Sample.lab_id == current_user.lab_id)
+        count_query = count_query.where(Sample.lab_id == current_user.lab_id)
 
     if status_filter:
         query = query.where(Sample.status == status_filter)
+        count_query = count_query.where(Sample.status == status_filter)
 
     if booking_id:
         query = query.where(Sample.booking_id == booking_id)
+        count_query = count_query.where(Sample.booking_id == booking_id)
 
     if patient_id:
         query = query.where(Sample.patient_id == patient_id)
+        count_query = count_query.where(Sample.patient_id == patient_id)
 
     if search:
         term = f"%{search}%"
-        query = query.where(
-            or_(
-                Sample.sample_id_display.ilike(term),
-                Sample.barcode_value.ilike(term),
-            )
+        search_filter = or_(
+            Sample.sample_id_display.ilike(term),
+            Sample.barcode_value.ilike(term),
         )
+        query = query.where(search_filter)
+        count_query = count_query.where(search_filter)
+
+    total_res = await db.execute(count_query)
+    total = total_res.scalar() or 0
 
     query = query.order_by(desc(Sample.created_at))
+    if not all and limit:
+        query = query.offset((page - 1) * limit).limit(limit)
+
     res = await db.execute(query)
     samples = res.scalars().all()
+
+    effective_limit = limit if (not all and limit) else (total or 20)
+    meta = paginate_meta(page=page, limit=effective_limit, total=total)
 
     return APIResponse(
         success=True,
         message=f"Retrieved {len(samples)} specimen records.",
         data=[SampleResponse.model_validate(s) for s in samples],
+        meta=meta,
     )
 
 

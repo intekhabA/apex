@@ -2,10 +2,10 @@ import os
 import datetime
 from decimal import Decimal
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, desc
+from sqlalchemy import select, desc, func
 from sqlalchemy.orm import selectinload
 
 IST_TZ = datetime.timezone(datetime.timedelta(hours=5, minutes=30), name="IST")
@@ -29,7 +29,7 @@ from app.models.booking import Booking, BookingItem
 from app.models.report import Report, ReportStatus, ReportVersion, ReportAttachment
 from app.models.result import TestResultValue
 from app.models.invoice import Invoice, Payment
-from app.schemas.common import APIResponse
+from app.schemas.common import APIResponse, paginate_meta
 from app.schemas.booking import BookingResponse, BookingItemResponse
 from app.schemas.report import (
     ReportListItemResponse,
@@ -325,6 +325,9 @@ async def get_patient_dashboard(
 
 @router.get("/bookings", response_model=APIResponse[List[BookingResponse]])
 async def list_patient_bookings(
+    page: int = Query(1, ge=1, description="Page number"),
+    limit: Optional[int] = Query(20, ge=1, le=500, description="Items per page"),
+    all: bool = Query(False, description="Fetch all without pagination"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_patient),
 ):
@@ -333,14 +336,22 @@ async def list_patient_bookings(
     p_ids = [str(p.id) for p in patients]
 
     if not p_ids:
-        return APIResponse(success=True, message="No bookings found.", data=[])
+        return APIResponse(success=True, message="No bookings found.", data=[], meta=paginate_meta(1, 20, 0))
 
-    res = await db.execute(
+    count_query = select(func.count(Booking.id)).where(Booking.patient_id.in_(p_ids))
+    total_res = await db.execute(count_query)
+    total = total_res.scalar() or 0
+
+    query = (
         select(Booking)
         .options(selectinload(Booking.patient), selectinload(Booking.items))
         .where(Booking.patient_id.in_(p_ids))
         .order_by(desc(Booking.created_at))
     )
+    if not all and limit:
+        query = query.offset((page - 1) * limit).limit(limit)
+
+    res = await db.execute(query)
     bookings = res.scalars().all()
 
     output = []
@@ -383,11 +394,22 @@ async def list_patient_bookings(
             )
         )
 
-    return APIResponse(success=True, message=f"Retrieved {len(output)} bookings.", data=output)
+    effective_limit = limit if (not all and limit) else (total or 20)
+    meta = paginate_meta(page=page, limit=effective_limit, total=total)
+
+    return APIResponse(
+        success=True,
+        message=f"Retrieved {len(output)} bookings.",
+        data=output,
+        meta=meta,
+    )
 
 
 @router.get("/reports", response_model=APIResponse[List[ReportListItemResponse]])
 async def list_patient_reports(
+    page: int = Query(1, ge=1, description="Page number"),
+    limit: Optional[int] = Query(20, ge=1, le=500, description="Items per page"),
+    all: bool = Query(False, description="Fetch all without pagination"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_patient),
 ):
@@ -396,14 +418,22 @@ async def list_patient_reports(
     p_ids = [str(p.id) for p in patients]
 
     if not p_ids:
-        return APIResponse(success=True, message="No reports found.", data=[])
+        return APIResponse(success=True, message="No reports found.", data=[], meta=paginate_meta(1, 20, 0))
 
-    res = await db.execute(
+    count_query = select(func.count(Report.id)).where(Report.patient_id.in_(p_ids), Report.status == ReportStatus.FINAL)
+    total_res = await db.execute(count_query)
+    total = total_res.scalar() or 0
+
+    query = (
         select(Report)
         .options(selectinload(Report.patient), selectinload(Report.test), selectinload(Report.booking))
         .where(Report.patient_id.in_(p_ids), Report.status == ReportStatus.FINAL)
         .order_by(desc(Report.finalized_at))
     )
+    if not all and limit:
+        query = query.offset((page - 1) * limit).limit(limit)
+
+    res = await db.execute(query)
     reports = res.scalars().all()
 
     output = [
@@ -430,7 +460,15 @@ async def list_patient_reports(
         for r in reports
     ]
 
-    return APIResponse(success=True, message=f"Retrieved {len(output)} finalized reports.", data=output)
+    effective_limit = limit if (not all and limit) else (total or 20)
+    meta = paginate_meta(page=page, limit=effective_limit, total=total)
+
+    return APIResponse(
+        success=True,
+        message=f"Retrieved {len(output)} finalized reports.",
+        data=output,
+        meta=meta,
+    )
 
 
 @router.get("/reports/{report_id}", response_model=APIResponse[ReportDetailResponse])
@@ -780,6 +818,9 @@ async def download_patient_booking_reports_pdf(
 
 @router.get("/invoices", response_model=APIResponse[List[InvoiceResponse]])
 async def list_patient_invoices(
+    page: int = Query(1, ge=1, description="Page number"),
+    limit: Optional[int] = Query(20, ge=1, le=500, description="Items per page"),
+    all: bool = Query(False, description="Fetch all without pagination"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_patient),
 ):
@@ -788,9 +829,13 @@ async def list_patient_invoices(
     p_ids = [str(p.id) for p in patients]
 
     if not p_ids:
-        return APIResponse(success=True, message="No invoices found.", data=[])
+        return APIResponse(success=True, message="No invoices found.", data=[], meta=paginate_meta(1, 20, 0))
 
-    res = await db.execute(
+    count_query = select(func.count(Invoice.id)).where(Invoice.patient_id.in_(p_ids))
+    total_res = await db.execute(count_query)
+    total = total_res.scalar() or 0
+
+    query = (
         select(Invoice)
         .options(
             selectinload(Invoice.booking),
@@ -800,6 +845,10 @@ async def list_patient_invoices(
         .where(Invoice.patient_id.in_(p_ids))
         .order_by(desc(Invoice.created_at))
     )
+    if not all and limit:
+        query = query.offset((page - 1) * limit).limit(limit)
+
+    res = await db.execute(query)
     invoices = res.scalars().all()
 
     output = []
@@ -845,7 +894,15 @@ async def list_patient_invoices(
             )
         )
 
-    return APIResponse(success=True, message=f"Retrieved {len(output)} invoices.", data=output)
+    effective_limit = limit if (not all and limit) else (total or 20)
+    meta = paginate_meta(page=page, limit=effective_limit, total=total)
+
+    return APIResponse(
+        success=True,
+        message=f"Retrieved {len(output)} invoices.",
+        data=output,
+        meta=meta,
+    )
 
 
 @router.get("/invoices/{invoice_id}/receipt")

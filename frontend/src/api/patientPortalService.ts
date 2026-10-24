@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import { APIResponse } from '@/types/api';
+import { APIResponse, PaginatedResponse } from '@/types/api';
 import { BookingResponse } from '@/types/booking';
 import { ReportListItem, ReportDetail } from '@/types/report';
 import { InvoiceResponse } from '@/types/invoice';
@@ -16,13 +16,27 @@ export const patientPortalService = {
     return res.data.data!;
   },
 
+  async getBookingsPaginated(params?: { page?: number; limit?: number }): Promise<PaginatedResponse<BookingResponse>> {
+    const res = await apiClient.get<APIResponse<BookingResponse[]>>('/patient-portal/bookings', { params });
+    const items = res.data.data || [];
+    const meta = res.data.meta || { page: params?.page || 1, limit: params?.limit || items.length || 20, total: items.length, total_pages: 1 };
+    return { items, meta };
+  },
+
   async getBookings(): Promise<BookingResponse[]> {
-    const res = await apiClient.get<APIResponse<BookingResponse[]>>('/patient-portal/bookings');
+    const res = await apiClient.get<APIResponse<BookingResponse[]>>('/patient-portal/bookings', { params: { all: true } });
     return res.data.data || [];
   },
 
+  async getReportsPaginated(params?: { page?: number; limit?: number }): Promise<PaginatedResponse<ReportListItem>> {
+    const res = await apiClient.get<APIResponse<ReportListItem[]>>('/patient-portal/reports', { params });
+    const items = res.data.data || [];
+    const meta = res.data.meta || { page: params?.page || 1, limit: params?.limit || items.length || 20, total: items.length, total_pages: 1 };
+    return { items, meta };
+  },
+
   async getReports(): Promise<ReportListItem[]> {
-    const res = await apiClient.get<APIResponse<ReportListItem[]>>('/patient-portal/reports');
+    const res = await apiClient.get<APIResponse<ReportListItem[]>>('/patient-portal/reports', { params: { all: true } });
     return res.data.data || [];
   },
 
@@ -45,8 +59,15 @@ export const patientPortalService = {
     window.URL.revokeObjectURL(url);
   },
 
+  async getInvoicesPaginated(params?: { page?: number; limit?: number }): Promise<PaginatedResponse<InvoiceResponse>> {
+    const res = await apiClient.get<APIResponse<InvoiceResponse[]>>('/patient-portal/invoices', { params });
+    const items = res.data.data || [];
+    const meta = res.data.meta || { page: params?.page || 1, limit: params?.limit || items.length || 20, total: items.length, total_pages: 1 };
+    return { items, meta };
+  },
+
   async getInvoices(): Promise<InvoiceResponse[]> {
-    const res = await apiClient.get<APIResponse<InvoiceResponse[]>>('/patient-portal/invoices');
+    const res = await apiClient.get<APIResponse<InvoiceResponse[]>>('/patient-portal/invoices', { params: { all: true } });
     return res.data.data || [];
   },
 

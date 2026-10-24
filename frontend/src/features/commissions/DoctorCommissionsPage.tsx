@@ -88,7 +88,8 @@ export const DoctorCommissionsPage: React.FC = () => {
 
   const fetchDoctors = async () => {
     try {
-      const data = await doctorService.getDoctors();
+      const res = await doctorService.getDoctors({ all: true });
+      const data = res.items;
       const seen = new Set<string>();
       const unique = (data || []).filter((doc) => {
         const norm = normalizeDoctorName(doc.name);

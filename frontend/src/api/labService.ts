@@ -1,6 +1,7 @@
 import { apiClient } from './client';
 import {
   APIResponse,
+  PaginatedResponse,
   Laboratory,
   LaboratoryUpdatePayload,
   LaboratorySettings,
@@ -10,6 +11,12 @@ import {
   UserUpdatePayload,
   PermissionModulesResponse,
 } from '@/types';
+
+export interface StaffListParams {
+  page?: number;
+  limit?: number;
+  all?: boolean;
+}
 
 export const labApi = {
   getProfile: async (): Promise<Laboratory> => {
@@ -46,8 +53,20 @@ export const labApi = {
     return res.data.data;
   },
 
+  listStaffPaginated: async (params?: StaffListParams): Promise<PaginatedResponse<UserResponse>> => {
+    const res = await apiClient.get<APIResponse<UserResponse[]>>('/lab/users', { params });
+    const items = res.data.data || [];
+    const meta = res.data.meta || {
+      page: params?.page || 1,
+      limit: params?.limit || items.length || 20,
+      total: items.length,
+      total_pages: 1,
+    };
+    return { items, meta };
+  },
+
   listStaff: async (): Promise<UserResponse[]> => {
-    const res = await apiClient.get<APIResponse<UserResponse[]>>('/lab/users');
+    const res = await apiClient.get<APIResponse<UserResponse[]>>('/lab/users', { params: { all: true } });
     return res.data.data || [];
   },
 

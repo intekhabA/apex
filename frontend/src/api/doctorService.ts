@@ -2,22 +2,60 @@ import { apiClient } from './client';
 import { API_ENDPOINTS } from './endpoints';
 import {
   APIResponse,
+  PaginatedResponse,
   Doctor,
   DoctorCreatePayload,
   DoctorTestCommissionItem,
   DoctorCommissionReport,
 } from '@/types';
 
-export const doctorService = {
-  getDoctors: async (search?: string, isActive?: boolean): Promise<Doctor[]> => {
-    const params = new URLSearchParams();
-    if (search) params.append('search', search);
-    if (isActive !== undefined) params.append('is_active', String(isActive));
+export interface DoctorQueryParams {
+  search?: string;
+  isActive?: boolean;
+  page?: number;
+  limit?: number;
+  all?: boolean;
+}
 
-    const response = await apiClient.get<APIResponse<Doctor[]>>(
-      `${API_ENDPOINTS.DOCTORS.BASE}?${params.toString()}`
-    );
-    return response.data.data || [];
+export const doctorService = {
+  getDoctors: async (
+    params?: string | DoctorQueryParams,
+    isActive?: boolean
+  ): Promise<PaginatedResponse<Doctor>> => {
+    let search: string | undefined;
+    let active: boolean | undefined = isActive;
+    let page: number | undefined;
+    let limit: number | undefined;
+    let all: boolean | undefined;
+
+    if (typeof params === 'string') {
+      search = params;
+    } else if (params) {
+      search = params.search;
+      active = params.isActive ?? active;
+      page = params.page;
+      limit = params.limit;
+      all = params.all;
+    }
+
+    const queryParams: Record<string, any> = {};
+    if (search) queryParams.search = search;
+    if (active !== undefined) queryParams.is_active = active;
+    if (page) queryParams.page = page;
+    if (limit) queryParams.limit = limit;
+    if (all) queryParams.all = all;
+
+    const response = await apiClient.get<APIResponse<Doctor[]>>(API_ENDPOINTS.DOCTORS.BASE, {
+      params: queryParams,
+    });
+    const items = response.data.data || [];
+    const meta = response.data.meta || {
+      page: page || 1,
+      limit: limit || items.length || 20,
+      total: items.length,
+      total_pages: 1,
+    };
+    return { items, meta };
   },
 
   createDoctor: async (payload: DoctorCreatePayload): Promise<Doctor> => {
