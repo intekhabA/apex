@@ -286,18 +286,33 @@ def generate_medical_report_pdf(
     qr_url: str,
     hmac_digest: str,
     output_path: str,
+    is_letterhead: bool = False,
+    top_margin_mm: Optional[int] = None,
+    bottom_margin_mm: Optional[int] = None,
 ) -> str:
-    """Renders a production-grade, sealed Diagnostic Medical Report PDF using ReportLab."""
+    """Renders a production-grade, sealed Diagnostic Medical Report PDF using ReportLab.
+    Supports pre-printed A4 letterhead mode (suppresses digital lab banner & reserves margins).
+    """
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
-    # 0.75-inch margins
+    # 1 mm = 72 / 25.4 points
+    mm_pt = 72.0 / 25.4
+    if is_letterhead:
+        # Default letterhead header space: ~48mm (~1.9 inches)
+        top_m = float(top_margin_mm * mm_pt) if top_margin_mm else (48.0 * mm_pt)
+        # Default letterhead footer space: ~28mm (~1.1 inches)
+        bottom_m = float(bottom_margin_mm * mm_pt) if bottom_margin_mm else (28.0 * mm_pt)
+    else:
+        top_m = 36.0
+        bottom_m = 36.0
+
     doc = SimpleDocTemplate(
         output_path,
         pagesize=A4,
         leftMargin=36,
         rightMargin=36,
-        topMargin=36,
-        bottomMargin=36,
+        topMargin=top_m,
+        bottomMargin=bottom_m,
     )
 
     styles = getSampleStyleSheet()
@@ -400,52 +415,94 @@ def generate_medical_report_pdf(
 
     story = []
 
-    # 1. Header: Laboratory Banner
-    lab_text = f"<b>{lab_info.get('name', 'TrustMyLab Diagnostic Services')}</b>"
-    lab_details = (
-        f"{lab_info.get('address', '123 Medical Center Way')}<br/>"
-        f"Phone: {lab_info.get('phone', 'N/A')} | Email: {lab_info.get('email', 'N/A')}<br/>"
-        f"Licence / Accreditation: {lab_info.get('license', 'ISO 15189 / NABL Certified')}"
-    )
-
-    show_header_status = lab_info.get("show_report_header_status", True)
-    if "show_header_status" in report_info and report_info["show_header_status"] is not None:
-        show_header_status = report_info["show_header_status"]
-    elif "show_report_header_status" in report_info and report_info["show_report_header_status"] is not None:
-        show_header_status = report_info["show_report_header_status"]
-
-    if show_header_status:
-        header_right_flowable = Paragraph(
-            f"<b>REPORT #{report_info.get('report_id_display', '')}</b><br/>"
-            f"<font color='#0D9488'><b>STATUS: {report_info.get('status', 'FINAL')}</b></font><br/>"
-            f"Version: v{report_info.get('version', 1)}.0",
-            ParagraphStyle("ReportRef", parent=styles["Normal"], alignment=2, fontSize=9, leading=12),
+    if not is_letterhead:
+        # 1. Header: Laboratory Banner (Standard Plain Paper Mode)
+        lab_text = f"<b>{lab_info.get('name', 'TrustMyLab Diagnostic Services')}</b>"
+        lab_details = (
+            f"{lab_info.get('address', '123 Medical Center Way')}<br/>"
+            f"Phone: {lab_info.get('phone', 'N/A')} | Email: {lab_info.get('email', 'N/A')}<br/>"
+            f"Licence / Accreditation: {lab_info.get('license', 'ISO 15189 / NABL Certified')}"
         )
-    else:
-        header_right_flowable = Paragraph("", styles["Normal"])
 
-    lab_table = Table(
-        [
+        show_header_status = lab_info.get("show_report_header_status", True)
+        if "show_header_status" in report_info and report_info["show_header_status"] is not None:
+            show_header_status = report_info["show_header_status"]
+        elif "show_report_header_status" in report_info and report_info["show_report_header_status"] is not None:
+            show_header_status = report_info["show_report_header_status"]
+
+        if show_header_status:
+            header_right_flowable = Paragraph(
+                f"<b>REPORT #{report_info.get('report_id_display', '')}</b><br/>"
+                f"<font color='#0D9488'><b>STATUS: {report_info.get('status', 'FINAL')}</b></font><br/>"
+                f"Version: v{report_info.get('version', 1)}.0",
+                ParagraphStyle("ReportRef", parent=styles["Normal"], alignment=2, fontSize=9, leading=12),
+            )
+        else:
+            header_right_flowable = Paragraph("", styles["Normal"])
+
+        lab_table = Table(
             [
-                Paragraph(lab_text, title_style),
-                header_right_flowable,
+                [
+                    Paragraph(lab_text, title_style),
+                    header_right_flowable,
+                ],
+                [Paragraph(lab_details, subtitle_style), ""],
             ],
-            [Paragraph(lab_details, subtitle_style), ""],
-        ],
-        colWidths=[360, 160],
-    )
-    lab_table.setStyle(
-        TableStyle(
-            [
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
-                ("TOPPADDING", (0, 0), (-1, -1), 2),
-            ]
+            colWidths=[360, 160],
         )
-    )
-    story.append(lab_table)
-    story.append(Spacer(1, 8))
-    story.append(HRFlowable(width="100%", thickness=2, color=brand_color, spaceAfter=8))
+        lab_table.setStyle(
+            TableStyle(
+                [
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+                    ("TOPPADDING", (0, 0), (-1, -1), 2),
+                ]
+            )
+        )
+        story.append(lab_table)
+        story.append(Spacer(1, 8))
+        story.append(HRFlowable(width="100%", thickness=2, color=brand_color, spaceAfter=8))
+    else:
+        # Pre-printed Letterhead Mode:
+        # The laboratory logo, header, and branding are already physically on the A4 letterhead.
+        # Print a clean report identifier strip directly above demographics.
+        show_header_status = lab_info.get("show_report_header_status", True)
+        if "show_header_status" in report_info and report_info["show_header_status"] is not None:
+            show_header_status = report_info["show_header_status"]
+        elif "show_report_header_status" in report_info and report_info["show_report_header_status"] is not None:
+            show_header_status = report_info["show_report_header_status"]
+
+        if show_header_status:
+            letterhead_ref_table = Table(
+                [
+                    [
+                        Paragraph(
+                            "<b>DIAGNOSTIC MEDICAL REPORT</b>",
+                            ParagraphStyle("LhHead", parent=styles["Normal"], fontSize=9.5, leading=11, fontName="Helvetica-Bold", textColor=brand_dark),
+                        ),
+                        Paragraph(
+                            f"<b>REPORT #{report_info.get('report_id_display', '')}</b> &nbsp;|&nbsp; "
+                            f"<font color='#0D9488'><b>STATUS: {report_info.get('status', 'FINAL')}</b></font> &nbsp;|&nbsp; "
+                            f"Version: v{report_info.get('version', 1)}.0",
+                            ParagraphStyle("LhRef", parent=styles["Normal"], alignment=2, fontSize=8, leading=10, textColor=slate_dark),
+                        ),
+                    ]
+                ],
+                colWidths=[180, 340],
+            )
+            letterhead_ref_table.setStyle(
+                TableStyle(
+                    [
+                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+                        ("TOPPADDING", (0, 0), (-1, -1), 0),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                    ]
+                )
+            )
+            story.append(letterhead_ref_table)
+            story.append(Spacer(1, 3))
 
     # 2. Patient & Booking Demographics Card
     patient_data = [
@@ -735,16 +792,14 @@ def generate_medical_report_pdf(
             ],
             colWidths=[335, 185],
         )
-    footer_table.setStyle(
-        TableStyle(
-            [
-                ("VALIGN", (0, 0), (-1, -1), "BOTTOM"),
-                ("TOPPADDING", (0, 0), (-1, -1), 4),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-                ("LINEABOVE", (0, 0), (-1, 0), 1, brand_color),
-            ]
-        )
-    )
+    footer_styles = [
+        ("VALIGN", (0, 0), (-1, -1), "BOTTOM"),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ]
+    if not is_letterhead:
+        footer_styles.append(("LINEABOVE", (0, 0), (-1, 0), 1, brand_color))
+    footer_table.setStyle(TableStyle(footer_styles))
 
     story.append(KeepTogether(footer_table))
 
@@ -1224,17 +1279,23 @@ def generate_consolidated_booking_report_pdf(
     reports_data: List[dict],
     qr_url: str,
     output_path: str,
+    is_letterhead: bool = False,
+    top_margin_mm: Optional[int] = None,
+    bottom_margin_mm: Optional[int] = None,
 ) -> str:
     """Renders a production-grade Consolidated Diagnostic Report PDF containing all reports for a single booking."""
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+    top_margin_pt = (top_margin_mm * 72 / 25.4) if top_margin_mm is not None else (48 * 72 / 25.4 if is_letterhead else 36)
+    bottom_margin_pt = (bottom_margin_mm * 72 / 25.4) if bottom_margin_mm is not None else (28 * 72 / 25.4 if is_letterhead else 42)
 
     doc = SimpleDocTemplate(
         output_path,
         pagesize=A4,
         leftMargin=36,
         rightMargin=36,
-        topMargin=36,
-        bottomMargin=42,
+        topMargin=top_margin_pt,
+        bottomMargin=bottom_margin_pt,
     )
 
     styles = getSampleStyleSheet()
@@ -1365,43 +1426,70 @@ def generate_consolidated_booking_report_pdf(
     story = []
 
     # 1. Header: Laboratory Banner & Consolidated Document Identification
-    lab_text = f"<b>{lab_info.get('name', 'TrustMyLab Diagnostic Services')}</b>"
-    lab_details = (
-        f"{lab_info.get('address', '123 Medical Center Way')}<br/>"
-        f"Phone: {lab_info.get('phone', 'N/A')} | Email: {lab_info.get('email', 'N/A')}<br/>"
-        f"Accreditation / Reg: {lab_info.get('license', 'ISO 15189 / NABL Certified')}"
-    )
-    booking_header_block = (
-        f"<b>CONSOLIDATED DIAGNOSTIC REPORT</b><br/>"
-        f"<font color='#0D9488'><b>BOOKING #{booking_info.get('booking_id_display', '')}</b></font><br/>"
-        f"Order Status: <b>{booking_info.get('status', 'PENDING')}</b><br/>"
-        f"<font color='#64748B'>Date: {booking_info.get('appointment_date', 'N/A')}</font>"
-    )
-    lab_table = Table(
-        [
-            [
-                Paragraph(lab_text, title_style),
-                Paragraph(
-                    booking_header_block,
-                    ParagraphStyle("BookingRef", parent=styles["Normal"], alignment=2, fontSize=9, leading=12.5),
-                ),
-            ],
-            [Paragraph(lab_details, subtitle_style), ""],
-        ],
-        colWidths=[335, 185],
-    )
-    lab_table.setStyle(
-        TableStyle(
-            [
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
-                ("TOPPADDING", (0, 0), (-1, -1), 2),
-            ]
+    if not is_letterhead:
+        lab_text = f"<b>{lab_info.get('name', 'TrustMyLab Diagnostic Services')}</b>"
+        lab_details = (
+            f"{lab_info.get('address', '123 Medical Center Way')}<br/>"
+            f"Phone: {lab_info.get('phone', 'N/A')} | Email: {lab_info.get('email', 'N/A')}<br/>"
+            f"Accreditation / Reg: {lab_info.get('license', 'ISO 15189 / NABL Certified')}"
         )
-    )
-    story.append(lab_table)
-    story.append(Spacer(1, 6))
-    story.append(HRFlowable(width="100%", thickness=2, color=brand_color, spaceAfter=8))
+        booking_header_block = (
+            f"<b>CONSOLIDATED DIAGNOSTIC REPORT</b><br/>"
+            f"<font color='#0D9488'><b>BOOKING #{booking_info.get('booking_id_display', '')}</b></font><br/>"
+            f"Order Status: <b>{booking_info.get('status', 'PENDING')}</b><br/>"
+            f"<font color='#64748B'>Date: {booking_info.get('appointment_date', 'N/A')}</font>"
+        )
+        lab_table = Table(
+            [
+                [
+                    Paragraph(lab_text, title_style),
+                    Paragraph(
+                        booking_header_block,
+                        ParagraphStyle("BookingRef", parent=styles["Normal"], alignment=2, fontSize=9, leading=12.5),
+                    ),
+                ],
+                [Paragraph(lab_details, subtitle_style), ""],
+            ],
+            colWidths=[335, 185],
+        )
+        lab_table.setStyle(
+            TableStyle(
+                [
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+                    ("TOPPADDING", (0, 0), (-1, -1), 2),
+                ]
+            )
+        )
+        story.append(lab_table)
+        story.append(Spacer(1, 6))
+        story.append(HRFlowable(width="100%", thickness=2, color=brand_color, spaceAfter=8))
+    else:
+        # Pre-printed letterhead mode: lab header is physically printed on paper.
+        # Add a clean minimal tracking strip.
+        letterhead_ref_table = Table(
+            [
+                [
+                    Paragraph(f"<b>CONSOLIDATED DIAGNOSTIC REPORT</b> | BOOKING #{booking_info.get('booking_id_display', '')} | Order Status: <b>{booking_info.get('status', 'PENDING')}</b>", ParagraphStyle("LetterheadConsolidatedHeader", parent=styles["Normal"], fontSize=8.5, leading=11, textColor=brand_dark)),
+                    Paragraph(f"Date: {booking_info.get('appointment_date', 'N/A')}", ParagraphStyle("LetterheadConsolidatedDate", parent=styles["Normal"], fontSize=8, leading=10, textColor=slate_muted, alignment=2)),
+                ]
+            ],
+            colWidths=[380, 140],
+        )
+        letterhead_ref_table.setStyle(
+            TableStyle(
+                [
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("LINEBELOW", (0, 0), (-1, -1), 0.5, border_color),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                    ("TOPPADDING", (0, 0), (-1, -1), 0),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ]
+            )
+        )
+        story.append(letterhead_ref_table)
+        story.append(Spacer(1, 4))
 
     # 2. Patient & Booking Demographics Card
     patient_data = [
@@ -1855,16 +1943,14 @@ def generate_consolidated_booking_report_pdf(
             ],
             colWidths=[335, 185],
         )
-    footer_table.setStyle(
-        TableStyle(
-            [
-                ("VALIGN", (0, 0), (-1, -1), "BOTTOM"),
-                ("TOPPADDING", (0, 0), (-1, -1), 4),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-                ("LINEABOVE", (0, 0), (-1, 0), 1, brand_color),
-            ]
-        )
-    )
+    footer_styles = [
+        ("VALIGN", (0, 0), (-1, -1), "BOTTOM"),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ]
+    if not is_letterhead:
+        footer_styles.append(("LINEABOVE", (0, 0), (-1, 0), 1, brand_color))
+    footer_table.setStyle(TableStyle(footer_styles))
 
     story.append(KeepTogether(footer_table))
 

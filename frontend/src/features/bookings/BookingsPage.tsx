@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { CalendarDays, Search, Plus, Filter, ChevronRight, Download } from 'lucide-react';
+import { CalendarDays, Search, Plus, Filter, ChevronRight, Download, Printer } from 'lucide-react';
 import { Card, Button, Badge, toast, Pagination } from '@/components/ui';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { bookingService } from '@/api/bookingService';
 import { Booking, BookingStatus } from '@/types';
 import { CreateBookingModal } from './CreateBookingModal';
 import { BookingDetailsModal } from './BookingDetailsModal';
+import { PrintBookingModal } from './PrintBookingModal';
 
 export const BookingsPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -16,6 +17,7 @@ export const BookingsPage: React.FC = () => {
   const [limit, setLimit] = useState(20);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [printBooking, setPrintBooking] = useState<Booking | null>(null);
   const [downloadingBookingId, setDownloadingBookingId] = useState<string | null>(null);
 
   const handleDownloadAllReports = async (b: Booking, e: React.MouseEvent) => {
@@ -237,13 +239,26 @@ export const BookingsPage: React.FC = () => {
                         <Button
                           variant="outline"
                           size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPrintBooking(b);
+                          }}
+                          className="text-xs text-teal-800 border-teal-300 hover:bg-teal-50 flex items-center gap-1 shadow-sm font-medium"
+                          title="Print all reports for this booking order (A4 Letterhead or Plain Paper)"
+                        >
+                          <Printer className="w-3 h-3 text-teal-600" />
+                          Print All
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
                           onClick={(e) => handleDownloadAllReports(b, e)}
                           isLoading={downloadingBookingId === b.id}
-                          className="text-xs text-teal-700 border-teal-200 hover:bg-teal-50 flex items-center gap-1 shadow-sm"
+                          className="text-xs text-slate-700 border-slate-200 hover:bg-slate-50 flex items-center gap-1 shadow-sm"
                           title="Download all reports for this booking in one PDF"
                         >
-                          <Download className="w-3 h-3 text-teal-600" />
-                          All Reports PDF
+                          <Download className="w-3 h-3 text-slate-500" />
+                          PDF
                         </Button>
                         <Button
                           variant="outline"
@@ -288,6 +303,16 @@ export const BookingsPage: React.FC = () => {
         onClose={() => setSelectedBooking(null)}
         onSuccess={handleRefresh}
         booking={selectedBooking}
+      />
+
+      <PrintBookingModal
+        isOpen={!!printBooking}
+        onClose={() => setPrintBooking(null)}
+        bookingId={printBooking?.id || null}
+        bookingDisplayId={printBooking?.booking_id_display}
+        patientName={printBooking?.patient_name}
+        itemCount={printBooking?.items?.length}
+        appointmentDate={printBooking?.appointment_date}
       />
     </div>
   );

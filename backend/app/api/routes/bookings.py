@@ -559,6 +559,9 @@ async def cancel_booking(
 @router.get("/{booking_id}/reports/pdf")
 async def download_booking_reports_pdf(
     booking_id: str,
+    letterhead: bool = False,
+    top_margin_mm: Optional[int] = None,
+    bottom_margin_mm: Optional[int] = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_lab_staff),
 ):
@@ -583,6 +586,15 @@ async def download_booking_reports_pdf(
     )
     lab = lab_res.scalar_one_or_none()
     lab_settings = lab.settings if lab else None
+
+    # Resolve margins if in letterhead mode
+    actual_top_margin = top_margin_mm
+    actual_bottom_margin = bottom_margin_mm
+    if letterhead:
+        if actual_top_margin is None and lab_settings and lab_settings.letterhead_top_margin_mm is not None:
+            actual_top_margin = lab_settings.letterhead_top_margin_mm
+        if actual_bottom_margin is None and lab_settings and lab_settings.letterhead_bottom_margin_mm is not None:
+            actual_bottom_margin = lab_settings.letterhead_bottom_margin_mm
 
     # 3. Fetch all reports for this booking with related test, sample, and result_values
     rep_res = await db.execute(
@@ -680,7 +692,8 @@ async def download_booking_reports_pdf(
             },
         })
 
-    rel_pdf_path = f"bookings/{booking.id}/consolidated_report.pdf"
+    suffix = "_letterhead" if letterhead else ""
+    rel_pdf_path = f"bookings/{booking.id}/consolidated_report{suffix}.pdf"
     output_pdf_path = storage_service.get_local_staging_path(rel_pdf_path)
     qr_url = f"{settings.APP_URL}/verify/{primary_token}" if primary_token else f"{settings.APP_URL}/bookings"
 
@@ -691,12 +704,16 @@ async def download_booking_reports_pdf(
         reports_data=reports_data,
         qr_url=qr_url,
         output_path=output_pdf_path,
+        is_letterhead=letterhead,
+        top_margin_mm=actual_top_margin,
+        bottom_margin_mm=actual_bottom_margin,
     )
     await storage_service.persist_file(output_pdf_path, rel_pdf_path, content_type="application/pdf")
 
+    file_display_name = f"Booking_{booking.booking_id_display}_All_Reports{'_Letterhead' if letterhead else ''}.pdf"
     return await storage_service.get_file_response(
         rel_path=rel_pdf_path,
-        filename=f"Booking_{booking.booking_id_display}_All_Reports.pdf",
+        filename=file_display_name,
         media_type="application/pdf",
     )
 

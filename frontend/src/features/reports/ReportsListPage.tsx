@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Button, Input, Badge, Alert, toast, Pagination } from '@/components/ui';
 import { reportService } from '@/api/reportService';
 import { ReportListItem, ReportStatus, PaginationMeta } from '@/types';
-import { Download, FileCheck2 } from 'lucide-react';
+import { Download, FileCheck2, Printer } from 'lucide-react';
 import { ReportDetailsModal } from './ReportDetailsModal';
+import { PrintReportModal } from './PrintReportModal';
 
 export const ReportsListPage: React.FC = () => {
   const [reports, setReports] = useState<ReportListItem[]>([]);
@@ -20,6 +21,16 @@ export const ReportsListPage: React.FC = () => {
   // Modal State
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Print Modal State
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+  const [printTargetReport, setPrintTargetReport] = useState<ReportListItem | null>(null);
+
+  const handleOpenPrintModal = (report: ReportListItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setPrintTargetReport(report);
+    setIsPrintModalOpen(true);
+  };
 
   const fetchReports = async () => {
     setLoading(true);
@@ -221,16 +232,28 @@ export const ReportsListPage: React.FC = () => {
                           Details
                         </Button>
                         {report.status === 'FINAL' && (
-                          <Button
-                            size="sm"
-                            variant="primary"
-                            onClick={(e) => handleDownloadPdf(report, e)}
-                            className="flex items-center gap-1"
-                            title="Download Official Sealed PDF"
-                          >
-                            <Download className="w-3.5 h-3.5" />
-                            <span>PDF</span>
-                          </Button>
+                          <>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={(e) => handleOpenPrintModal(report, e)}
+                              className="flex items-center gap-1 text-teal-700 border-teal-200 hover:bg-teal-50"
+                              title="Print Report on Pre-Printed Letterhead or Plain Paper"
+                            >
+                              <Printer className="w-3.5 h-3.5 text-teal-600" />
+                              <span>Print</span>
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="primary"
+                              onClick={(e) => handleDownloadPdf(report, e)}
+                              className="flex items-center gap-1"
+                              title="Download Official Sealed PDF"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                              <span>PDF</span>
+                            </Button>
+                          </>
                         )}
                       </div>
                     </td>
@@ -265,6 +288,19 @@ export const ReportsListPage: React.FC = () => {
           fetchReports();
         }}
         reportId={selectedReportId}
+      />
+
+      {/* Print Modal */}
+      <PrintReportModal
+        isOpen={isPrintModalOpen}
+        onClose={() => {
+          setIsPrintModalOpen(false);
+          setPrintTargetReport(null);
+        }}
+        reportId={printTargetReport?.id || null}
+        reportDisplayId={printTargetReport?.report_id_display}
+        patientName={printTargetReport?.patient_name}
+        testName={printTargetReport?.test_name}
       />
     </div>
   );

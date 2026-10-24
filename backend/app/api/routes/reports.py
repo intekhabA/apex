@@ -388,6 +388,9 @@ async def render_and_persist_report_pdf(
     db: AsyncSession,
     override_show_header_status: Optional[bool] = None,
     override_show_qr_side_text: Optional[bool] = None,
+    is_letterhead: bool = False,
+    top_margin_mm: Optional[int] = None,
+    bottom_margin_mm: Optional[int] = None,
 ) -> str:
     lab_settings = lab.settings
 
@@ -411,7 +414,8 @@ async def render_and_persist_report_pdf(
     signatory_reg_no = (signatory.medical_license_number if signatory else "") or (lab_settings.default_signatory_reg_no if lab_settings else "")
     approved_by_name = (signatory.full_name if signatory else (lab_settings.default_signatory_name if lab_settings else "Authorized Laboratory Pathologist")) or "Authorized Laboratory Pathologist"
 
-    pdf_filename = f"report_v{report.current_version}.pdf"
+    suffix = "_letterhead" if is_letterhead else ""
+    pdf_filename = f"report_v{report.current_version}{suffix}.pdf"
     rel_pdf_path = f"reports/{report.id}/{pdf_filename}"
     output_pdf_path = storage_service.get_local_staging_path(rel_pdf_path)
     qr_verification_url = f"{settings.APP_URL}/verify/{report.verification_token}"
@@ -497,6 +501,9 @@ async def render_and_persist_report_pdf(
         qr_url=qr_verification_url,
         hmac_digest=report.hmac_digest or "",
         output_path=output_pdf_path,
+        is_letterhead=is_letterhead,
+        top_margin_mm=top_margin_mm,
+        bottom_margin_mm=bottom_margin_mm,
     )
     await storage_service.persist_file(output_pdf_path, rel_pdf_path, content_type="application/pdf")
     return rel_pdf_path
@@ -598,10 +605,15 @@ async def download_report_pdf(
     report_id: str,
     show_header_status: Optional[bool] = Query(None),
     show_qr_side_text: Optional[bool] = Query(None),
+    letterhead: Optional[bool] = Query(False, description="Format for pre-printed A4 letterhead (suppress digital header/footer and reserve margins)"),
+    top_margin_mm: Optional[int] = Query(None, description="Custom top margin in mm for letterhead"),
+    bottom_margin_mm: Optional[int] = Query(None, description="Custom bottom margin in mm for letterhead"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_lab_staff),
 ):
-    """Download the official signed and sealed PDF report."""
+    """Download the official signed and sealed PDF report.
+    Supports letterhead=true for printing directly on pre-printed A4 stationery.
+    """
     res = await db.execute(
         select(Report)
         .options(
@@ -618,7 +630,8 @@ async def download_report_pdf(
 
     verify_tenant_access(current_user, report.lab_id)
 
-    pdf_filename = f"report_v{report.current_version}.pdf"
+    suffix = "_letterhead" if letterhead else ""
+    pdf_filename = f"report_v{report.current_version}{suffix}.pdf"
     rel_pdf_path = f"reports/{report.id}/{pdf_filename}"
 
     if report.status == ReportStatus.FINAL:
@@ -629,12 +642,23 @@ async def download_report_pdf(
         )
         lab = lab_res.scalar_one_or_none()
         if lab:
+            eff_top = top_margin_mm
+            eff_bottom = bottom_margin_mm
+            if letterhead and lab.settings:
+                if eff_top is None and getattr(lab.settings, "letterhead_top_margin_mm", None):
+                    eff_top = lab.settings.letterhead_top_margin_mm
+                if eff_bottom is None and getattr(lab.settings, "letterhead_bottom_margin_mm", None):
+                    eff_bottom = lab.settings.letterhead_bottom_margin_mm
+
             rel_pdf_path = await render_and_persist_report_pdf(
                 report=report,
                 lab=lab,
                 db=db,
                 override_show_header_status=show_header_status,
                 override_show_qr_side_text=show_qr_side_text,
+                is_letterhead=bool(letterhead),
+                top_margin_mm=eff_top,
+                bottom_margin_mm=eff_bottom,
             )
 
     if not await storage_service.file_exists(rel_pdf_path):
@@ -643,9 +667,10 @@ async def download_report_pdf(
             detail="PDF document has not been generated for this report yet. Please finalize the report.",
         )
 
+    out_name = f"{report.report_id_display}_v{report.current_version}{suffix}.pdf"
     return await storage_service.get_file_response(
         rel_path=rel_pdf_path,
-        filename=f"{report.report_id_display}_v{report.current_version}.pdf",
+        filename=out_name,
         media_type="application/pdf",
     )
 

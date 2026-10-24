@@ -1,5 +1,5 @@
 import enum
-from sqlalchemy import Column, String, Boolean, DateTime, Text, Numeric, ForeignKey, Enum as SQLEnum
+from sqlalchemy import Column, String, Boolean, DateTime, Text, Numeric, Integer, ForeignKey, Enum as SQLEnum
 from sqlalchemy.orm import relationship
 from app.core.database import Base, UUIDMixin, TimestampMixin
 
@@ -53,6 +53,8 @@ class LaboratorySettings(Base, UUIDMixin, TimestampMixin):
     enable_qr_verification = Column(Boolean, default=True)
     show_report_header_status = Column(Boolean, default=True)
     show_qr_side_text = Column(Boolean, default=True)
+    letterhead_top_margin_mm = Column(Integer, default=48, nullable=True)
+    letterhead_bottom_margin_mm = Column(Integer, default=28, nullable=True)
     primary_color_hex = Column(String(7), default="#0284c7")
     secondary_color_hex = Column(String(7), default="#0f172a")
 

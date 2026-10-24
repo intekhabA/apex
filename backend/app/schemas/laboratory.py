@@ -67,6 +67,8 @@ class LaboratorySettingsUpdate(BaseModel):
     enable_qr_verification: Optional[bool] = None
     show_report_header_status: Optional[bool] = None
     show_qr_side_text: Optional[bool] = None
+    letterhead_top_margin_mm: Optional[int] = None
+    letterhead_bottom_margin_mm: Optional[int] = None
     primary_color_hex: Optional[str] = None
     secondary_color_hex: Optional[str] = None
     default_signatory_name: Optional[str] = None
@@ -86,6 +88,8 @@ class LaboratorySettingsResponse(LaboratorySettingsUpdate):
     lab_id: str
     show_report_header_status: bool = True
     show_qr_side_text: bool = True
+    letterhead_top_margin_mm: Optional[int] = 48
+    letterhead_bottom_margin_mm: Optional[int] = 28
     notify_on_booking: bool = True
     notify_on_sample_collected: bool = True
     notify_on_report_finalized: bool = True

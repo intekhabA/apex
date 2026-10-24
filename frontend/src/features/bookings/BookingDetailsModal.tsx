@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { Modal, Button, Badge, toast, confirmDialog } from '@/components/ui';
 import { bookingService } from '@/api/bookingService';
 import { Booking, BookingStatus } from '@/types';
-import { Download, FileText } from 'lucide-react';
+import { Download, FileText, Printer } from 'lucide-react';
+import { PrintBookingModal } from './PrintBookingModal';
 
 export interface BookingDetailsModalProps {
   isOpen: boolean;
@@ -19,6 +20,7 @@ export const BookingDetailsModal: React.FC<BookingDetailsModalProps> = ({
 }) => {
   const [isUpdating, setIsUpdating] = useState(false);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
 
   if (!booking) return null;
 
@@ -171,16 +173,28 @@ export const BookingDetailsModal: React.FC<BookingDetailsModalProps> = ({
               </span>
             </div>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleDownloadAllReports}
-            isLoading={isDownloadingPdf}
-            className="flex items-center gap-1.5 text-xs font-semibold text-teal-800 border-teal-300 bg-white hover:bg-teal-100/60 shadow-sm whitespace-nowrap ml-3"
-          >
-            <Download className="w-3.5 h-3.5 text-teal-600" />
-            Download PDF
-          </Button>
+          <div className="flex items-center gap-2 ml-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsPrintModalOpen(true)}
+              className="flex items-center gap-1.5 text-xs font-semibold text-teal-800 border-teal-300 bg-white hover:bg-teal-100/60 shadow-sm whitespace-nowrap"
+              title="Print consolidated reports on A4 Letterhead or Plain Paper"
+            >
+              <Printer className="w-3.5 h-3.5 text-teal-600" />
+              Print All
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDownloadAllReports}
+              isLoading={isDownloadingPdf}
+              className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 border-slate-300 bg-white hover:bg-slate-50 shadow-sm whitespace-nowrap"
+            >
+              <Download className="w-3.5 h-3.5 text-slate-500" />
+              PDF
+            </Button>
+          </div>
         </div>
 
         {/* Included Items */}
@@ -298,6 +312,16 @@ export const BookingDetailsModal: React.FC<BookingDetailsModalProps> = ({
           </div>
         </div>
       </div>
+
+      <PrintBookingModal
+        isOpen={isPrintModalOpen}
+        onClose={() => setIsPrintModalOpen(false)}
+        bookingId={booking.id}
+        bookingDisplayId={booking.booking_id_display}
+        patientName={booking.patient_name}
+        itemCount={booking.items?.length}
+        appointmentDate={booking.appointment_date}
+      />
     </Modal>
   );
 };

@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { FileCheck, Save, ShieldCheck, QrCode, PenTool, Upload, Trash2, Building2 } from 'lucide-react';
+import { FileCheck, Save, ShieldCheck, QrCode, PenTool, Upload, Trash2, Building2, Printer } from 'lucide-react';
 import { labApi } from '@/api/labService';
 import { adminApi } from '@/api/adminService';
 import { useAuthStore } from '@/store/authStore';
@@ -18,6 +18,8 @@ const settingsSchema = z.object({
   enable_qr_verification: z.boolean(),
   show_report_header_status: z.boolean(),
   show_qr_side_text: z.boolean(),
+  letterhead_top_margin_mm: z.coerce.number().min(10).max(120).optional(),
+  letterhead_bottom_margin_mm: z.coerce.number().min(10).max(100).optional(),
   primary_color_hex: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Must be valid hex color (e.g. #0284c7)'),
   secondary_color_hex: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Must be valid hex color'),
   default_signatory_name: z.string().optional(),
@@ -78,6 +80,8 @@ export const ReportSettingsPage: React.FC = () => {
         enable_qr_verification: settings.enable_qr_verification ?? true,
         show_report_header_status: settings.show_report_header_status ?? true,
         show_qr_side_text: settings.show_qr_side_text ?? true,
+        letterhead_top_margin_mm: settings.letterhead_top_margin_mm ?? 48,
+        letterhead_bottom_margin_mm: settings.letterhead_bottom_margin_mm ?? 28,
         primary_color_hex: settings.primary_color_hex || '#0284c7',
         secondary_color_hex: settings.secondary_color_hex || '#0f172a',
         default_signatory_name: settings.default_signatory_name || '',
@@ -432,6 +436,43 @@ export const ReportSettingsPage: React.FC = () => {
                     <p className="text-xs text-slate-500">
                       When unchecked, side verification text is hidden, and only <strong>Scan QR to Verify Authenticity Online</strong> is displayed directly below the QR code.
                     </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Pre-Printed A4 Letterhead Margins */}
+              <div className="border-t border-slate-200 pt-4 mt-4">
+                <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-1">
+                  <Printer className="w-4 h-4 text-teal-600" />
+                  A4 Pre-Printed Letterhead Paper Margins
+                </h4>
+                <p className="text-xs text-slate-500 mb-3">
+                  Default margin clearance when printing reports on physical stationery that already has pre-printed headers and footers.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Top Margin for Pre-Printed Header (mm)
+                    </label>
+                    <Input
+                      type="number"
+                      min={20}
+                      max={120}
+                      {...register('letterhead_top_margin_mm')}
+                    />
+                    <span className="text-[11px] text-slate-400 mt-1 block">Default: 48 mm (~1.9 inches)</span>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Bottom Margin for Pre-Printed Footer (mm)
+                    </label>
+                    <Input
+                      type="number"
+                      min={10}
+                      max={100}
+                      {...register('letterhead_bottom_margin_mm')}
+                    />
+                    <span className="text-[11px] text-slate-400 mt-1 block">Default: 28 mm (~1.1 inches)</span>
                   </div>
                 </div>
               </div>

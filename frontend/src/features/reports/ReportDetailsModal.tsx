@@ -11,8 +11,10 @@ import {
   ShieldCheck,
   FileImage,
   RefreshCw,
+  Printer,
 } from 'lucide-react';
 import { ReportAmendModal } from './ReportAmendModal';
+import { PrintReportModal } from './PrintReportModal';
 import { formatResultValue } from '@/utils/formatters';
 
 export interface ReportDetailsModalProps {
@@ -36,6 +38,9 @@ export const ReportDetailsModal: React.FC<ReportDetailsModalProps> = ({
 
   // Amend Modal State
   const [isAmendModalOpen, setIsAmendModalOpen] = useState(false);
+
+  // Print Modal State
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
 
   useEffect(() => {
     if (isOpen && reportId) {
@@ -421,7 +426,7 @@ export const ReportDetailsModal: React.FC<ReportDetailsModalProps> = ({
                       </Button>
                     )}
 
-                    {/* Download PDF Action */}
+                    {/* Download & Print Actions */}
                     {report.status === 'FINAL' && (
                       <>
                         <Button
@@ -433,12 +438,21 @@ export const ReportDetailsModal: React.FC<ReportDetailsModalProps> = ({
                           <span>Amend Report</span>
                         </Button>
                         <Button
-                          variant="primary"
+                          variant="outline"
                           onClick={handleDownload}
-                          className="flex items-center gap-1.5"
+                          className="flex items-center gap-1.5 text-slate-700"
                         >
                           <Download className="w-4 h-4" />
                           <span>Download PDF</span>
+                        </Button>
+                        <Button
+                          variant="primary"
+                          onClick={() => setIsPrintModalOpen(true)}
+                          className="flex items-center gap-1.5 bg-teal-600 hover:bg-teal-700 text-white shadow-sm"
+                          title="Print report on pre-printed letterhead or plain paper"
+                        >
+                          <Printer className="w-4 h-4" />
+                          <span>Print Report</span>
                         </Button>
                       </>
                     )}
@@ -463,6 +477,17 @@ export const ReportDetailsModal: React.FC<ReportDetailsModalProps> = ({
           reportId={report.id}
           reportDisplayId={report.report_id_display}
           currentVersion={report.current_version}
+        />
+      )}
+      {/* Print Modal */}
+      {report && (
+        <PrintReportModal
+          isOpen={isPrintModalOpen}
+          onClose={() => setIsPrintModalOpen(false)}
+          reportId={report.id}
+          reportDisplayId={report.report_id_display}
+          patientName={report.patient_name}
+          testName={report.test_name}
         />
       )}
     </>

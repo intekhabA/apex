@@ -197,3 +197,132 @@ def test_pdf_customization_header_and_qr_toggles(tmp_path):
     assert "Scan QR to Verify Authenticity Online" in pdf_text
 
 
+def test_generate_medical_report_pdf_letterhead_mode(tmp_path):
+    """Verify medical report PDF renders in letterhead mode with suppressed lab banner."""
+    import subprocess
+    lab_info = {
+        "name": "Should Not Appear In Letterhead Top Banner",
+        "address": "123 Physical Street",
+        "phone": "555-0100",
+        "email": "lab@example.com",
+    }
+    patient_info = {
+        "name": "Letterhead Patient",
+        "id_display": "PAT-LH-1",
+        "age": 35,
+        "gender": "Male",
+        "booking_id_display": "BKG-LH-1",
+    }
+    test_info = {"name": "Complete Blood Count", "code": "CBC-01"}
+    report_info = {
+        "report_id_display": "REP-LH-001",
+        "status": "FINAL",
+        "version": 1,
+        "date": "24-Oct-2026",
+    }
+    result_vals = [
+        {
+            "parameter_name": "Hemoglobin",
+            "numeric_value": 14.5,
+            "text_value": None,
+            "unit": "g/dL",
+            "reference_range_display": "13.0 - 17.0",
+            "flag": "NORMAL",
+        }
+    ]
+    out_pdf = str(tmp_path / "letterhead_report.pdf")
+    generate_medical_report_pdf(
+        lab_info=lab_info,
+        patient_info=patient_info,
+        test_info=test_info,
+        report_info=report_info,
+        result_values=result_vals,
+        narrative_info={},
+        qr_url="https://trustmylab.in/verify/lh1",
+        hmac_digest="abcde12345",
+        output_path=out_pdf,
+        is_letterhead=True,
+        top_margin_mm=48,
+        bottom_margin_mm=28,
+    )
+
+    assert os.path.exists(out_pdf)
+    assert os.path.getsize(out_pdf) > 1000
+
+    res = subprocess.run(["pdftotext", out_pdf, "-"], capture_output=True, text=True)
+    pdf_text = res.stdout
+    # Should contain patient and test data
+    assert "Letterhead Patient" in pdf_text
+    assert "Hemoglobin" in pdf_text
+    assert "14.5" in pdf_text
+    # Should NOT contain full lab header banner
+    assert "Should Not Appear In Letterhead Top Banner" not in pdf_text
+
+
+def test_generate_consolidated_booking_report_pdf_letterhead_mode(tmp_path):
+    """Verify consolidated booking report PDF renders in letterhead mode."""
+    import subprocess
+    lab_info = {
+        "name": "Should Not Appear In Consolidated Letterhead Top",
+        "address": "123 Physical Street",
+        "phone": "555-0100",
+        "email": "lab@example.com",
+    }
+    patient_info = {
+        "name": "Booking Letterhead Patient",
+        "id_display": "PAT-BKG-LH",
+        "age": 40,
+        "gender": "Female",
+    }
+    booking_info = {
+        "booking_id_display": "BKG-2026-0099",
+        "appointment_date": "24-Oct-2026",
+        "status": "CONFIRMED",
+    }
+    reports_data = [
+        {
+            "report_id_display": "REP-BKG-01",
+            "status": "FINAL",
+            "version": 1,
+            "test_name": "Thyroid Profile",
+            "test_code": "THY-01",
+            "sample_type": "Serum",
+            "sample_id_display": "SMP-001",
+            "result_values": [
+                {
+                    "parameter_name": "TSH",
+                    "numeric_value": 2.5,
+                    "text_value": None,
+                    "unit": "uIU/mL",
+                    "reference_range_display": "0.4 - 4.2",
+                    "flag": "NORMAL",
+                }
+            ],
+            "narrative_info": {},
+        }
+    ]
+    out_pdf = str(tmp_path / "consolidated_letterhead.pdf")
+    generate_consolidated_booking_report_pdf(
+        lab_info=lab_info,
+        patient_info=patient_info,
+        booking_info=booking_info,
+        reports_data=reports_data,
+        qr_url="https://trustmylab.in/verify/bkglh",
+        output_path=out_pdf,
+        is_letterhead=True,
+        top_margin_mm=48,
+        bottom_margin_mm=28,
+    )
+
+    assert os.path.exists(out_pdf)
+    assert os.path.getsize(out_pdf) > 1000
+
+    res = subprocess.run(["pdftotext", out_pdf, "-"], capture_output=True, text=True)
+    pdf_text = res.stdout
+    assert "Booking Letterhead Patient" in pdf_text
+    assert "Thyroid Profile" in pdf_text
+    assert "TSH" in pdf_text
+    assert "Should Not Appear In Consolidated Letterhead Top" not in pdf_text
+
+
+

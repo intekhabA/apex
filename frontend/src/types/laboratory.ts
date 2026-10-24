@@ -33,6 +33,8 @@ export interface LaboratorySettings {
   enable_qr_verification: boolean;
   show_report_header_status?: boolean;
   show_qr_side_text?: boolean;
+  letterhead_top_margin_mm?: number;
+  letterhead_bottom_margin_mm?: number;
   primary_color_hex: string;
   secondary_color_hex: string;
   default_signatory_name?: string | null;
@@ -94,6 +96,8 @@ export interface LaboratorySettingsUpdatePayload {
   enable_qr_verification?: boolean;
   show_report_header_status?: boolean;
   show_qr_side_text?: boolean;
+  letterhead_top_margin_mm?: number;
+  letterhead_bottom_margin_mm?: number;
   primary_color_hex?: string;
   secondary_color_hex?: string;
   default_signatory_name?: string;

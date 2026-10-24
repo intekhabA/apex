@@ -42,19 +42,88 @@ export const bookingService = {
     await apiClient.delete(`/bookings/${id}`);
   },
 
-  async downloadAllReportsPdf(bookingId: string, filename?: string): Promise<void> {
-    const res = await apiClient.get(`/bookings/${bookingId}/reports/pdf`, {
+  async getBookingAllReportsBlob(
+    bookingId: string,
+    options?: {
+      letterhead?: boolean;
+      top_margin_mm?: number;
+      bottom_margin_mm?: number;
+    }
+  ): Promise<Blob> {
+    const params = new URLSearchParams();
+    if (options?.letterhead !== undefined) {
+      params.append('letterhead', String(options.letterhead));
+    }
+    if (options?.top_margin_mm !== undefined) {
+      params.append('top_margin_mm', String(options.top_margin_mm));
+    }
+    if (options?.bottom_margin_mm !== undefined) {
+      params.append('bottom_margin_mm', String(options.bottom_margin_mm));
+    }
+    const query = params.toString() ? `?${params.toString()}` : '';
+    const res = await apiClient.get(`/bookings/${bookingId}/reports/pdf${query}`, {
       responseType: 'blob',
     });
-    const blob = new Blob([res.data], { type: 'application/pdf' });
+    return new Blob([res.data], { type: 'application/pdf' });
+  },
+
+  async downloadAllReportsPdf(
+    bookingId: string,
+    filename?: string,
+    options?: {
+      letterhead?: boolean;
+      top_margin_mm?: number;
+      bottom_margin_mm?: number;
+    }
+  ): Promise<void> {
+    const blob = await this.getBookingAllReportsBlob(bookingId, options);
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
     link.setAttribute('download', filename || `Booking_${bookingId}_All_Reports.pdf`);
     document.body.appendChild(link);
     link.click();
-    link.remove();
+    link.parentNode?.removeChild(link);
     window.URL.revokeObjectURL(url);
+  },
+
+  async printBookingAllReports(
+    bookingId: string,
+    options?: {
+      letterhead?: boolean;
+      top_margin_mm?: number;
+      bottom_margin_mm?: number;
+    }
+  ): Promise<void> {
+    const blob = await this.getBookingAllReportsBlob(bookingId, options);
+    const blobUrl = URL.createObjectURL(blob);
+
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    iframe.src = blobUrl;
+    document.body.appendChild(iframe);
+
+    iframe.onload = () => {
+      try {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+      } catch {
+        const win = window.open(blobUrl, '_blank');
+        win?.focus();
+      } finally {
+        setTimeout(() => {
+          if (iframe.parentNode) {
+            document.body.removeChild(iframe);
+          }
+          URL.revokeObjectURL(blobUrl);
+        }, 120000);
+      }
+    };
   },
 };
 
