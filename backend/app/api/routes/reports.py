@@ -404,6 +404,10 @@ async def render_and_persist_report_pdf(
         sig_source = signatory.signature_image_url
     if not sig_source and lab_settings:
         sig_source = lab_settings.default_signatory_signature_url
+    if sig_source and not sig_source.startswith("data:image/"):
+        sig_local = await storage_service.ensure_local_copy(sig_source)
+        if sig_local:
+            sig_source = sig_local
 
     signatory_title = (
         "Consultant Radiologist"
@@ -436,11 +440,15 @@ async def render_and_persist_report_pdf(
 
     letterhead_image = None
     if lab_settings and lab_settings.letterhead_image_url:
-        resolved_path = storage_service.get_local_path(lab_settings.letterhead_image_url)
-        if os.path.exists(resolved_path):
-            letterhead_image = resolved_path
-        elif os.path.exists(lab_settings.letterhead_image_url):
-            letterhead_image = lab_settings.letterhead_image_url
+        letterhead_image = await storage_service.ensure_local_copy(lab_settings.letterhead_image_url)
+
+    eff_top_margin = top_margin_mm
+    eff_bottom_margin = bottom_margin_mm
+    if lab_settings:
+        if eff_top_margin is None and getattr(lab_settings, "letterhead_top_margin_mm", None):
+            eff_top_margin = lab_settings.letterhead_top_margin_mm
+        if eff_bottom_margin is None and getattr(lab_settings, "letterhead_bottom_margin_mm", None):
+            eff_bottom_margin = lab_settings.letterhead_bottom_margin_mm
 
     lab_info = {
         "name": lab.name,
@@ -512,8 +520,8 @@ async def render_and_persist_report_pdf(
         hmac_digest=report.hmac_digest or "",
         output_path=output_pdf_path,
         is_letterhead=is_letterhead,
-        top_margin_mm=top_margin_mm,
-        bottom_margin_mm=bottom_margin_mm,
+        top_margin_mm=eff_top_margin,
+        bottom_margin_mm=eff_bottom_margin,
     )
     await storage_service.persist_file(output_pdf_path, rel_pdf_path, content_type="application/pdf")
     return rel_pdf_path

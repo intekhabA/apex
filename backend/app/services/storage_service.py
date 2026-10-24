@@ -239,6 +239,66 @@ class StorageService:
             with open(local_path, "rb") as f:
                 return f.read()
 
+    async def ensure_local_copy(self, rel_path: Optional[str]) -> Optional[str]:
+        """
+        Ensures a stored asset (letterhead image/PDF, signature, logo) is available as
+        a readable file on the local filesystem (for PDF engines, ReportLab, pypdf).
+        - If stored locally: resolves absolute local path.
+        - If stored in AWS S3: downloads object to local cache directory and returns the path.
+        """
+        if not rel_path:
+            return None
+        key = self.normalize_key(rel_path)
+        if not key:
+            return None
+
+        if not self.is_s3:
+            local_path = self.get_local_path(key)
+            if os.path.exists(local_path):
+                return os.path.abspath(local_path)
+            if os.path.exists(rel_path):
+                return os.path.abspath(rel_path)
+            # Check local fallback directories
+            for candidate in [
+                os.path.join(settings.STORAGE_LOCAL_ROOT, key),
+                os.path.join(os.path.dirname(os.path.abspath(settings.STORAGE_LOCAL_ROOT)), key),
+                os.path.join("storage", key),
+                os.path.join("backend", "storage", key),
+                os.path.join("storage", "uploads", key),
+                os.path.join("backend", "storage", "uploads", key),
+                os.path.join("/app/storage", key),
+                os.path.join("/app/storage/uploads", key),
+            ]:
+                if os.path.exists(candidate) and os.path.isfile(candidate):
+                    return os.path.abspath(candidate)
+            return None
+        else:
+            cache_dir = os.path.join(tempfile.gettempdir(), "diagnolab_s3_cache")
+            local_cache_path = os.path.join(cache_dir, key)
+            if os.path.exists(local_cache_path) and os.path.getsize(local_cache_path) > 0:
+                return local_cache_path
+            try:
+                data = await self.get_file_bytes(key)
+                os.makedirs(os.path.dirname(local_cache_path), exist_ok=True)
+                with open(local_cache_path, "wb") as f:
+                    f.write(data)
+                logger.info("Cached S3 asset locally for PDF rendering: %s -> %s", key, local_cache_path)
+                return local_cache_path
+            except Exception as e:
+                # Also try with 'uploads/' prefix if needed
+                if not key.startswith("uploads/"):
+                    try:
+                        data = await self.get_file_bytes(f"uploads/{key}")
+                        os.makedirs(os.path.dirname(local_cache_path), exist_ok=True)
+                        with open(local_cache_path, "wb") as f:
+                            f.write(data)
+                        logger.info("Cached S3 asset (with uploads/ prefix) locally: %s -> %s", key, local_cache_path)
+                        return local_cache_path
+                    except Exception:
+                        pass
+                logger.warning("Could not download S3 asset %s for local copy: %s", key, e)
+                return None
+
     async def get_file_response(
         self,
         rel_path: str,

@@ -22,7 +22,7 @@ export const PrintBookingModal: React.FC<PrintBookingModalProps> = ({
   itemCount,
   appointmentDate,
 }) => {
-  const [printMode, setPrintMode] = useState<'LETTERHEAD' | 'PLAIN'>('LETTERHEAD');
+  const [printMode, setPrintMode] = useState<'LETTERHEAD' | 'PLAIN'>('PLAIN');
   const [topMarginMm, setTopMarginMm] = useState<number>(48);
   const [bottomMarginMm, setBottomMarginMm] = useState<number>(28);
   const [showAdvancedMargins, setShowAdvancedMargins] = useState<boolean>(false);
@@ -122,7 +122,55 @@ export const PrintBookingModal: React.FC<PrintBookingModalProps> = ({
             Select Stationery / Print Layout:
           </label>
 
-          {/* Option 1: Pre-printed Letterhead (Recommended) */}
+          {/* Option 1: Full Report with Official Letterhead / Plain Paper (Recommended) */}
+          <div
+            onClick={() => setPrintMode('PLAIN')}
+            className={`p-4 rounded-xl border-2 transition-all cursor-pointer relative ${
+              printMode === 'PLAIN'
+                ? 'border-teal-500 bg-teal-50/50 shadow-sm'
+                : 'border-slate-200 hover:border-slate-300 bg-white'
+            }`}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div
+                  className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
+                    printMode === 'PLAIN'
+                      ? 'bg-teal-600 text-white'
+                      : 'bg-slate-100 text-slate-500'
+                  }`}
+                >
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-slate-900 text-sm">
+                      Full Report with Official Letterhead / Plain Paper
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-teal-100 text-teal-800 flex items-center gap-1">
+                      <Sparkles className="w-3 h-3 text-teal-600" /> Recommended
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                    Includes your official uploaded laboratory letterhead (PDF/graphic) or digital branding,
+                    complete patient demographics, diagnostic investigations, QR verification, and doctor signatures. Suitable for blank A4 paper.
+                  </p>
+                </div>
+              </div>
+
+              <div
+                className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 border mt-1 ${
+                  printMode === 'PLAIN'
+                    ? 'border-teal-600 bg-teal-600 text-white'
+                    : 'border-slate-300 bg-white'
+                }`}
+              >
+                {printMode === 'PLAIN' && <Check className="w-3 h-3 stroke-[3]" />}
+              </div>
+            </div>
+          </div>
+
+          {/* Option 2: Pre-printed Physical Letterhead */}
           <div
             onClick={() => setPrintMode('LETTERHEAD')}
             className={`p-4 rounded-xl border-2 transition-all cursor-pointer relative ${
@@ -145,15 +193,12 @@ export const PrintBookingModal: React.FC<PrintBookingModalProps> = ({
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-slate-900 text-sm">
-                      Print on Pre-Printed A4 Letterhead
-                    </span>
-                    <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-teal-100 text-teal-800 flex items-center gap-1">
-                      <Sparkles className="w-3 h-3 text-teal-600" /> Recommended
+                      Print on Pre-Printed Physical Letterhead
                     </span>
                   </div>
                   <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                    Designed specifically for physical stationery with existing lab headers &amp; footers.
-                    Omits the digital lab banner so text never prints over your pre-printed stationery.
+                    Designed specifically for physical stationery already in the printer tray.
+                    Leaves blank margins so text prints neatly on your pre-printed paper without digital headers or backgrounds.
                   </p>
 
                   <div className="flex flex-wrap items-center gap-3 text-[11px] text-teal-800 font-medium mt-2">
@@ -171,48 +216,6 @@ export const PrintBookingModal: React.FC<PrintBookingModalProps> = ({
                 }`}
               >
                 {printMode === 'LETTERHEAD' && <Check className="w-3 h-3 stroke-[3]" />}
-              </div>
-            </div>
-          </div>
-
-          {/* Option 2: Plain A4 Paper */}
-          <div
-            onClick={() => setPrintMode('PLAIN')}
-            className={`p-4 rounded-xl border-2 transition-all cursor-pointer relative ${
-              printMode === 'PLAIN'
-                ? 'border-teal-500 bg-teal-50/50 shadow-sm'
-                : 'border-slate-200 hover:border-slate-300 bg-white'
-            }`}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-3">
-                <div
-                  className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
-                    printMode === 'PLAIN'
-                      ? 'bg-teal-600 text-white'
-                      : 'bg-slate-100 text-slate-500'
-                  }`}
-                >
-                  <FileText className="w-5 h-5" />
-                </div>
-                <div>
-                  <span className="font-bold text-slate-900 text-sm">
-                    Print on Plain A4 Paper (Full Lab Header)
-                  </span>
-                  <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                    Includes digital laboratory branding banner, clinic address, contact info, accreditation badges, and decorative divider.
-                  </p>
-                </div>
-              </div>
-
-              <div
-                className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 border mt-1 ${
-                  printMode === 'PLAIN'
-                    ? 'border-teal-600 bg-teal-600 text-white'
-                    : 'border-slate-300 bg-white'
-                }`}
-              >
-                {printMode === 'PLAIN' && <Check className="w-3 h-3 stroke-[3]" />}
               </div>
             </div>
           </div>
