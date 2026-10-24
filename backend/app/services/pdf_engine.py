@@ -7,6 +7,8 @@ import base64
 import logging
 import hmac
 import hashlib
+import shutil
+import tempfile
 from typing import List, Optional, Any, Union
 from PIL import Image as PILImage
 from reportlab.lib.pagesizes import A4
@@ -31,6 +33,62 @@ logger = logging.getLogger(__name__)
 DEFAULT_SIGNATURE_PATH = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "static", "signatures", "default_doctor_signature.png")
 )
+
+
+def is_pdf_file(file_path: Optional[str]) -> bool:
+    """Check if the given file path is a valid PDF document."""
+    if not file_path or not os.path.exists(file_path):
+        return False
+    try:
+        with open(file_path, "rb") as f:
+            header = f.read(5)
+            return header.startswith(b"%PDF")
+    except Exception:
+        return False
+
+
+def apply_pdf_letterhead_overlay(content_pdf_path: str, letterhead_pdf_path: str, output_path: str) -> None:
+    """
+    Overlays content_pdf_path on top of letterhead_pdf_path using pypdf.
+    The letterhead page sits in the background, and report content sits on top.
+    """
+    try:
+        import pypdf
+        bg_reader = pypdf.PdfReader(letterhead_pdf_path)
+        if not bg_reader.pages:
+            if content_pdf_path != output_path:
+                shutil.copyfile(content_pdf_path, output_path)
+            return
+
+        bg_page = bg_reader.pages[0]
+        content_reader = pypdf.PdfReader(content_pdf_path)
+        writer = pypdf.PdfWriter()
+
+        for page in content_reader.pages:
+            merged = pypdf.PageObject.create_blank_page(
+                width=page.mediabox.width,
+                height=page.mediabox.height,
+            )
+            # 1. Background layer: letterhead PDF
+            merged.merge_page(bg_page)
+            # 2. Foreground layer: report text and tables
+            merged.merge_page(page)
+            writer.add_page(merged)
+
+        if content_pdf_path == output_path:
+            with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f_tmp:
+                tmp_out = f_tmp.name
+            with open(tmp_out, "wb") as f_out:
+                writer.write(f_out)
+            shutil.move(tmp_out, output_path)
+        else:
+            with open(output_path, "wb") as f_out:
+                writer.write(f_out)
+        logger.info("Successfully stamped PDF letterhead overlay onto %s", output_path)
+    except Exception as e:
+        logger.error("Failed to overlay PDF letterhead: %s", e, exc_info=True)
+        if content_pdf_path != output_path and os.path.exists(content_pdf_path):
+            shutil.copyfile(content_pdf_path, output_path)
 
 
 def get_signature_flowable(
@@ -303,6 +361,8 @@ def generate_medical_report_pdf(
         and use_letterhead_bg
         and not is_letterhead
     )
+    is_pdf_letterhead = has_letterhead_bg and is_pdf_file(letterhead_bg_image)
+    is_image_letterhead = has_letterhead_bg and not is_pdf_letterhead
 
     # 1 mm = 72 / 25.4 points
     mm_pt = 72.0 / 25.4
@@ -814,20 +874,28 @@ def generate_medical_report_pdf(
 
     # Build PDF with background if letterhead image configured
     def draw_letterhead_bg(canvas_obj, doc_obj):
-        if has_letterhead_bg and letterhead_bg_image and os.path.exists(letterhead_bg_image):
-            canvas_obj.saveState()
-            canvas_obj.drawImage(
-                letterhead_bg_image,
-                0,
-                0,
-                width=A4[0],
-                height=A4[1],
-                preserveAspectRatio=False,
-                mask="auto",
-            )
-            canvas_obj.restoreState()
+        if is_image_letterhead and letterhead_bg_image and os.path.exists(letterhead_bg_image):
+            try:
+                canvas_obj.saveState()
+                canvas_obj.drawImage(
+                    letterhead_bg_image,
+                    0,
+                    0,
+                    width=A4[0],
+                    height=A4[1],
+                    preserveAspectRatio=False,
+                    mask="auto",
+                )
+                canvas_obj.restoreState()
+            except Exception as e:
+                logger.warning("Could not draw letterhead background image: %s", e)
 
     doc.build(story, onFirstPage=draw_letterhead_bg, onLaterPages=draw_letterhead_bg)
+
+    # If the letterhead is a vector PDF, stamp the letterhead page underneath using pypdf
+    if is_pdf_letterhead and letterhead_bg_image and os.path.exists(letterhead_bg_image):
+        apply_pdf_letterhead_overlay(output_path, letterhead_bg_image, output_path)
+
     return output_path
 
 
@@ -1322,6 +1390,8 @@ def generate_consolidated_booking_report_pdf(
         and use_letterhead_bg
         and not is_letterhead
     )
+    is_pdf_letterhead = has_letterhead_bg and is_pdf_file(letterhead_bg_image)
+    is_image_letterhead = has_letterhead_bg and not is_pdf_letterhead
 
     top_margin_pt = (top_margin_mm * 72 / 25.4) if top_margin_mm is not None else (48 * 72 / 25.4 if (is_letterhead or has_letterhead_bg) else 36)
     bottom_margin_pt = (bottom_margin_mm * 72 / 25.4) if bottom_margin_mm is not None else (28 * 72 / 25.4 if (is_letterhead or has_letterhead_bg) else 42)
@@ -1993,18 +2063,21 @@ def generate_consolidated_booking_report_pdf(
 
     # Build PDF with background if letterhead image configured
     def draw_consolidated_letterhead_bg(canvas_obj, doc_obj):
-        if has_letterhead_bg and letterhead_bg_image and os.path.exists(letterhead_bg_image):
-            canvas_obj.saveState()
-            canvas_obj.drawImage(
-                letterhead_bg_image,
-                0,
-                0,
-                width=A4[0],
-                height=A4[1],
-                preserveAspectRatio=False,
-                mask="auto",
-            )
-            canvas_obj.restoreState()
+        if is_image_letterhead and letterhead_bg_image and os.path.exists(letterhead_bg_image):
+            try:
+                canvas_obj.saveState()
+                canvas_obj.drawImage(
+                    letterhead_bg_image,
+                    0,
+                    0,
+                    width=A4[0],
+                    height=A4[1],
+                    preserveAspectRatio=False,
+                    mask="auto",
+                )
+                canvas_obj.restoreState()
+            except Exception as e:
+                logger.warning("Could not draw consolidated letterhead background image: %s", e)
 
     def make_canvas(*args, **kwargs):
         c = NumberedCanvas(*args, **kwargs)
@@ -2019,5 +2092,10 @@ def generate_consolidated_booking_report_pdf(
         onLaterPages=draw_consolidated_letterhead_bg,
         canvasmaker=make_canvas,
     )
+
+    # If the letterhead is a vector PDF, stamp the letterhead page underneath using pypdf
+    if is_pdf_letterhead and letterhead_bg_image and os.path.exists(letterhead_bg_image):
+        apply_pdf_letterhead_overlay(output_path, letterhead_bg_image, output_path)
+
     return output_path
 

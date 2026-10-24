@@ -426,15 +426,25 @@ async def upload_laboratory_letterhead_superadmin(
         settings = LaboratorySettings(lab_id=lab_id)
         db.add(settings)
 
-    ext = os.path.splitext(file.filename or "")[1].lower() or ".png"
-    if ext not in [".png", ".jpg", ".jpeg", ".webp"]:
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if contents.startswith(b"%PDF") or ext == ".pdf":
+        ext = ".pdf"
+        default_content_type = "application/pdf"
+    elif ext in [".jpg", ".jpeg"]:
+        ext = ".jpg"
+        default_content_type = "image/jpeg"
+    elif ext == ".webp":
+        ext = ".webp"
+        default_content_type = "image/webp"
+    else:
         ext = ".png"
+        default_content_type = "image/png"
 
     rel_path = f"letterheads/labs/{lab_id}/letterhead{ext}"
     stored_path = await storage_service.save_file_bytes(
         file_bytes=contents,
         rel_path=rel_path,
-        content_type=file.content_type or "image/png",
+        content_type=file.content_type or default_content_type,
     )
     settings.letterhead_image_url = stored_path
     settings.use_letterhead_background = True

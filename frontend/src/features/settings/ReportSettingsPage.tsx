@@ -505,21 +505,35 @@ export const ReportSettingsPage: React.FC = () => {
                     <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
                       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                         <div className="flex items-center gap-3">
-                          <img
-                            src={`/storage/${settings.letterhead_image_url.replace(/^(\.\/)?storage\//, '')}`}
-                            alt="Letterhead Preview"
-                            className="w-16 h-22 object-cover rounded-lg border border-slate-300 shadow-sm bg-white"
-                          />
+                          {settings.letterhead_image_url.toLowerCase().endsWith('.pdf') ? (
+                            <div className="w-16 h-22 rounded-lg border border-rose-200 bg-rose-50 flex flex-col items-center justify-center text-rose-600 shadow-sm shrink-0">
+                              <FileCheck className="w-8 h-8" />
+                              <span className="text-[10px] font-bold mt-1 tracking-wider uppercase">PDF</span>
+                            </div>
+                          ) : (
+                            <img
+                              src={`/storage/${settings.letterhead_image_url.replace(/^(\.\/)?storage\//, '')}`}
+                              alt="Letterhead Preview"
+                              className="w-16 h-22 object-cover rounded-lg border border-slate-300 shadow-sm bg-white shrink-0"
+                            />
+                          )}
                           <div>
                             <span className="text-xs font-bold text-slate-900 block">
-                              Active Letterhead Background Graphic
+                              {settings.letterhead_image_url.toLowerCase().endsWith('.pdf')
+                                ? 'Active Vector PDF Letterhead'
+                                : 'Active Letterhead Background Graphic'}
                             </span>
                             <span className="text-[11px] text-emerald-700 font-medium flex items-center gap-1 mt-0.5">
                               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Rendered on PDF Reports
                             </span>
-                            <span className="text-[10px] text-slate-400 block mt-0.5">
-                              Recommended resolution: 1240 × 1754 px or 2480 × 3508 px (A4 standard)
-                            </span>
+                            <a
+                              href={`/storage/${settings.letterhead_image_url.replace(/^(\.\/)?storage\//, '')}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[11px] text-teal-700 hover:text-teal-900 underline mt-0.5 inline-block font-medium"
+                            >
+                              Preview Original Letterhead Document ↗
+                            </a>
                           </div>
                         </div>
 
@@ -531,7 +545,7 @@ export const ReportSettingsPage: React.FC = () => {
                             </span>
                             <input
                               type="file"
-                              accept="image/png,image/jpeg,image/webp"
+                              accept="application/pdf,image/png,image/jpeg,image/webp"
                               className="hidden"
                               disabled={isUploadingLetterhead}
                               onChange={handleLetterheadUpload}
@@ -580,7 +594,7 @@ export const ReportSettingsPage: React.FC = () => {
                             No Letterhead Background Uploaded
                           </span>
                           <span className="text-[11px] text-slate-500">
-                            Upload a pre-designed A4 letterhead graphic (PNG/JPG, up to 10MB) to brand all reports for this lab.
+                            Upload an A4 letterhead (PDF or PNG/JPG, up to 10MB) to brand all reports for this lab.
                           </span>
                         </div>
                       </div>
@@ -588,11 +602,11 @@ export const ReportSettingsPage: React.FC = () => {
                       <label className="cursor-pointer shrink-0">
                         <span className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-teal-600 rounded-lg hover:bg-teal-700 shadow-sm">
                           <Upload className="w-3.5 h-3.5" />
-                          {isUploadingLetterhead ? 'Uploading...' : 'Upload A4 Letterhead'}
+                          {isUploadingLetterhead ? 'Uploading...' : 'Upload A4 Letterhead (PDF/Image)'}
                         </span>
                         <input
                           type="file"
-                          accept="image/png,image/jpeg,image/webp"
+                          accept="application/pdf,image/png,image/jpeg,image/webp"
                           className="hidden"
                           disabled={isUploadingLetterhead}
                           onChange={handleLetterheadUpload}

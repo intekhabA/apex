@@ -281,18 +281,35 @@ export const LabDetailsModal: React.FC<LabDetailsModalProps> = ({ labId, isOpen,
                     <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
                       <div className="flex items-center justify-between gap-4">
                         <div className="flex items-center gap-3">
-                          <img
-                            src={`/storage/${lab.settings.letterhead_image_url.replace(/^(\.\/)?storage\//, '')}`}
-                            alt="Letterhead Preview"
-                            className="w-16 h-20 object-cover rounded border border-slate-300 shadow-sm bg-white"
-                          />
+                          {lab.settings.letterhead_image_url.toLowerCase().endsWith('.pdf') ? (
+                            <div className="w-16 h-20 rounded border border-rose-200 bg-rose-50 flex flex-col items-center justify-center text-rose-600 shadow-sm shrink-0">
+                              <FileText className="w-7 h-7" />
+                              <span className="text-[9px] font-bold mt-1 tracking-wider uppercase">PDF</span>
+                            </div>
+                          ) : (
+                            <img
+                              src={`/storage/${lab.settings.letterhead_image_url.replace(/^(\.\/)?storage\//, '')}`}
+                              alt="Letterhead Preview"
+                              className="w-16 h-20 object-cover rounded border border-slate-300 shadow-sm bg-white shrink-0"
+                            />
+                          )}
                           <div>
                             <span className="text-xs font-bold text-slate-800 block">
-                              Active Letterhead Background Template
+                              {lab.settings.letterhead_image_url.toLowerCase().endsWith('.pdf')
+                                ? 'Active Vector PDF Letterhead'
+                                : 'Active Letterhead Background Template'}
                             </span>
                             <span className="text-[11px] text-emerald-700 font-medium flex items-center gap-1">
                               <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Loaded &amp; Ready for PDF Generation
                             </span>
+                            <a
+                              href={`/storage/${lab.settings.letterhead_image_url.replace(/^(\.\/)?storage\//, '')}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[11px] text-teal-700 hover:text-teal-900 underline mt-0.5 inline-block font-medium"
+                            >
+                              Preview Letterhead Document ↗
+                            </a>
                           </div>
                         </div>
 
@@ -304,7 +321,7 @@ export const LabDetailsModal: React.FC<LabDetailsModalProps> = ({ labId, isOpen,
                             </span>
                             <input
                               type="file"
-                              accept="image/png,image/jpeg,image/webp"
+                              accept="application/pdf,image/png,image/jpeg,image/webp"
                               className="hidden"
                               disabled={isUploadingLetterhead}
                               onChange={handleLetterheadUpload}
@@ -337,7 +354,7 @@ export const LabDetailsModal: React.FC<LabDetailsModalProps> = ({ labId, isOpen,
                             Display Letterhead Background on PDF Reports
                           </label>
                           <p className="text-[10px] text-slate-500">
-                            When enabled, report text and tables are overlaid directly on this graphic letterhead.
+                            When enabled, report text and tables are overlaid directly on this letterhead.
                           </p>
                         </div>
                       </div>
@@ -353,7 +370,7 @@ export const LabDetailsModal: React.FC<LabDetailsModalProps> = ({ labId, isOpen,
                             No Custom Letterhead Uploaded
                           </span>
                           <span className="text-[11px] text-slate-500">
-                            Standard digital header and footer text are currently being used.
+                            Upload a PDF or Image (PNG/JPG) letterhead template to brand reports.
                           </span>
                         </div>
                       </div>
@@ -361,11 +378,11 @@ export const LabDetailsModal: React.FC<LabDetailsModalProps> = ({ labId, isOpen,
                       <label className="cursor-pointer shrink-0">
                         <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-teal-600 rounded-lg hover:bg-teal-700 shadow-sm">
                           <Upload className="w-3.5 h-3.5" />
-                          {isUploadingLetterhead ? 'Uploading...' : 'Upload A4 Letterhead'}
+                          {isUploadingLetterhead ? 'Uploading...' : 'Upload A4 Letterhead (PDF/Image)'}
                         </span>
                         <input
                           type="file"
-                          accept="image/png,image/jpeg,image/webp"
+                          accept="application/pdf,image/png,image/jpeg,image/webp"
                           className="hidden"
                           disabled={isUploadingLetterhead}
                           onChange={handleLetterheadUpload}

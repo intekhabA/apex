@@ -391,5 +391,80 @@ def test_generate_medical_report_pdf_with_background_image(tmp_path):
     assert "Generic Digital Name Not Displayed When BG Active" not in pdf_text
 
 
+def test_generate_medical_report_pdf_with_pdf_letterhead(tmp_path):
+    """Verify medical report PDF renders with a vector 1-page PDF letterhead overlay."""
+    import subprocess
+    import pypdf
+    from reportlab.lib.pagesizes import A4
+    from reportlab.platypus import SimpleDocTemplate, Paragraph
+    from reportlab.lib.styles import getSampleStyleSheet
+
+    # Create dummy 1-page PDF letterhead
+    lh_pdf_path = str(tmp_path / "official_vector_letterhead.pdf")
+    doc_lh = SimpleDocTemplate(lh_pdf_path, pagesize=A4)
+    styles = getSampleStyleSheet()
+    doc_lh.build([Paragraph("<b>OFFICIAL PRE-PRINTED CLINIC HEADER ON PDF</b>", styles["Heading1"])])
+
+    lab_info = {
+        "name": "Generic Digital Name",
+        "address": "123 Physical Street",
+        "phone": "555-0100",
+        "email": "lab@example.com",
+        "letterhead_image": lh_pdf_path,
+        "use_letterhead_background": True,
+    }
+    patient_info = {
+        "name": "PDF Letterhead Patient",
+        "id_display": "PAT-PDF-LH-1",
+        "age": 32,
+        "gender": "Female",
+        "booking_id_display": "BKG-PDF-LH-1",
+    }
+    test_info = {"name": "Kidney Function Test", "code": "KFT-01"}
+    report_info = {
+        "report_id_display": "REP-PDF-001",
+        "status": "FINAL",
+        "version": 1,
+        "date": "24-Oct-2026",
+    }
+    result_vals = [
+        {
+            "parameter_name": "Serum Creatinine",
+            "numeric_value": 0.9,
+            "text_value": None,
+            "unit": "mg/dL",
+            "reference_range_display": "0.6 - 1.2",
+            "flag": "NORMAL",
+        }
+    ]
+    out_pdf = str(tmp_path / "final_report_on_pdf_letterhead.pdf")
+    generate_medical_report_pdf(
+        lab_info=lab_info,
+        patient_info=patient_info,
+        test_info=test_info,
+        report_info=report_info,
+        result_values=result_vals,
+        narrative_info={},
+        qr_url="https://trustmylab.in/verify/pdflh1",
+        hmac_digest="abcde12345",
+        output_path=out_pdf,
+        is_letterhead=False,
+        top_margin_mm=48,
+        bottom_margin_mm=28,
+    )
+
+    assert os.path.exists(out_pdf)
+    assert os.path.getsize(out_pdf) > 2000
+
+    res = subprocess.run(["pdftotext", out_pdf, "-"], capture_output=True, text=True)
+    pdf_text = res.stdout
+    # Should contain both the letterhead text and the report content!
+    assert "OFFICIAL PRE-PRINTED CLINIC HEADER ON PDF" in pdf_text
+    assert "PDF Letterhead Patient" in pdf_text
+    assert "Serum Creatinine" in pdf_text
+    assert "0.9" in pdf_text
+
+
+
 
 
