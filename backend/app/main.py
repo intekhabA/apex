@@ -82,23 +82,38 @@ class StorageStaticFiles(StaticFiles):
         super().__init__(directory=first_dir, check_dir=False, **kwargs)
         self.all_directories = existing
 
+    def lookup_path(self, path: str) -> tuple[str, os.stat_result | None]:
+        full_path, stat_res = super().lookup_path(path)
+        if stat_res:
+            return full_path, stat_res
+        if not path.startswith("uploads/"):
+            full_path, stat_res = super().lookup_path(os.path.join("uploads", path))
+            if stat_res:
+                return full_path, stat_res
+        elif path.startswith("uploads/"):
+            full_path, stat_res = super().lookup_path(path[len("uploads/") :])
+            if stat_res:
+                return full_path, stat_res
+        return "", None
+
     async def get_response(self, path: str, scope: Scope) -> Response:
         try:
             return await super().get_response(path, scope)
         except StarletteHTTPException as exc:
             if exc.status_code == 404:
                 from app.services.storage_service import storage_service
-                if storage_service.is_s3:
+                guessed_type, _ = mimetypes.guess_type(path)
+                media_type = guessed_type or "application/octet-stream"
+                for candidate_rel in [path, f"uploads/{path}", path.removeprefix("uploads/")]:
                     try:
-                        guessed_type, _ = mimetypes.guess_type(path)
                         return await storage_service.get_file_response(
-                            rel_path=path,
+                            rel_path=candidate_rel,
                             filename=os.path.basename(path),
-                            media_type=guessed_type or "application/octet-stream",
+                            media_type=media_type,
                             inline=True,
                         )
                     except Exception:
-                        pass
+                        continue
             raise exc
 
 

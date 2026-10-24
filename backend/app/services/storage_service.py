@@ -74,6 +74,8 @@ class StorageService:
             clean = clean[len("storage/uploads/") :]
         elif clean.startswith("storage/"):
             clean = clean[len("storage/") :]
+        elif clean.startswith("uploads/"):
+            clean = clean[len("uploads/") :]
         return clean
 
     def get_local_path(self, path: str) -> str:
