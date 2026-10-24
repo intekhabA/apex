@@ -60,6 +60,7 @@ class ImagingTemplateBase(BaseModel):
     recommendations_template: Optional[str] = None
     is_active: bool = True
     display_order: int = 0
+    lab_id: Optional[str] = None
 
 
 class ImagingTemplateCreate(ImagingTemplateBase):
@@ -77,6 +78,7 @@ class ImagingTemplateUpdate(BaseModel):
     recommendations_template: Optional[str] = None
     is_active: Optional[bool] = None
     display_order: Optional[int] = None
+    lab_id: Optional[str] = None
 
 
 class ImagingTemplateResponse(BaseModel):
@@ -93,6 +95,8 @@ class ImagingTemplateResponse(BaseModel):
     recommendations_template: Optional[str] = ""
     is_active: bool = True
     display_order: int = 0
+    lab_id: Optional[str] = None
+    is_custom: bool = False
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 

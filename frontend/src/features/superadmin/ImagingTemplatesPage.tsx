@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Button, Input, Badge, confirmDialog, toast, LoadingSpinner } from '@/components/ui';
 import { imagingService } from '@/api/imagingService';
 import { ImagingTemplate } from '@/types';
+import { usePermissions } from '@/hooks/usePermissions';
 import { ImagingTemplateModal } from './ImagingTemplateModal';
 import {
   FileText,
@@ -13,13 +14,16 @@ import {
   ChevronDown,
   ChevronUp,
   Scan,
+  Copy,
 } from 'lucide-react';
 
 export const ImagingTemplatesPage: React.FC = () => {
+  const { isSuperAdmin } = usePermissions();
   const [templates, setTemplates] = useState<ImagingTemplate[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [selectedModality, setSelectedModality] = useState<string>('ALL');
+  const [selectedScope, setSelectedScope] = useState<'ALL' | 'MY_LAB' | 'SYSTEM'>('ALL');
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -35,7 +39,7 @@ export const ImagingTemplatesPage: React.FC = () => {
   const fetchTemplates = async () => {
     setLoading(true);
     try {
-      const data = await imagingService.listAdminTemplates();
+      const data = await imagingService.getTemplates();
       setTemplates(data);
     } catch {
       toast.error('Failed to load imaging templates.');
@@ -51,6 +55,16 @@ export const ImagingTemplatesPage: React.FC = () => {
 
   const handleEdit = (tpl: ImagingTemplate) => {
     setTemplateToEdit(tpl);
+    setIsModalOpen(true);
+  };
+
+  const handleDuplicate = (tpl: ImagingTemplate) => {
+    setTemplateToEdit({
+      ...tpl,
+      id: '',
+      name: `${tpl.name} (Custom)`,
+      code: `${tpl.code}_CUSTOM`,
+    });
     setIsModalOpen(true);
   };
 
@@ -80,6 +94,11 @@ export const ImagingTemplatesPage: React.FC = () => {
   // Filter templates
   const filteredTemplates = templates.filter((t) => {
     const matchesModality = selectedModality === 'ALL' || t.modality === selectedModality;
+    const matchesScope =
+      selectedScope === 'ALL' ||
+      (selectedScope === 'MY_LAB' && Boolean(t.is_custom || t.lab_id)) ||
+      (selectedScope === 'SYSTEM' && !t.lab_id);
+
     const term = search.toLowerCase().trim();
     const matchesSearch =
       !term ||
@@ -88,7 +107,8 @@ export const ImagingTemplatesPage: React.FC = () => {
       t.findings_template.toLowerCase().includes(term) ||
       (t.impression_template && t.impression_template.toLowerCase().includes(term)) ||
       (t.test_name && t.test_name.toLowerCase().includes(term));
-    return matchesModality && matchesSearch;
+
+    return matchesModality && matchesScope && matchesSearch;
   });
 
   const getModalityBadge = (modality: string) => {
@@ -115,17 +135,52 @@ export const ImagingTemplatesPage: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
             <Scan className="w-7 h-7 text-brand-600" />
-            Diagnostic X-Ray &amp; USG Reporting Templates
+            Diagnostic &amp; Imaging Reporting Templates
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            Configure, edit, and add standardized organ-by-organ anatomical observation templates used by laboratories across the platform.
+            Browse standard platform templates and create custom clinical reporting templates tailored specifically for your laboratory.
           </p>
         </div>
 
         <Button onClick={handleCreate} className="flex items-center gap-2 shrink-0">
           <Plus className="w-4 h-4" />
-          Add New Template
+          Add Lab Template
         </Button>
+      </div>
+
+      {/* Scope Filter Tabs */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-2">
+        <button
+          onClick={() => setSelectedScope('ALL')}
+          className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+            selectedScope === 'ALL'
+              ? 'bg-brand-50 text-brand-700 border border-brand-200 shadow-sm'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          All Templates ({templates.length})
+        </button>
+        <button
+          onClick={() => setSelectedScope('MY_LAB')}
+          className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 ${
+            selectedScope === 'MY_LAB'
+              ? 'bg-amber-50 text-amber-900 border border-amber-200 shadow-sm'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+          My Lab Templates ({templates.filter((t) => t.is_custom || t.lab_id).length})
+        </button>
+        <button
+          onClick={() => setSelectedScope('SYSTEM')}
+          className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+            selectedScope === 'SYSTEM'
+              ? 'bg-slate-100 text-slate-800 border border-slate-300 shadow-sm'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          Platform Standard ({templates.filter((t) => !t.lab_id).length})
+        </button>
       </div>
 
       {/* Filter and Search Bar */}
@@ -201,6 +256,15 @@ export const ImagingTemplatesPage: React.FC = () => {
                         <span className="font-mono text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-600">
                           {tpl.code}
                         </span>
+                        {tpl.is_custom || tpl.lab_id ? (
+                          <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-200 flex items-center gap-1">
+                            <Sparkles className="w-3 h-3 text-amber-600" /> My Lab Custom
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">
+                            Platform Standard
+                          </span>
+                        )}
                         {!tpl.is_active && (
                           <Badge variant="high">Inactive</Badge>
                         )}
@@ -239,24 +303,38 @@ export const ImagingTemplatesPage: React.FC = () => {
                       )}
                     </Button>
 
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleEdit(tpl)}
-                      className="text-xs flex items-center gap-1 text-slate-700"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" /> Edit
-                    </Button>
+                    {tpl.is_custom || tpl.lab_id || isSuperAdmin ? (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEdit(tpl)}
+                          className="text-xs flex items-center gap-1 text-slate-700"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" /> Edit
+                        </Button>
 
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDelete(tpl)}
-                      className="text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50"
-                      title="Delete template"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDelete(tpl)}
+                          className="text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                          title="Delete template"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDuplicate(tpl)}
+                        className="text-xs flex items-center gap-1 text-teal-700 border-teal-200 hover:bg-teal-50"
+                        title="Copy and customize this template for your laboratory"
+                      >
+                        <Copy className="w-3.5 h-3.5 text-teal-600" /> Copy to My Lab
+                      </Button>
+                    )}
                   </div>
                 </div>
 

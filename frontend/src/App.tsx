@@ -164,9 +164,17 @@ export const App: React.FC = () => {
               }
             />
             <Route
+              path="/templates"
+              element={
+                <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'LAB_ADMIN', 'PATHOLOGIST', 'RADIOLOGIST']}>
+                  <ImagingTemplatesPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/admin/imaging-templates"
               element={
-                <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
+                <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'LAB_ADMIN', 'PATHOLOGIST', 'RADIOLOGIST']}>
                   <ImagingTemplatesPage />
                 </ProtectedRoute>
               }

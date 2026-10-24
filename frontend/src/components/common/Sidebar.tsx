@@ -54,6 +54,7 @@ export const Sidebar: React.FC = () => {
       // { to: '/samples', label: 'Phlebotomy / Samples', icon: Pipette, permission: 'samples' },
       { to: '/results', label: 'Results Entry (LFT/KFT/CBC)', icon: FileSpreadsheet, permission: 'results' },
       { to: '/reports', label: 'Reports & Approvals', icon: FileCheck2, permission: 'reports' },
+      { to: '/templates', label: 'Report & USG Templates', icon: Scan, permission: 'reports' },
       { to: '/invoices', label: 'Billing & Invoices', icon: Receipt, permission: 'invoices' },
       { to: '/expenses', label: 'Daily Expenses', icon: Wallet, permission: 'expenses' },
       { to: '/doctor-commissions', label: 'Doctor Commissions', icon: Percent, permission: 'doctor_commissions' },

@@ -48,6 +48,8 @@ export interface ImagingTemplate {
   recommendations_template?: string | null;
   is_active: boolean;
   display_order: number;
+  lab_id?: string | null;
+  is_custom?: boolean;
   created_at?: string;
   updated_at?: string;
 }
@@ -63,6 +65,7 @@ export interface ImagingTemplateCreatePayload {
   recommendations_template?: string | null;
   is_active?: boolean;
   display_order?: number;
+  lab_id?: string | null;
 }
 
 export interface ImagingTemplateUpdatePayload {
@@ -76,6 +79,7 @@ export interface ImagingTemplateUpdatePayload {
   recommendations_template?: string | null;
   is_active?: boolean;
   display_order?: number;
+  lab_id?: string | null;
 }
 
 export interface ImagingReportUpdatePayload {

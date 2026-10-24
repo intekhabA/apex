@@ -9,7 +9,13 @@ import {
 } from '@/types';
 
 export const imagingService = {
-  async getTemplates(params?: { modality?: string; test_id?: string }): Promise<ImagingTemplate[]> {
+  async getTemplates(params?: {
+    search?: string;
+    modality?: string;
+    test_id?: string;
+    is_active?: boolean;
+    scope?: 'all' | 'system' | 'lab';
+  }): Promise<ImagingTemplate[]> {
     const res = await apiClient.get<APIResponse<ImagingTemplate[]>>('/imaging/templates', { params });
     return res.data.data || [];
   },
@@ -18,18 +24,19 @@ export const imagingService = {
     search?: string;
     modality?: string;
     is_active?: boolean;
+    scope?: 'all' | 'system' | 'lab';
   }): Promise<ImagingTemplate[]> {
-    const res = await apiClient.get<APIResponse<ImagingTemplate[]>>('/admin/imaging-templates', { params });
+    const res = await apiClient.get<APIResponse<ImagingTemplate[]>>('/imaging/templates', { params });
     return res.data.data || [];
   },
 
   async getTemplate(id: string): Promise<ImagingTemplate> {
-    const res = await apiClient.get<APIResponse<ImagingTemplate>>(`/admin/imaging-templates/${id}`);
+    const res = await apiClient.get<APIResponse<ImagingTemplate>>(`/imaging/templates/${id}`);
     return res.data.data!;
   },
 
   async createTemplate(payload: import('@/types').ImagingTemplateCreatePayload): Promise<ImagingTemplate> {
-    const res = await apiClient.post<APIResponse<ImagingTemplate>>('/admin/imaging-templates', payload);
+    const res = await apiClient.post<APIResponse<ImagingTemplate>>('/imaging/templates', payload);
     return res.data.data!;
   },
 
@@ -37,12 +44,12 @@ export const imagingService = {
     id: string,
     payload: import('@/types').ImagingTemplateUpdatePayload
   ): Promise<ImagingTemplate> {
-    const res = await apiClient.put<APIResponse<ImagingTemplate>>(`/admin/imaging-templates/${id}`, payload);
+    const res = await apiClient.put<APIResponse<ImagingTemplate>>(`/imaging/templates/${id}`, payload);
     return res.data.data!;
   },
 
   async deleteTemplate(id: string): Promise<MessageResponse> {
-    const res = await apiClient.delete<MessageResponse>(`/admin/imaging-templates/${id}`);
+    const res = await apiClient.delete<MessageResponse>(`/imaging/templates/${id}`);
     return res.data;
   },
 

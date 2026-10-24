@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Modal, Button, Alert, Badge, toast, confirmDialog, RichTextEditor } from '@/components/ui';
 import { imagingService } from '@/api/imagingService';
 import { ImagingReport, ImagingTemplate } from '@/types';
-import { Upload, Trash2, FileImage, Sparkles, FileText } from 'lucide-react';
+import { Upload, Trash2, FileImage, Sparkles, FileText, BookmarkPlus } from 'lucide-react';
 
 export interface ImagingReportEditorModalProps {
   isOpen: boolean;
@@ -29,6 +29,13 @@ export const ImagingReportEditorModal: React.FC<ImagingReportEditorModalProps> =
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [caption, setCaption] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+
+  // Save Template State
+  const [isSaveTemplateOpen, setIsSaveTemplateOpen] = useState(false);
+  const [newTemplateName, setNewTemplateName] = useState('');
+  const [newTemplateCode, setNewTemplateCode] = useState('');
+  const [newTemplateModality, setNewTemplateModality] = useState('USG');
+  const [savingTemplate, setSavingTemplate] = useState(false);
 
   // Submit State
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -132,6 +139,75 @@ export const ImagingReportEditorModal: React.FC<ImagingReportEditorModalProps> =
     setReportContent(combineTemplateToHtml(tpl));
   };
 
+  const handleOpenSaveTemplateModal = () => {
+    const stripped = reportContent.replace(/<[^>]*>/g, '').trim();
+    if (!stripped || stripped.length < 5) {
+      toast.error('Please enter diagnostic findings in the editor before saving as a template.');
+      return;
+    }
+
+    let initialModality = 'USG';
+    const testCode = (report?.test_code || '').toUpperCase();
+    const testName = (report?.test_name || '').toUpperCase();
+    if (testCode.includes('XRAY') || testName.includes('X-RAY') || testName.includes('XRAY')) {
+      initialModality = 'X-RAY';
+    } else if (testCode.includes('CT') || testName.includes('CT SCAN')) {
+      initialModality = 'CT';
+    } else if (testCode.includes('MRI')) {
+      initialModality = 'MRI';
+    } else if (testCode.includes('ECG')) {
+      initialModality = 'ECG';
+    }
+
+    const baseCode = (report?.test_code || 'CUSTOM').replace(/[^A-Za-z0-9]/g, '_').toUpperCase();
+    setNewTemplateName(report?.test_name ? `${report.test_name} (Lab Standard)` : 'Custom Lab Template');
+    setNewTemplateCode(`${initialModality}_${baseCode}`);
+    setNewTemplateModality(initialModality);
+    setIsSaveTemplateOpen(true);
+  };
+
+  const handleSaveAsTemplate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTemplateName.trim()) {
+      toast.error('Please enter a template name.');
+      return;
+    }
+    if (!newTemplateCode.trim()) {
+      toast.error('Please enter a unique template code.');
+      return;
+    }
+
+    setSavingTemplate(true);
+    try {
+      const created = await imagingService.createTemplate({
+        name: newTemplateName.trim(),
+        code: newTemplateCode.trim().toUpperCase(),
+        modality: newTemplateModality,
+        test_id: report?.test_id || null,
+        findings_template: reportContent.trim(),
+        is_active: true,
+        display_order: 0,
+      });
+
+      toast.success(`Template "${created.name}" saved to your laboratory!`);
+      setIsSaveTemplateOpen(false);
+
+      // Refresh templates and auto-select this new custom template
+      const updatedTemplates = await imagingService.getTemplates();
+      setTemplates(updatedTemplates);
+      setSelectedTemplateId(created.id);
+    } catch (err: unknown) {
+      const errorObj = err as { response?: { data?: { detail?: string; message?: string } } };
+      toast.error(
+        errorObj.response?.data?.detail ||
+          errorObj.response?.data?.message ||
+          'Failed to save template to laboratory.'
+      );
+    } finally {
+      setSavingTemplate(false);
+    }
+  };
+
   const handleUploadScan = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!reportId || !selectedFile) return;
@@ -228,8 +304,9 @@ export const ImagingReportEditorModal: React.FC<ImagingReportEditorModalProps> =
   };
 
   return (
-    <Modal
-      isOpen={isOpen}
+    <>
+      <Modal
+        isOpen={isOpen}
       onClose={onClose}
       title={`Radiology Reporting: ${report?.test_name || 'Loading...'}`}
       maxWidth="5xl"
@@ -270,12 +347,12 @@ export const ImagingReportEditorModal: React.FC<ImagingReportEditorModalProps> =
           )}
 
           {/* Template Bar */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-teal-50/50 p-3 rounded-xl border border-teal-100">
-            <div className="flex items-center gap-2 text-teal-900 font-semibold text-xs">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 bg-teal-50/60 p-3 rounded-xl border border-teal-100">
+            <div className="flex items-center gap-2 text-teal-900 font-semibold text-xs shrink-0">
               <Sparkles className="w-4 h-4 text-teal-600" />
-              <span>Standard Ultrasound &amp; Radiography Templates:</span>
+              <span>Ultrasound &amp; Radiography Templates:</span>
             </div>
-            <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full md:w-auto">
               <select
                 value={selectedTemplateId}
                 onChange={(e) => handleApplyTemplate(e.target.value)}
@@ -284,10 +361,20 @@ export const ImagingReportEditorModal: React.FC<ImagingReportEditorModalProps> =
                 <option value="">Select a Clinical Template...</option>
                 {templates.map((t) => (
                   <option key={t.id} value={t.id}>
-                    [{t.modality}] {t.name} {t.test_code ? `· (${t.test_code})` : ''}
+                    {t.is_custom || t.lab_id ? '★ [My Lab] ' : '[Standard] '}[{t.modality}] {t.name} {t.test_code ? `· (${t.test_code})` : ''}
                   </option>
                 ))}
               </select>
+
+              <button
+                type="button"
+                onClick={handleOpenSaveTemplateModal}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-teal-300 hover:bg-teal-100/70 text-teal-800 rounded-lg text-xs font-semibold shadow-sm transition-colors shrink-0"
+                title="Save current findings as a reusable template for your laboratory"
+              >
+                <BookmarkPlus className="w-4 h-4 text-teal-600" />
+                <span>Save Current as Lab Template</span>
+              </button>
             </div>
           </div>
 
@@ -415,5 +502,91 @@ export const ImagingReportEditorModal: React.FC<ImagingReportEditorModalProps> =
         </div>
       )}
     </Modal>
+
+    <Modal
+      isOpen={isSaveTemplateOpen}
+      onClose={() => setIsSaveTemplateOpen(false)}
+      title="Save as Laboratory Template"
+      maxWidth="lg"
+    >
+      <form onSubmit={handleSaveAsTemplate} className="space-y-4">
+        <div className="bg-teal-50 border border-teal-200 rounded-xl p-3 text-xs text-teal-900 leading-relaxed">
+          This will save the current formatted findings, organ observations, and impressions as a reusable template for your laboratory.
+        </div>
+
+        <div>
+          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+            Template Name <span className="text-rose-500">*</span>
+          </label>
+          <input
+            type="text"
+            value={newTemplateName}
+            onChange={(e) => setNewTemplateName(e.target.value)}
+            placeholder="e.g. USG Whole Abdomen - Standard Normal"
+            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:outline-none"
+            required
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+              Template Code <span className="text-rose-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={newTemplateCode}
+              onChange={(e) => setNewTemplateCode(e.target.value.toUpperCase())}
+              placeholder="e.g. USG_ABD_NORM"
+              className="w-full px-3 py-2 text-sm font-mono border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:outline-none"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+              Modality <span className="text-rose-500">*</span>
+            </label>
+            <select
+              value={newTemplateModality}
+              onChange={(e) => setNewTemplateModality(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:outline-none bg-white font-medium"
+            >
+              <option value="USG">USG / Ultrasound</option>
+              <option value="X-RAY">X-Ray (CR/DR)</option>
+              <option value="CT">CT Scan</option>
+              <option value="MRI">MRI</option>
+              <option value="ECG">ECG / Cardiology</option>
+              <option value="OTHER">Other Modality</option>
+            </select>
+          </div>
+        </div>
+
+        {report?.test_name && (
+          <div className="text-xs text-slate-500">
+            Linked Test: <span className="font-semibold text-slate-700">{report.test_name}</span> ({report.test_code})
+          </div>
+        )}
+
+        <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => setIsSaveTemplateOpen(false)}
+            disabled={savingTemplate}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            isLoading={savingTemplate}
+            className="bg-teal-600 hover:bg-teal-700 text-white"
+          >
+            Save Template
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  </>
   );
 };

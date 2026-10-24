@@ -18,7 +18,7 @@ export const ImagingTemplateModal: React.FC<ImagingTemplateModalProps> = ({
   onSuccess,
   templateToEdit,
 }) => {
-  const isEditing = Boolean(templateToEdit);
+  const isEditing = Boolean(templateToEdit && templateToEdit.id);
 
   // Form State
   const [name, setName] = useState('');
@@ -150,12 +150,12 @@ export const ImagingTemplateModal: React.FC<ImagingTemplateModalProps> = ({
     };
 
     try {
-      if (isEditing && templateToEdit) {
+      if (isEditing && templateToEdit?.id) {
         await imagingService.updateTemplate(templateToEdit.id, payload);
         toast.success(`Template "${name}" updated successfully.`);
       } else {
         await imagingService.createTemplate(payload);
-        toast.success(`New template "${name}" created successfully.`);
+        toast.success(`Template "${name}" saved to laboratory successfully.`);
       }
       onSuccess();
       onClose();
@@ -176,7 +176,13 @@ export const ImagingTemplateModal: React.FC<ImagingTemplateModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={isEditing ? `Edit Imaging Template: ${templateToEdit?.name}` : 'Create New Imaging / X-Ray / USG Template'}
+      title={
+        isEditing
+          ? `Edit Template: ${templateToEdit?.name}`
+          : templateToEdit
+          ? `Customize & Save Template: ${templateToEdit?.name}`
+          : 'Create Diagnostic Template'
+      }
       description="Configure standardized radiography and ultrasound observations, impressions, and findings in a single formatted editor box."
       maxWidth="4xl"
     >
