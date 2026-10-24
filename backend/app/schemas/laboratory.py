@@ -65,6 +65,8 @@ class LaboratorySettingsUpdate(BaseModel):
     currency_symbol: Optional[str] = None
     default_tax_rate: Optional[Decimal] = None
     enable_qr_verification: Optional[bool] = None
+    show_report_header_status: Optional[bool] = None
+    show_qr_side_text: Optional[bool] = None
     primary_color_hex: Optional[str] = None
     secondary_color_hex: Optional[str] = None
     default_signatory_name: Optional[str] = None
@@ -82,6 +84,8 @@ class LaboratorySettingsUpdate(BaseModel):
 class LaboratorySettingsResponse(LaboratorySettingsUpdate):
     id: str
     lab_id: str
+    show_report_header_status: bool = True
+    show_qr_side_text: bool = True
     notify_on_booking: bool = True
     notify_on_sample_collected: bool = True
     notify_on_report_finalized: bool = True

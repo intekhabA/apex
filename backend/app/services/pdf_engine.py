@@ -407,16 +407,28 @@ def generate_medical_report_pdf(
         f"Phone: {lab_info.get('phone', 'N/A')} | Email: {lab_info.get('email', 'N/A')}<br/>"
         f"Licence / Accreditation: {lab_info.get('license', 'ISO 15189 / NABL Certified')}"
     )
+
+    show_header_status = lab_info.get("show_report_header_status", True)
+    if "show_header_status" in report_info and report_info["show_header_status"] is not None:
+        show_header_status = report_info["show_header_status"]
+    elif "show_report_header_status" in report_info and report_info["show_report_header_status"] is not None:
+        show_header_status = report_info["show_report_header_status"]
+
+    if show_header_status:
+        header_right_flowable = Paragraph(
+            f"<b>REPORT #{report_info.get('report_id_display', '')}</b><br/>"
+            f"<font color='#0D9488'><b>STATUS: {report_info.get('status', 'FINAL')}</b></font><br/>"
+            f"Version: v{report_info.get('version', 1)}.0",
+            ParagraphStyle("ReportRef", parent=styles["Normal"], alignment=2, fontSize=9, leading=12),
+        )
+    else:
+        header_right_flowable = Paragraph("", styles["Normal"])
+
     lab_table = Table(
         [
             [
                 Paragraph(lab_text, title_style),
-                Paragraph(
-                    f"<b>REPORT #{report_info.get('report_id_display', '')}</b><br/>"
-                    f"<font color='#0D9488'><b>STATUS: {report_info.get('status', 'FINAL')}</b></font><br/>"
-                    f"Version: v{report_info.get('version', 1)}.0",
-                    ParagraphStyle("ReportRef", parent=styles["Normal"], alignment=2, fontSize=9, leading=12),
-                ),
+                header_right_flowable,
             ],
             [Paragraph(lab_details, subtitle_style), ""],
         ],
@@ -568,32 +580,15 @@ def generate_medical_report_pdf(
     story.append(Spacer(1, 20))
 
     # 5. Footer: QR Code, HMAC Security Stamp, and Digital Signature
-    # Generate QR Code image in memory
-    qr = qrcode.QRCode(
-        version=1,
-        error_correction=qrcode.constants.ERROR_CORRECT_M,
-        box_size=4,
-        border=1,
-    )
-    qr.add_data(qr_url)
-    qr.make(fit=True)
-    qr_img = qr.make_image(fill_color="black", back_color="white")
+    enable_qr = lab_info.get("enable_qr_verification", True)
+    if "enable_qr_verification" in report_info and report_info["enable_qr_verification"] is not None:
+        enable_qr = report_info["enable_qr_verification"]
 
-    qr_buffer = io.BytesIO()
-    qr_img.save(qr_buffer, format="PNG")
-    qr_buffer.seek(0)
+    show_qr_side_text = lab_info.get("show_qr_side_text", True)
+    if "show_qr_side_text" in report_info and report_info["show_qr_side_text"] is not None:
+        show_qr_side_text = report_info["show_qr_side_text"]
 
-    qr_flowable = Image(qr_buffer, width=1.1 * inch, height=1.1 * inch)
-
-    hmac_short = f"{hmac_digest[:16]}...{hmac_digest[-8:]}" if hmac_digest else "N/A"
     approver_name = report_info.get("approved_by_name", "Authorized Laboratory Pathologist")
-
-    footer_text = (
-        f"<b>Scan QR to Verify Authenticity Online</b><br/>"
-        f"<font color='#64748B'>Portal: {qr_url}</font><br/>"
-        f"<font color='#64748B'>HMAC Digest: {hmac_short}</font><br/>"
-        f"<i>This medical report is tamper-proof signed and electronically validated.</i>"
-    )
 
     sig_source = (
         report_info.get("signature_image")
@@ -653,16 +648,93 @@ def generate_medical_report_pdf(
         )
     )
 
-    footer_table = Table(
-        [
+    if enable_qr:
+        # Generate QR Code image in memory
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_M,
+            box_size=4,
+            border=1,
+        )
+        qr.add_data(qr_url)
+        qr.make(fit=True)
+        qr_img = qr.make_image(fill_color="black", back_color="white")
+
+        qr_buffer = io.BytesIO()
+        qr_img.save(qr_buffer, format="PNG")
+        qr_buffer.seek(0)
+        qr_flowable = Image(qr_buffer, width=1.05 * inch, height=1.05 * inch)
+
+        if show_qr_side_text:
+            hmac_short = f"{hmac_digest[:16]}...{hmac_digest[-8:]}" if hmac_digest else "N/A"
+            footer_text = (
+                f"<b>Scan QR to Verify Authenticity Online</b><br/>"
+                f"<font color='#64748B'>Portal: {qr_url}</font><br/>"
+                f"<font color='#64748B'>HMAC Digest: {hmac_short}</font><br/>"
+                f"<i>This medical report is tamper-proof signed and electronically validated.</i>"
+            )
+            footer_table = Table(
+                [
+                    [
+                        qr_flowable,
+                        Paragraph(footer_text, subtitle_style),
+                        sig_sub_table,
+                    ]
+                ],
+                colWidths=[85, 250, 185],
+            )
+        else:
+            # QR code with ONLY "Scan QR to Verify Authenticity Online" below the QR code
+            qr_caption_style = ParagraphStyle(
+                "QRCaptionBelow",
+                parent=styles["Normal"],
+                alignment=1,  # Center aligned under QR code
+                fontName="Helvetica-Bold",
+                fontSize=7,
+                leading=8.5,
+                textColor=colors.HexColor("#334155"),
+            )
+            qr_sub_table = Table(
+                [
+                    [qr_flowable],
+                    [Spacer(1, 2)],
+                    [Paragraph("Scan QR to Verify Authenticity Online", qr_caption_style)],
+                ],
+                colWidths=[145],
+            )
+            qr_sub_table.setStyle(
+                TableStyle(
+                    [
+                        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                        ("TOPPADDING", (0, 0), (-1, -1), 0),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                    ]
+                )
+            )
+            footer_table = Table(
+                [
+                    [
+                        qr_sub_table,
+                        Paragraph("", subtitle_style),
+                        sig_sub_table,
+                    ]
+                ],
+                colWidths=[145, 190, 185],
+            )
+    else:
+        # QR Code disabled completely
+        footer_table = Table(
             [
-                qr_flowable,
-                Paragraph(footer_text, subtitle_style),
-                sig_sub_table,
-            ]
-        ],
-        colWidths=[85, 250, 185],
-    )
+                [
+                    Paragraph("<i>This medical report is tamper-proof signed and electronically validated.</i>", subtitle_style),
+                    sig_sub_table,
+                ]
+            ],
+            colWidths=[335, 185],
+        )
     footer_table.setStyle(
         TableStyle(
             [
@@ -1631,27 +1703,13 @@ def generate_consolidated_booking_report_pdf(
     story.append(Spacer(1, 10))
 
     # 5. Master Footer: QR Code, Digital Validation Notice, and Chief Pathologist Authentication
-    qr = qrcode.QRCode(
-        version=1,
-        error_correction=qrcode.constants.ERROR_CORRECT_M,
-        box_size=4,
-        border=1,
-    )
-    qr.add_data(qr_url)
-    qr.make(fit=True)
-    qr_img = qr.make_image(fill_color="black", back_color="white")
+    enable_qr = lab_info.get("enable_qr_verification", True)
+    if "enable_qr_verification" in booking_info and booking_info["enable_qr_verification"] is not None:
+        enable_qr = booking_info["enable_qr_verification"]
 
-    qr_buffer = io.BytesIO()
-    qr_img.save(qr_buffer, format="PNG")
-    qr_buffer.seek(0)
-    qr_flowable = Image(qr_buffer, width=1.05 * inch, height=1.05 * inch)
-
-    footer_text = (
-        f"<b>Scan QR to Verify All Booking Reports Online</b><br/>"
-        f"<font color='#0D9488'>Portal: {qr_url}</font><br/>"
-        f"<font color='#64748B'>Booking Reference: #{booking_info.get('booking_id_display', '')}</font><br/>"
-        f"<i>This consolidated document is electronically certified by {lab_info.get('name', 'TrustMyLab')}.</i>"
-    )
+    show_qr_side_text = lab_info.get("show_qr_side_text", True)
+    if "show_qr_side_text" in booking_info and booking_info["show_qr_side_text"] is not None:
+        show_qr_side_text = booking_info["show_qr_side_text"]
 
     chief_sig_source = (
         lab_info.get("signature_image")
@@ -1712,16 +1770,91 @@ def generate_consolidated_booking_report_pdf(
         )
     )
 
-    footer_table = Table(
-        [
+    if enable_qr:
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_M,
+            box_size=4,
+            border=1,
+        )
+        qr.add_data(qr_url)
+        qr.make(fit=True)
+        qr_img = qr.make_image(fill_color="black", back_color="white")
+
+        qr_buffer = io.BytesIO()
+        qr_img.save(qr_buffer, format="PNG")
+        qr_buffer.seek(0)
+        qr_flowable = Image(qr_buffer, width=1.05 * inch, height=1.05 * inch)
+
+        if show_qr_side_text:
+            footer_text = (
+                f"<b>Scan QR to Verify All Booking Reports Online</b><br/>"
+                f"<font color='#0D9488'>Portal: {qr_url}</font><br/>"
+                f"<font color='#64748B'>Booking Reference: #{booking_info.get('booking_id_display', '')}</font><br/>"
+                f"<i>This consolidated document is electronically certified by {lab_info.get('name', 'TrustMyLab')}.</i>"
+            )
+            footer_table = Table(
+                [
+                    [
+                        qr_flowable,
+                        Paragraph(footer_text, subtitle_style),
+                        chief_sub_table,
+                    ]
+                ],
+                colWidths=[80, 255, 185],
+            )
+        else:
+            # QR code with ONLY "Scan QR to Verify All Booking Reports Online" below the QR code
+            qr_caption_style = ParagraphStyle(
+                "ConsolidatedQRCaptionBelow",
+                parent=styles["Normal"],
+                alignment=1,  # Center aligned under QR code
+                fontName="Helvetica-Bold",
+                fontSize=7,
+                leading=8.5,
+                textColor=colors.HexColor("#334155"),
+            )
+            qr_sub_table = Table(
+                [
+                    [qr_flowable],
+                    [Spacer(1, 2)],
+                    [Paragraph("Scan QR to Verify Authenticity Online", qr_caption_style)],
+                ],
+                colWidths=[145],
+            )
+            qr_sub_table.setStyle(
+                TableStyle(
+                    [
+                        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                        ("TOPPADDING", (0, 0), (-1, -1), 0),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                    ]
+                )
+            )
+            footer_table = Table(
+                [
+                    [
+                        qr_sub_table,
+                        Paragraph("", subtitle_style),
+                        chief_sub_table,
+                    ]
+                ],
+                colWidths=[145, 190, 185],
+            )
+    else:
+        # QR Code disabled completely
+        footer_table = Table(
             [
-                qr_flowable,
-                Paragraph(footer_text, subtitle_style),
-                chief_sub_table,
-            ]
-        ],
-        colWidths=[80, 255, 185],
-    )
+                [
+                    Paragraph(f"<i>This consolidated document is electronically certified by {lab_info.get('name', 'TrustMyLab')}.</i>", subtitle_style),
+                    chief_sub_table,
+                ]
+            ],
+            colWidths=[335, 185],
+        )
     footer_table.setStyle(
         TableStyle(
             [

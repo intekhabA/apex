@@ -138,3 +138,62 @@ def test_format_result_value():
     assert format_result_value(None, "14.5") == "14.50"
     assert format_result_value(None, None) == "—"
 
+
+def test_pdf_customization_header_and_qr_toggles(tmp_path):
+    """Verify that toggling show_report_header_status and show_qr_side_text correctly modifies PDF layout."""
+    import subprocess
+    lab_info = {
+        "name": "Customized Diagnostic Lab",
+        "address": "456 Marine Lines",
+        "phone": "022-123456",
+        "email": "test@lab.com",
+        "license": "ISO-9001",
+        "show_report_header_status": False,
+        "show_qr_side_text": False,
+        "enable_qr_verification": True,
+    }
+    patient_info = {
+        "name": "Jane Patient",
+        "id_display": "PAT-777",
+        "age": 42,
+        "gender": "Female",
+        "booking_id_display": "BKG-777",
+        "referred_by": "Dr. Strange",
+    }
+    test_info = {"name": "Ultrasound Pelvis", "code": "USG-02"}
+    report_info = {
+        "report_id_display": "REP-2026-000078",
+        "status": "FINAL",
+        "version": 1,
+        "date": "24-Oct-2026 03:00 AM",
+        "finalized_at": "24-Oct-2026 03:00 AM",
+        "approved_by_name": "Dr. Chief",
+        "show_header_status": False,
+        "show_qr_side_text": False,
+    }
+    out_pdf = str(tmp_path / "custom_report.pdf")
+    generate_medical_report_pdf(
+        lab_info=lab_info,
+        patient_info=patient_info,
+        test_info=test_info,
+        report_info=report_info,
+        result_values=[],
+        narrative_info={"imaging_findings": "Normal"},
+        qr_url="https://trustmylab.in/verify/test78",
+        hmac_digest="11223344556677889900aabbccddeeff",
+        output_path=out_pdf,
+    )
+
+    assert os.path.exists(out_pdf)
+    assert os.path.getsize(out_pdf) > 1000
+
+    # Extract text and assert
+    res = subprocess.run(["pdftotext", out_pdf, "-"], capture_output=True, text=True)
+    pdf_text = res.stdout
+    assert "REPORT #REP-2026-000078" not in pdf_text
+    assert "STATUS: FINAL" not in pdf_text
+    assert "Version: v1.0" not in pdf_text
+    assert "HMAC Digest:" not in pdf_text
+    assert "Scan QR to Verify Authenticity Online" in pdf_text
+
+

@@ -596,6 +596,8 @@ async def download_booking_reports_pdf(
         "default_signatory_degrees": lab_settings.default_signatory_degrees if lab_settings else None,
         "default_signatory_reg_no": lab_settings.default_signatory_reg_no if lab_settings else None,
         "default_signatory_signature_url": lab_settings.default_signatory_signature_url if lab_settings else None,
+        "enable_qr_verification": lab_settings.enable_qr_verification if (lab_settings and lab_settings.enable_qr_verification is not None) else True,
+        "show_qr_side_text": lab_settings.show_qr_side_text if (lab_settings and lab_settings.show_qr_side_text is not None) else True,
     }
     patient = booking.patient
     patient_info = {

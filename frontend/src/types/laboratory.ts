@@ -31,6 +31,8 @@ export interface LaboratorySettings {
   currency_symbol: string;
   default_tax_rate: number;
   enable_qr_verification: boolean;
+  show_report_header_status?: boolean;
+  show_qr_side_text?: boolean;
   primary_color_hex: string;
   secondary_color_hex: string;
   default_signatory_name?: string | null;
@@ -90,6 +92,8 @@ export interface LaboratorySettingsUpdatePayload {
   currency_symbol?: string;
   default_tax_rate?: number;
   enable_qr_verification?: boolean;
+  show_report_header_status?: boolean;
+  show_qr_side_text?: boolean;
   primary_color_hex?: string;
   secondary_color_hex?: string;
   default_signatory_name?: string;

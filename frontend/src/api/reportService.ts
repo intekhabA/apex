@@ -41,8 +41,20 @@ export const reportService = {
     return res.data.data!;
   },
 
-  async downloadReportPdf(reportId: string, filename: string): Promise<void> {
-    const res = await apiClient.get(`/reports/${reportId}/download`, {
+  async downloadReportPdf(
+    reportId: string,
+    filename: string,
+    options?: { show_header_status?: boolean; show_qr_side_text?: boolean }
+  ): Promise<void> {
+    const params = new URLSearchParams();
+    if (options?.show_header_status !== undefined) {
+      params.append('show_header_status', String(options.show_header_status));
+    }
+    if (options?.show_qr_side_text !== undefined) {
+      params.append('show_qr_side_text', String(options.show_qr_side_text));
+    }
+    const query = params.toString() ? `?${params.toString()}` : '';
+    const res = await apiClient.get(`/reports/${reportId}/download${query}`, {
       responseType: 'blob',
     });
     const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));

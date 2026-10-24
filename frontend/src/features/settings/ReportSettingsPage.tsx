@@ -14,6 +14,8 @@ const settingsSchema = z.object({
   currency_symbol: z.string().min(1).max(5),
   default_tax_rate: z.coerce.number().min(0).max(100),
   enable_qr_verification: z.boolean(),
+  show_report_header_status: z.boolean(),
+  show_qr_side_text: z.boolean(),
   primary_color_hex: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Must be valid hex color (e.g. #0284c7)'),
   secondary_color_hex: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Must be valid hex color'),
   default_signatory_name: z.string().optional(),
@@ -53,6 +55,8 @@ export const ReportSettingsPage: React.FC = () => {
         currency_symbol: settings.currency_symbol || '₹',
         default_tax_rate: settings.default_tax_rate || 0,
         enable_qr_verification: settings.enable_qr_verification ?? true,
+        show_report_header_status: settings.show_report_header_status ?? true,
+        show_qr_side_text: settings.show_qr_side_text ?? true,
         primary_color_hex: settings.primary_color_hex || '#0284c7',
         secondary_color_hex: settings.secondary_color_hex || '#0f172a',
         default_signatory_name: settings.default_signatory_name || '',
@@ -331,16 +335,58 @@ export const ReportSettingsPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="mt-4 flex items-center gap-2.5">
-                <input
-                  type="checkbox"
-                  id="enable_qr"
-                  className="rounded border-slate-300 text-brand-600 focus:ring-brand-500 w-4 h-4"
-                  {...register('enable_qr_verification')}
-                />
-                <label htmlFor="enable_qr" className="text-sm font-semibold text-slate-700 cursor-pointer">
-                  Stamp Tamper-Proof Cryptographic QR Code on Finalized Reports
-                </label>
+              <div className="mt-4 space-y-3">
+                <div className="flex items-start gap-2.5">
+                  <input
+                    type="checkbox"
+                    id="show_report_header_status"
+                    className="rounded border-slate-300 text-brand-600 focus:ring-brand-500 w-4 h-4 mt-0.5"
+                    {...register('show_report_header_status')}
+                  />
+                  <div>
+                    <label htmlFor="show_report_header_status" className="text-sm font-semibold text-slate-700 cursor-pointer">
+                      Show Report Number, Status &amp; Version in Header
+                    </label>
+                    <p className="text-xs text-slate-500">
+                      When enabled, displays <code>REPORT #REP-..., STATUS: FINAL, Version: v1.0</code> on the top right of the PDF report. When disabled, this block is omitted.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2.5">
+                  <input
+                    type="checkbox"
+                    id="enable_qr"
+                    className="rounded border-slate-300 text-brand-600 focus:ring-brand-500 w-4 h-4 mt-0.5"
+                    {...register('enable_qr_verification')}
+                  />
+                  <div>
+                    <label htmlFor="enable_qr" className="text-sm font-semibold text-slate-700 cursor-pointer">
+                      Stamp Tamper-Proof Cryptographic QR Code on Finalized Reports
+                    </label>
+                    <p className="text-xs text-slate-500">
+                      When enabled, adds a scannable QR verification code in the report footer.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2.5 ml-6">
+                  <input
+                    type="checkbox"
+                    id="show_qr_side_text"
+                    disabled={!watch('enable_qr_verification')}
+                    className="rounded border-slate-300 text-brand-600 focus:ring-brand-500 w-4 h-4 mt-0.5 disabled:opacity-50"
+                    {...register('show_qr_side_text')}
+                  />
+                  <div>
+                    <label htmlFor="show_qr_side_text" className="text-sm font-semibold text-slate-700 cursor-pointer">
+                      Show Verification Details (Portal URL &amp; HMAC Hash) Beside QR Code
+                    </label>
+                    <p className="text-xs text-slate-500">
+                      When unchecked, side verification text is hidden, and only <strong>Scan QR to Verify Authenticity Online</strong> is displayed directly below the QR code.
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
 

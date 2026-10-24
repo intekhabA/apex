@@ -593,6 +593,28 @@ async def download_patient_report_pdf(
     pdf_filename = f"report_v{report.current_version}.pdf"
     rel_pdf_path = f"reports/{report.id}/{pdf_filename}"
 
+    if report.status == ReportStatus.FINAL:
+        res_full = await db.execute(
+            select(Report)
+            .options(
+                selectinload(Report.booking),
+                selectinload(Report.patient),
+                selectinload(Report.test),
+                selectinload(Report.result_values),
+            )
+            .where(Report.id == report_id)
+        )
+        full_report = res_full.scalar_one_or_none()
+        lab_res = await db.execute(
+            select(Laboratory)
+            .options(selectinload(Laboratory.settings))
+            .where(Laboratory.id == report.lab_id)
+        )
+        lab = lab_res.scalar_one_or_none()
+        if full_report and lab:
+            from app.api.routes.reports import render_and_persist_report_pdf
+            rel_pdf_path = await render_and_persist_report_pdf(report=full_report, lab=lab, db=db)
+
     if not await storage_service.file_exists(rel_pdf_path):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -632,8 +654,13 @@ async def download_patient_booking_reports_pdf(
         )
 
     # Fetch Laboratory
-    lab_res = await db.execute(select(Laboratory).where(Laboratory.id == booking.lab_id))
+    lab_res = await db.execute(
+        select(Laboratory)
+        .options(selectinload(Laboratory.settings))
+        .where(Laboratory.id == booking.lab_id)
+    )
     lab = lab_res.scalar_one_or_none()
+    lab_settings = lab.settings if lab else None
 
     # Fetch Reports
     rep_res = await db.execute(
@@ -659,6 +686,13 @@ async def download_patient_booking_reports_pdf(
         "phone": lab.phone if lab else "N/A",
         "email": lab.email if lab else "N/A",
         "license": lab.registration_number if lab else "ISO 15189 / NABL Certified",
+        "default_signatory_name": lab_settings.default_signatory_name if lab_settings else None,
+        "default_signatory_designation": lab_settings.default_signatory_designation if lab_settings else None,
+        "default_signatory_degrees": lab_settings.default_signatory_degrees if lab_settings else None,
+        "default_signatory_reg_no": lab_settings.default_signatory_reg_no if lab_settings else None,
+        "default_signatory_signature_url": lab_settings.default_signatory_signature_url if lab_settings else None,
+        "enable_qr_verification": lab_settings.enable_qr_verification if (lab_settings and lab_settings.enable_qr_verification is not None) else True,
+        "show_qr_side_text": lab_settings.show_qr_side_text if (lab_settings and lab_settings.show_qr_side_text is not None) else True,
     }
     patient = booking.patient
     patient_info = {

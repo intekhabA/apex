@@ -358,6 +358,126 @@ async def approve_report(
     return await get_report_detail(report_id=report_id, db=db, current_user=current_user)
 
 
+async def render_and_persist_report_pdf(
+    report: Report,
+    lab: Laboratory,
+    db: AsyncSession,
+    override_show_header_status: Optional[bool] = None,
+    override_show_qr_side_text: Optional[bool] = None,
+) -> str:
+    lab_settings = lab.settings
+
+    signatory = None
+    if report.approved_by:
+        u_res = await db.execute(select(User).where(User.id == report.approved_by))
+        signatory = u_res.scalar_one_or_none()
+
+    sig_source = None
+    if signatory:
+        sig_source = signatory.signature_image_url
+    if not sig_source and lab_settings:
+        sig_source = lab_settings.default_signatory_signature_url
+
+    signatory_title = (
+        "Consultant Radiologist"
+        if (signatory and getattr(signatory.role, "value", str(signatory.role)) == "RADIOLOGIST")
+        else (lab_settings.default_signatory_designation if lab_settings and lab_settings.default_signatory_designation else "Consultant Pathologist")
+    )
+    signatory_degrees = (signatory.qualifications if signatory else "") or (lab_settings.default_signatory_degrees if lab_settings else "")
+    signatory_reg_no = (signatory.medical_license_number if signatory else "") or (lab_settings.default_signatory_reg_no if lab_settings else "")
+    approved_by_name = (signatory.full_name if signatory else (lab_settings.default_signatory_name if lab_settings else "Authorized Laboratory Pathologist")) or "Authorized Laboratory Pathologist"
+
+    pdf_filename = f"report_v{report.current_version}.pdf"
+    rel_pdf_path = f"reports/{report.id}/{pdf_filename}"
+    output_pdf_path = storage_service.get_local_staging_path(rel_pdf_path)
+    qr_verification_url = f"{settings.APP_URL}/verify/{report.verification_token}"
+
+    show_header_status = override_show_header_status
+    if show_header_status is None and lab_settings:
+        show_header_status = lab_settings.show_report_header_status if lab_settings.show_report_header_status is not None else True
+    elif show_header_status is None:
+        show_header_status = True
+
+    show_qr_side_text = override_show_qr_side_text
+    if show_qr_side_text is None and lab_settings:
+        show_qr_side_text = lab_settings.show_qr_side_text if lab_settings.show_qr_side_text is not None else True
+    elif show_qr_side_text is None:
+        show_qr_side_text = True
+
+    enable_qr = lab_settings.enable_qr_verification if (lab_settings and lab_settings.enable_qr_verification is not None) else True
+
+    lab_info = {
+        "name": lab.name,
+        "address": f"{lab.address_street or ''}, {lab.city or ''} {lab.state or ''}",
+        "phone": lab.phone or "N/A",
+        "email": lab.email or "N/A",
+        "license": lab.registration_number or "Accredited Medical Laboratory",
+        "enable_qr_verification": enable_qr,
+        "show_report_header_status": show_header_status,
+        "show_qr_side_text": show_qr_side_text,
+        "primary_color_hex": lab_settings.primary_color_hex if lab_settings else "#0284c7",
+    }
+    patient_info = {
+        "name": report.patient.full_name if report.patient else "Patient",
+        "id_display": report.patient.patient_id_display if report.patient else "N/A",
+        "age": report.patient.age_years if report.patient else 0,
+        "gender": report.patient.gender.value if report.patient else "N/A",
+        "booking_id_display": (report.booking.booking_id_display if report.booking else "") or "N/A",
+        "referred_by": (report.booking.referring_doctor if (report.booking and report.booking.referring_doctor) else "") or "Self / Dr. Consultation",
+    }
+    test_info = {
+        "name": report.test.name if report.test else "Diagnostic Test",
+        "code": report.test.code if report.test else "",
+    }
+    report_info_dict = {
+        "report_id_display": report.report_id_display,
+        "status": report.status.value,
+        "version": report.current_version,
+        "date": report.finalized_at.strftime("%d-%b-%Y %I:%M %p") if report.finalized_at else "N/A",
+        "finalized_at": report.finalized_at.strftime("%d-%b-%Y %I:%M %p") if report.finalized_at else "N/A",
+        "approved_by_name": approved_by_name,
+        "signatory_title": signatory_title,
+        "signatory_degrees": signatory_degrees,
+        "signatory_reg_no": signatory_reg_no,
+        "signature_image": sig_source,
+        "show_header_status": show_header_status,
+        "show_qr_side_text": show_qr_side_text,
+        "enable_qr_verification": enable_qr,
+    }
+    result_vals_dict = [
+        {
+            "parameter_name": v.parameter_name,
+            "numeric_value": v.numeric_value,
+            "text_value": v.text_value,
+            "unit": v.unit,
+            "reference_range_display": v.reference_range_display,
+            "flag": v.flag.value,
+        }
+        for v in (report.result_values or [])
+    ]
+    narrative_dict = {
+        "clinical_history": report.clinical_history,
+        "imaging_findings": report.imaging_findings,
+        "imaging_impression": report.imaging_impression,
+        "recommendations": report.recommendations,
+    }
+
+    # Render PDF through ReportLab Engine
+    generate_medical_report_pdf(
+        lab_info=lab_info,
+        patient_info=patient_info,
+        test_info=test_info,
+        report_info=report_info_dict,
+        result_values=result_vals_dict,
+        narrative_info=narrative_dict,
+        qr_url=qr_verification_url,
+        hmac_digest=report.hmac_digest or "",
+        output_path=output_pdf_path,
+    )
+    await storage_service.persist_file(output_pdf_path, rel_pdf_path, content_type="application/pdf")
+    return rel_pdf_path
+
+
 @router.post("/{report_id}/finalize", response_model=APIResponse[ReportDetailResponse])
 async def finalize_report(
     report_id: str,
@@ -396,27 +516,6 @@ async def finalize_report(
         .where(Laboratory.id == report.lab_id)
     )
     lab = lab_res.scalar_one()
-    lab_settings = lab.settings
-
-    # Resolve Approving Signatory
-    signatory = current_user
-    if report.approved_by and report.approved_by != current_user.id:
-        u_res = await db.execute(select(User).where(User.id == report.approved_by))
-        u = u_res.scalar_one_or_none()
-        if u:
-            signatory = u
-
-    # Check for doctor's custom signature or lab default signature
-    sig_source = signatory.signature_image_url or (lab_settings.default_signatory_signature_url if lab_settings else None)
-
-    # Signatory Title / Qualifications
-    signatory_title = (
-        "Consultant Radiologist"
-        if getattr(signatory.role, "value", str(signatory.role)) == "RADIOLOGIST"
-        else (lab_settings.default_signatory_designation if lab_settings and lab_settings.default_signatory_designation else "Consultant Pathologist")
-    )
-    signatory_degrees = signatory.qualifications or (lab_settings.default_signatory_degrees if lab_settings else "")
-    signatory_reg_no = signatory.medical_license_number or (lab_settings.default_signatory_reg_no if lab_settings else "")
 
     # Generate or reuse verification token
     if not report.verification_token:
@@ -440,75 +539,7 @@ async def finalize_report(
         status=report.status.value,
     )
 
-    # File paths for ReportLab PDF Generation
-    pdf_filename = f"report_v{report.current_version}.pdf"
-    rel_pdf_path = f"reports/{report.id}/{pdf_filename}"
-    output_pdf_path = storage_service.get_local_staging_path(rel_pdf_path)
-    qr_verification_url = f"{settings.APP_URL}/verify/{report.verification_token}"
-
-    lab_info = {
-        "name": lab.name,
-        "address": f"{lab.address_street or ''}, {lab.city or ''} {lab.state or ''}",
-        "phone": lab.phone or "N/A",
-        "email": lab.email or "N/A",
-        "license": lab.registration_number or "Accredited Medical Laboratory",
-    }
-    patient_info = {
-        "name": report.patient.full_name if report.patient else "Patient",
-        "id_display": report.patient.patient_id_display if report.patient else "N/A",
-        "age": report.patient.age_years if report.patient else 0,
-        "gender": report.patient.gender.value if report.patient else "N/A",
-        "booking_id_display": (report.booking.booking_id_display if report.booking else "") or "N/A",
-        "referred_by": (report.booking.referring_doctor if (report.booking and report.booking.referring_doctor) else "") or "Self / Dr. Consultation",
-    }
-    test_info = {
-        "name": report.test.name,
-        "code": report.test.code,
-    }
-    report_info_dict = {
-        "report_id_display": report.report_id_display,
-        "status": report.status.value,
-        "version": report.current_version,
-        "date": report.finalized_at.strftime("%d-%b-%Y %I:%M %p"),
-        "finalized_at": report.finalized_at.strftime("%d-%b-%Y %I:%M %p"),
-        "approved_by_name": signatory.full_name,
-        "signatory_title": signatory_title,
-        "signatory_degrees": signatory_degrees,
-        "signatory_reg_no": signatory_reg_no,
-        "signature_image": sig_source,
-    }
-    result_vals_dict = [
-        {
-            "parameter_name": v.parameter_name,
-            "numeric_value": v.numeric_value,
-            "text_value": v.text_value,
-            "unit": v.unit,
-            "reference_range_display": v.reference_range_display,
-            "flag": v.flag.value,
-        }
-        for v in report.result_values
-    ]
-    narrative_dict = {
-        "clinical_history": report.clinical_history,
-        "imaging_findings": report.imaging_findings,
-        "imaging_impression": report.imaging_impression,
-        "recommendations": report.recommendations,
-    }
-
-    # Render PDF through ReportLab Engine
-    generate_medical_report_pdf(
-        lab_info=lab_info,
-        patient_info=patient_info,
-        test_info=test_info,
-        report_info=report_info_dict,
-        result_values=result_vals_dict,
-        narrative_info=narrative_dict,
-        qr_url=qr_verification_url,
-        hmac_digest=report.hmac_digest,
-        output_path=output_pdf_path,
-    )
-    await storage_service.persist_file(output_pdf_path, rel_pdf_path, content_type="application/pdf")
-
+    rel_pdf_path = await render_and_persist_report_pdf(report, lab, db)
     report.pdf_file_url = f"/api/reports/{report.id}/download"
 
     await db.commit()
@@ -529,7 +560,7 @@ async def finalize_report(
                 "patient_name": recipient_name,
                 "test_name": report.test.name if report.test else "Diagnostic Test",
                 "report_id_display": report.report_id_display,
-                "lab_name": lab_info["name"],
+                "lab_name": lab.name,
                 "verification_url": verification_link,
             },
             channel=NotificationChannel.EMAIL if report.patient.email else NotificationChannel.SMS,
@@ -541,11 +572,22 @@ async def finalize_report(
 @router.get("/{report_id}/download")
 async def download_report_pdf(
     report_id: str,
+    show_header_status: Optional[bool] = Query(None),
+    show_qr_side_text: Optional[bool] = Query(None),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_lab_staff),
 ):
     """Download the official signed and sealed PDF report."""
-    res = await db.execute(select(Report).where(Report.id == report_id))
+    res = await db.execute(
+        select(Report)
+        .options(
+            selectinload(Report.booking),
+            selectinload(Report.patient),
+            selectinload(Report.test),
+            selectinload(Report.result_values),
+        )
+        .where(Report.id == report_id)
+    )
     report = res.scalar_one_or_none()
     if not report:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found.")
@@ -554,6 +596,22 @@ async def download_report_pdf(
 
     pdf_filename = f"report_v{report.current_version}.pdf"
     rel_pdf_path = f"reports/{report.id}/{pdf_filename}"
+
+    if report.status == ReportStatus.FINAL:
+        lab_res = await db.execute(
+            select(Laboratory)
+            .options(selectinload(Laboratory.settings))
+            .where(Laboratory.id == report.lab_id)
+        )
+        lab = lab_res.scalar_one_or_none()
+        if lab:
+            rel_pdf_path = await render_and_persist_report_pdf(
+                report=report,
+                lab=lab,
+                db=db,
+                override_show_header_status=show_header_status,
+                override_show_qr_side_text=show_qr_side_text,
+            )
 
     if not await storage_service.file_exists(rel_pdf_path):
         raise HTTPException(

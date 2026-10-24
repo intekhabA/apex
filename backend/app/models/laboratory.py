@@ -51,6 +51,8 @@ class LaboratorySettings(Base, UUIDMixin, TimestampMixin):
     currency_symbol = Column(String(5), default="₹")
     default_tax_rate = Column(Numeric(5, 2), default=0.00)
     enable_qr_verification = Column(Boolean, default=True)
+    show_report_header_status = Column(Boolean, default=True)
+    show_qr_side_text = Column(Boolean, default=True)
     primary_color_hex = Column(String(7), default="#0284c7")
     secondary_color_hex = Column(String(7), default="#0f172a")
 
