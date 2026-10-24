@@ -295,9 +295,18 @@ def generate_medical_report_pdf(
     """
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
+    letterhead_bg_image = lab_info.get("letterhead_image")
+    use_letterhead_bg = lab_info.get("use_letterhead_background", True)
+    has_letterhead_bg = bool(
+        letterhead_bg_image
+        and os.path.exists(letterhead_bg_image)
+        and use_letterhead_bg
+        and not is_letterhead
+    )
+
     # 1 mm = 72 / 25.4 points
     mm_pt = 72.0 / 25.4
-    if is_letterhead:
+    if is_letterhead or has_letterhead_bg:
         # Default letterhead header space: ~48mm (~1.9 inches)
         top_m = float(top_margin_mm * mm_pt) if top_margin_mm else (48.0 * mm_pt)
         # Default letterhead footer space: ~28mm (~1.1 inches)
@@ -415,7 +424,7 @@ def generate_medical_report_pdf(
 
     story = []
 
-    if not is_letterhead:
+    if not is_letterhead and not has_letterhead_bg:
         # 1. Header: Laboratory Banner (Standard Plain Paper Mode)
         lab_text = f"<b>{lab_info.get('name', 'TrustMyLab Diagnostic Services')}</b>"
         lab_details = (
@@ -797,14 +806,28 @@ def generate_medical_report_pdf(
         ("TOPPADDING", (0, 0), (-1, -1), 4),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
     ]
-    if not is_letterhead:
+    if not is_letterhead and not has_letterhead_bg:
         footer_styles.append(("LINEABOVE", (0, 0), (-1, 0), 1, brand_color))
     footer_table.setStyle(TableStyle(footer_styles))
 
     story.append(KeepTogether(footer_table))
 
-    # Build PDF
-    doc.build(story)
+    # Build PDF with background if letterhead image configured
+    def draw_letterhead_bg(canvas_obj, doc_obj):
+        if has_letterhead_bg and letterhead_bg_image and os.path.exists(letterhead_bg_image):
+            canvas_obj.saveState()
+            canvas_obj.drawImage(
+                letterhead_bg_image,
+                0,
+                0,
+                width=A4[0],
+                height=A4[1],
+                preserveAspectRatio=False,
+                mask="auto",
+            )
+            canvas_obj.restoreState()
+
+    doc.build(story, onFirstPage=draw_letterhead_bg, onLaterPages=draw_letterhead_bg)
     return output_path
 
 
@@ -1237,6 +1260,8 @@ class NumberedCanvas(canvas.Canvas):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._saved_page_states = []
+        self.is_letterhead = False
+        self.has_letterhead_bg = False
 
     def showPage(self):
         self._saved_page_states.append(dict(self.__dict__))
@@ -1254,19 +1279,22 @@ class NumberedCanvas(canvas.Canvas):
         self.saveState()
         self.setFont("Helvetica", 8)
         self.setFillColor(colors.HexColor("#64748B"))
-        # Running top header on pages 2+
-        if self._pageNumber > 1:
+        # Only draw generic running headers/footers if NOT on letterhead background or pre-printed letterhead
+        if not getattr(self, "is_letterhead", False) and not getattr(self, "has_letterhead_bg", False):
+            # Running top header on pages 2+
+            if self._pageNumber > 1:
+                self.setStrokeColor(colors.HexColor("#CBD5E1"))
+                self.setLineWidth(0.5)
+                self.line(36, A4[1] - 30, A4[0] - 36, A4[1] - 30)
+                self.drawString(36, A4[1] - 24, "TrustMyLab Consolidated Diagnostic Report")
+                self.drawRightString(A4[0] - 36, A4[1] - 24, "Confidential Medical Record")
+
+            # Running bottom footer
             self.setStrokeColor(colors.HexColor("#CBD5E1"))
             self.setLineWidth(0.5)
-            self.line(36, A4[1] - 30, A4[0] - 36, A4[1] - 30)
-            self.drawString(36, A4[1] - 24, "TrustMyLab Consolidated Diagnostic Report")
-            self.drawRightString(A4[0] - 36, A4[1] - 24, "Confidential Medical Record")
+            self.line(36, 30, A4[0] - 36, 30)
+            self.drawString(36, 18, "TrustMyLab — Validated Electronic Health Record — Strictly Confidential")
 
-        # Running bottom footer
-        self.setStrokeColor(colors.HexColor("#CBD5E1"))
-        self.setLineWidth(0.5)
-        self.line(36, 30, A4[0] - 36, 30)
-        self.drawString(36, 18, "TrustMyLab — Validated Electronic Health Record — Strictly Confidential")
         page_text = f"Page {self._pageNumber} of {page_count}"
         self.drawRightString(A4[0] - 36, 18, page_text)
         self.restoreState()
@@ -1286,8 +1314,17 @@ def generate_consolidated_booking_report_pdf(
     """Renders a production-grade Consolidated Diagnostic Report PDF containing all reports for a single booking."""
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
-    top_margin_pt = (top_margin_mm * 72 / 25.4) if top_margin_mm is not None else (48 * 72 / 25.4 if is_letterhead else 36)
-    bottom_margin_pt = (bottom_margin_mm * 72 / 25.4) if bottom_margin_mm is not None else (28 * 72 / 25.4 if is_letterhead else 42)
+    letterhead_bg_image = lab_info.get("letterhead_image")
+    use_letterhead_bg = lab_info.get("use_letterhead_background", True)
+    has_letterhead_bg = bool(
+        letterhead_bg_image
+        and os.path.exists(letterhead_bg_image)
+        and use_letterhead_bg
+        and not is_letterhead
+    )
+
+    top_margin_pt = (top_margin_mm * 72 / 25.4) if top_margin_mm is not None else (48 * 72 / 25.4 if (is_letterhead or has_letterhead_bg) else 36)
+    bottom_margin_pt = (bottom_margin_mm * 72 / 25.4) if bottom_margin_mm is not None else (28 * 72 / 25.4 if (is_letterhead or has_letterhead_bg) else 42)
 
     doc = SimpleDocTemplate(
         output_path,
@@ -1426,7 +1463,7 @@ def generate_consolidated_booking_report_pdf(
     story = []
 
     # 1. Header: Laboratory Banner & Consolidated Document Identification
-    if not is_letterhead:
+    if not is_letterhead and not has_letterhead_bg:
         lab_text = f"<b>{lab_info.get('name', 'TrustMyLab Diagnostic Services')}</b>"
         lab_details = (
             f"{lab_info.get('address', '123 Medical Center Way')}<br/>"
@@ -1948,13 +1985,39 @@ def generate_consolidated_booking_report_pdf(
         ("TOPPADDING", (0, 0), (-1, -1), 4),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
     ]
-    if not is_letterhead:
+    if not is_letterhead and not has_letterhead_bg:
         footer_styles.append(("LINEABOVE", (0, 0), (-1, 0), 1, brand_color))
     footer_table.setStyle(TableStyle(footer_styles))
 
     story.append(KeepTogether(footer_table))
 
+    # Build PDF with background if letterhead image configured
+    def draw_consolidated_letterhead_bg(canvas_obj, doc_obj):
+        if has_letterhead_bg and letterhead_bg_image and os.path.exists(letterhead_bg_image):
+            canvas_obj.saveState()
+            canvas_obj.drawImage(
+                letterhead_bg_image,
+                0,
+                0,
+                width=A4[0],
+                height=A4[1],
+                preserveAspectRatio=False,
+                mask="auto",
+            )
+            canvas_obj.restoreState()
+
+    def make_canvas(*args, **kwargs):
+        c = NumberedCanvas(*args, **kwargs)
+        c.is_letterhead = is_letterhead
+        c.has_letterhead_bg = has_letterhead_bg
+        return c
+
     # Build PDF with NumberedCanvas for professional "Page X of Y"
-    doc.build(story, canvasmaker=NumberedCanvas)
+    doc.build(
+        story,
+        onFirstPage=draw_consolidated_letterhead_bg,
+        onLaterPages=draw_consolidated_letterhead_bg,
+        canvasmaker=make_canvas,
+    )
     return output_path
 

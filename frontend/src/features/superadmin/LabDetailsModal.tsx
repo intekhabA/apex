@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Building2, MapPin, Users, Settings, CheckCircle2, XCircle, FileText } from 'lucide-react';
-import { Modal, Badge, Button, LoadingSpinner, toast } from '@/components/ui';
+import { Building2, MapPin, Users, Settings, CheckCircle2, XCircle, FileText, Upload, Trash2, Image as ImageIcon } from 'lucide-react';
+import { Modal, Badge, Button, LoadingSpinner, toast, confirmDialog } from '@/components/ui';
 import { adminApi } from '@/api/adminService';
 import { LaboratorySettingsUpdatePayload } from '@/types';
 
@@ -17,6 +17,10 @@ export const LabDetailsModal: React.FC<LabDetailsModalProps> = ({ labId, isOpen,
   const [headerStatus, setHeaderStatus] = useState<boolean>(true);
   const [qrEnabled, setQrEnabled] = useState<boolean>(true);
   const [qrSideText, setQrSideText] = useState<boolean>(true);
+  const [topMarginMm, setTopMarginMm] = useState<number>(48);
+  const [bottomMarginMm, setBottomMarginMm] = useState<number>(28);
+  const [useLetterheadBg, setUseLetterheadBg] = useState<boolean>(true);
+  const [isUploadingLetterhead, setIsUploadingLetterhead] = useState<boolean>(false);
 
   const { data: lab, isLoading } = useQuery({
     queryKey: ['adminLabDetail', labId],
@@ -35,6 +39,9 @@ export const LabDetailsModal: React.FC<LabDetailsModalProps> = ({ labId, isOpen,
       setHeaderStatus(lab.settings.show_report_header_status ?? true);
       setQrEnabled(lab.settings.enable_qr_verification ?? true);
       setQrSideText(lab.settings.show_qr_side_text ?? true);
+      setTopMarginMm(lab.settings.letterhead_top_margin_mm ?? 48);
+      setBottomMarginMm(lab.settings.letterhead_bottom_margin_mm ?? 28);
+      setUseLetterheadBg(lab.settings.use_letterhead_background ?? true);
     }
   }, [lab?.settings]);
 
@@ -57,7 +64,51 @@ export const LabDetailsModal: React.FC<LabDetailsModalProps> = ({ labId, isOpen,
       show_report_header_status: headerStatus,
       enable_qr_verification: qrEnabled,
       show_qr_side_text: qrSideText,
+      letterhead_top_margin_mm: topMarginMm,
+      letterhead_bottom_margin_mm: bottomMarginMm,
+      use_letterhead_background: useLetterheadBg,
     });
+  };
+
+  const handleLetterheadUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !labId) return;
+    setIsUploadingLetterhead(true);
+    try {
+      await adminApi.uploadLaboratoryLetterhead(labId, file);
+      queryClient.invalidateQueries({ queryKey: ['adminLabDetail', labId] });
+      queryClient.invalidateQueries({ queryKey: ['adminLaboratories'] });
+      toast.success(`Letterhead background image uploaded for '${lab?.name}'.`);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || err?.message || 'Failed to upload letterhead image.');
+    } finally {
+      setIsUploadingLetterhead(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleLetterheadDelete = async () => {
+    if (!labId) return;
+    const confirmed = await confirmDialog({
+      title: 'Remove Letterhead Image?',
+      message: `Are you sure you want to remove the custom letterhead background for ${lab?.name}? Reports will revert to plain paper format.`,
+      confirmText: 'Yes, Remove Letterhead',
+      cancelText: 'Cancel',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
+
+    setIsUploadingLetterhead(true);
+    try {
+      await adminApi.deleteLaboratoryLetterhead(labId);
+      queryClient.invalidateQueries({ queryKey: ['adminLabDetail', labId] });
+      queryClient.invalidateQueries({ queryKey: ['adminLaboratories'] });
+      toast.success(`Letterhead image removed for '${lab?.name}'.`);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || err?.message || 'Failed to remove letterhead image.');
+    } finally {
+      setIsUploadingLetterhead(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -214,6 +265,156 @@ export const LabDetailsModal: React.FC<LabDetailsModalProps> = ({ labId, isOpen,
                     <p className="text-[11px] text-slate-500">
                       When unchecked, side verification text (Portal URL &amp; HMAC digest) is hidden, and only <strong>Scan QR to Verify Authenticity Online</strong> is displayed directly below the QR code.
                     </p>
+                  </div>
+                </div>
+
+                {/* Section Divider */}
+                <div className="border-t border-slate-100 pt-3">
+                  <h5 className="font-bold text-xs uppercase tracking-wider text-slate-700 flex items-center gap-1.5 mb-2">
+                    <ImageIcon className="w-3.5 h-3.5 text-teal-600" /> A4 Letterhead Background Graphic
+                  </h5>
+                  <p className="text-[11px] text-slate-500 mb-3">
+                    Upload a high-resolution A4 letterhead graphic (with header logo/clinic details and footer). It will be rendered as the official full-page background on generated PDF reports for this laboratory.
+                  </p>
+
+                  {lab.settings.letterhead_image_url ? (
+                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                          <img
+                            src={`/storage/${lab.settings.letterhead_image_url.replace(/^(\.\/)?storage\//, '')}`}
+                            alt="Letterhead Preview"
+                            className="w-16 h-20 object-cover rounded border border-slate-300 shadow-sm bg-white"
+                          />
+                          <div>
+                            <span className="text-xs font-bold text-slate-800 block">
+                              Active Letterhead Background Template
+                            </span>
+                            <span className="text-[11px] text-emerald-700 font-medium flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Loaded &amp; Ready for PDF Generation
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <label className="cursor-pointer">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 shadow-sm">
+                              <Upload className="w-3 h-3 text-slate-500" />
+                              {isUploadingLetterhead ? 'Uploading...' : 'Replace'}
+                            </span>
+                            <input
+                              type="file"
+                              accept="image/png,image/jpeg,image/webp"
+                              className="hidden"
+                              disabled={isUploadingLetterhead}
+                              onChange={handleLetterheadUpload}
+                            />
+                          </label>
+
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={handleLetterheadDelete}
+                            disabled={isUploadingLetterhead}
+                            className="text-xs text-rose-600 border-rose-200 hover:bg-rose-50 h-7 px-2"
+                            title="Remove Letterhead Image"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-2 pt-2 border-t border-slate-200">
+                        <input
+                          type="checkbox"
+                          id="modal_use_letterhead_bg"
+                          checked={useLetterheadBg}
+                          onChange={(e) => setUseLetterheadBg(e.target.checked)}
+                          className="rounded border-slate-300 text-teal-600 focus:ring-teal-500 w-4 h-4 mt-0.5 cursor-pointer"
+                        />
+                        <div>
+                          <label htmlFor="modal_use_letterhead_bg" className="text-xs font-bold text-slate-800 cursor-pointer">
+                            Display Letterhead Background on PDF Reports
+                          </label>
+                          <p className="text-[10px] text-slate-500">
+                            When enabled, report text and tables are overlaid directly on this graphic letterhead.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-3 bg-slate-50 border border-dashed border-slate-300 rounded-xl flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-9 h-9 rounded-lg bg-teal-50 text-teal-600 flex items-center justify-center shrink-0">
+                          <ImageIcon className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <span className="text-xs font-bold text-slate-700 block">
+                            No Custom Letterhead Uploaded
+                          </span>
+                          <span className="text-[11px] text-slate-500">
+                            Standard digital header and footer text are currently being used.
+                          </span>
+                        </div>
+                      </div>
+
+                      <label className="cursor-pointer shrink-0">
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-teal-600 rounded-lg hover:bg-teal-700 shadow-sm">
+                          <Upload className="w-3.5 h-3.5" />
+                          {isUploadingLetterhead ? 'Uploading...' : 'Upload A4 Letterhead'}
+                        </span>
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp"
+                          className="hidden"
+                          disabled={isUploadingLetterhead}
+                          onChange={handleLetterheadUpload}
+                        />
+                      </label>
+                    </div>
+                  )}
+
+                  {/* Margin Inputs */}
+                  <div className="grid grid-cols-2 gap-3 mt-3 pt-3 border-t border-slate-100">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                        Header Clearance Margin (mm):
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          min={10}
+                          max={120}
+                          value={topMarginMm}
+                          onChange={(e) => setTopMarginMm(Math.max(10, parseInt(e.target.value) || 0))}
+                          className="w-16 px-2 py-1 text-xs border border-slate-300 rounded-lg text-slate-800 font-bold text-center focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                        />
+                        <span className="text-[11px] text-slate-500">mm (~{(topMarginMm / 25.4).toFixed(1)} in)</span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 block mt-0.5">
+                        Height reserved at page top for letterhead banner.
+                      </span>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                        Footer Clearance Margin (mm):
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          min={10}
+                          max={100}
+                          value={bottomMarginMm}
+                          onChange={(e) => setBottomMarginMm(Math.max(10, parseInt(e.target.value) || 0))}
+                          className="w-16 px-2 py-1 text-xs border border-slate-300 rounded-lg text-slate-800 font-bold text-center focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                        />
+                        <span className="text-[11px] text-slate-500">mm (~{(bottomMarginMm / 25.4).toFixed(1)} in)</span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 block mt-0.5">
+                        Height reserved at page bottom for letterhead footer.
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>

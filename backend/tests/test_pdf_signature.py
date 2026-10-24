@@ -325,4 +325,71 @@ def test_generate_consolidated_booking_report_pdf_letterhead_mode(tmp_path):
     assert "Should Not Appear In Consolidated Letterhead Top" not in pdf_text
 
 
+def test_generate_medical_report_pdf_with_background_image(tmp_path):
+    """Verify medical report PDF renders with full-bleed letterhead background image."""
+    import subprocess
+    # Create dummy letterhead PNG image
+    lh_img_path = str(tmp_path / "lab_letterhead_bg.png")
+    dummy_img = PILImage.new("RGB", (1240, 1754), (245, 250, 255))
+    dummy_img.save(lh_img_path, format="PNG")
+
+    lab_info = {
+        "name": "Generic Digital Name Not Displayed When BG Active",
+        "address": "123 Physical Street",
+        "phone": "555-0100",
+        "email": "lab@example.com",
+        "letterhead_image": lh_img_path,
+        "use_letterhead_background": True,
+    }
+    patient_info = {
+        "name": "Letterhead Image Patient",
+        "id_display": "PAT-LH-IMG-1",
+        "age": 30,
+        "gender": "Male",
+        "booking_id_display": "BKG-LH-IMG-1",
+    }
+    test_info = {"name": "Liver Function Test", "code": "LFT-01"}
+    report_info = {
+        "report_id_display": "REP-BG-001",
+        "status": "FINAL",
+        "version": 1,
+        "date": "24-Oct-2026",
+    }
+    result_vals = [
+        {
+            "parameter_name": "SGPT (ALT)",
+            "numeric_value": 28.0,
+            "text_value": None,
+            "unit": "U/L",
+            "reference_range_display": "0 - 45",
+            "flag": "NORMAL",
+        }
+    ]
+    out_pdf = str(tmp_path / "report_with_background.pdf")
+    generate_medical_report_pdf(
+        lab_info=lab_info,
+        patient_info=patient_info,
+        test_info=test_info,
+        report_info=report_info,
+        result_values=result_vals,
+        narrative_info={},
+        qr_url="https://trustmylab.in/verify/bg1",
+        hmac_digest="abcde12345",
+        output_path=out_pdf,
+        is_letterhead=False,
+        top_margin_mm=48,
+        bottom_margin_mm=28,
+    )
+
+    assert os.path.exists(out_pdf)
+    assert os.path.getsize(out_pdf) > 2000
+
+    res = subprocess.run(["pdftotext", out_pdf, "-"], capture_output=True, text=True)
+    pdf_text = res.stdout
+    assert "Letterhead Image Patient" in pdf_text
+    assert "SGPT (ALT)" in pdf_text
+    assert "Generic Digital Name Not Displayed When BG Active" not in pdf_text
+
+
+
 

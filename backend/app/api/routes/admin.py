@@ -1,6 +1,7 @@
+import os
 from typing import List, Optional
 from decimal import Decimal
-from fastapi import APIRouter, Depends, HTTPException, Query, status, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, status, Request, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_, delete
 from sqlalchemy.orm import selectinload
@@ -39,6 +40,7 @@ from app.schemas.imaging import (
 )
 from app.services.audit_service import AuditService
 from app.services.dashboard_service import DashboardService
+from app.services.storage_service import storage_service
 
 
 router = APIRouter(prefix="/admin", tags=["Super Admin Platform Management"])
@@ -398,6 +400,81 @@ async def update_laboratory_settings_superadmin(
         success=True,
         message=f"Settings for laboratory '{lab.name}' updated successfully.",
         data=LaboratorySettingsResponse.model_validate(settings),
+    )
+
+
+@router.post("/laboratories/{lab_id}/letterhead", response_model=APIResponse[LaboratorySettingsResponse])
+async def upload_laboratory_letterhead_superadmin(
+    lab_id: str,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_super_admin),
+):
+    """Upload custom background letterhead image for a laboratory by Super Admin."""
+    lab_res = await db.execute(select(Laboratory).where(Laboratory.id == lab_id, Laboratory.deleted_at.is_(None)))
+    lab = lab_res.scalar_one_or_none()
+    if not lab:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Laboratory not found.")
+
+    contents = await file.read()
+    if len(contents) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Letterhead image must be under 10 MB.")
+
+    res = await db.execute(select(LaboratorySettings).where(LaboratorySettings.lab_id == lab_id))
+    settings = res.scalar_one_or_none()
+    if not settings:
+        settings = LaboratorySettings(lab_id=lab_id)
+        db.add(settings)
+
+    ext = os.path.splitext(file.filename or "")[1].lower() or ".png"
+    if ext not in [".png", ".jpg", ".jpeg", ".webp"]:
+        ext = ".png"
+
+    rel_path = f"letterheads/labs/{lab_id}/letterhead{ext}"
+    stored_path = await storage_service.save_file_bytes(
+        file_bytes=contents,
+        rel_path=rel_path,
+        content_type=file.content_type or "image/png",
+    )
+    settings.letterhead_image_url = stored_path
+    settings.use_letterhead_background = True
+    await db.commit()
+    await db.refresh(settings)
+
+    return APIResponse(
+        success=True,
+        message=f"Letterhead image for '{lab.name}' uploaded successfully.",
+        data=LaboratorySettingsResponse.model_validate(settings),
+    )
+
+
+@router.delete("/laboratories/{lab_id}/letterhead", response_model=APIResponse[LaboratorySettingsResponse])
+async def delete_laboratory_letterhead_superadmin(
+    lab_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_super_admin),
+):
+    """Remove custom background letterhead image for a laboratory by Super Admin."""
+    lab_res = await db.execute(select(Laboratory).where(Laboratory.id == lab_id, Laboratory.deleted_at.is_(None)))
+    lab = lab_res.scalar_one_or_none()
+    if not lab:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Laboratory not found.")
+
+    res = await db.execute(select(LaboratorySettings).where(LaboratorySettings.lab_id == lab_id))
+    settings = res.scalar_one_or_none()
+    if settings and settings.letterhead_image_url:
+        try:
+            await storage_service.delete_file(settings.letterhead_image_url)
+        except Exception:
+            pass
+        settings.letterhead_image_url = None
+        await db.commit()
+        await db.refresh(settings)
+
+    return APIResponse(
+        success=True,
+        message=f"Letterhead image for '{lab.name}' removed successfully.",
+        data=LaboratorySettingsResponse.model_validate(settings) if settings else None,
     )
 
 

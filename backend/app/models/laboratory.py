@@ -55,6 +55,8 @@ class LaboratorySettings(Base, UUIDMixin, TimestampMixin):
     show_qr_side_text = Column(Boolean, default=True)
     letterhead_top_margin_mm = Column(Integer, default=48, nullable=True)
     letterhead_bottom_margin_mm = Column(Integer, default=28, nullable=True)
+    letterhead_image_url = Column(Text, nullable=True)
+    use_letterhead_background = Column(Boolean, default=True, nullable=True)
     primary_color_hex = Column(String(7), default="#0284c7")
     secondary_color_hex = Column(String(7), default="#0f172a")
 

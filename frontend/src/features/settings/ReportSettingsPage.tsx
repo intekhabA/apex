@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { FileCheck, Save, ShieldCheck, QrCode, PenTool, Upload, Trash2, Building2, Printer } from 'lucide-react';
+import { FileCheck, Save, ShieldCheck, QrCode, PenTool, Upload, Trash2, Building2, Image as ImageIcon, CheckCircle2 } from 'lucide-react';
 import { labApi } from '@/api/labService';
 import { adminApi } from '@/api/adminService';
 import { useAuthStore } from '@/store/authStore';
@@ -18,6 +18,7 @@ const settingsSchema = z.object({
   enable_qr_verification: z.boolean(),
   show_report_header_status: z.boolean(),
   show_qr_side_text: z.boolean(),
+  use_letterhead_background: z.boolean().optional(),
   letterhead_top_margin_mm: z.coerce.number().min(10).max(120).optional(),
   letterhead_bottom_margin_mm: z.coerce.number().min(10).max(100).optional(),
   primary_color_hex: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Must be valid hex color (e.g. #0284c7)'),
@@ -39,6 +40,7 @@ export const ReportSettingsPage: React.FC = () => {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isUploadingSig, setIsUploadingSig] = useState<boolean>(false);
+  const [isUploadingLetterhead, setIsUploadingLetterhead] = useState<boolean>(false);
 
   const { data: laboratories = [] } = useQuery({
     queryKey: ['adminLaboratories'],
@@ -80,6 +82,7 @@ export const ReportSettingsPage: React.FC = () => {
         enable_qr_verification: settings.enable_qr_verification ?? true,
         show_report_header_status: settings.show_report_header_status ?? true,
         show_qr_side_text: settings.show_qr_side_text ?? true,
+        use_letterhead_background: settings.use_letterhead_background ?? true,
         letterhead_top_margin_mm: settings.letterhead_top_margin_mm ?? 48,
         letterhead_bottom_margin_mm: settings.letterhead_bottom_margin_mm ?? 28,
         primary_color_hex: settings.primary_color_hex || '#0284c7',
@@ -156,6 +159,52 @@ export const ReportSettingsPage: React.FC = () => {
       toast.error(msg);
     } finally {
       setIsUploadingSig(false);
+    }
+  };
+
+  const handleLetterheadUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingLetterhead(true);
+    setErrorMessage(null);
+    try {
+      const updated = await labApi.uploadLetterhead(file, activeLabId);
+      queryClient.setQueryData(['labSettings', activeLabId], updated);
+      setSuccessMessage('Laboratory letterhead background graphic uploaded successfully.');
+      toast.success('Laboratory letterhead background graphic uploaded successfully.');
+    } catch (err: any) {
+      const msg = err?.response?.data?.detail || err?.message || 'Failed to upload letterhead image';
+      setErrorMessage(msg);
+      toast.error(msg);
+    } finally {
+      setIsUploadingLetterhead(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleLetterheadDelete = async () => {
+    const confirmed = await confirmDialog({
+      title: 'Remove Laboratory Letterhead Graphic?',
+      message: 'Are you sure you want to remove this letterhead graphic? Reports will revert to plain paper format without background.',
+      confirmText: 'Yes, Remove Letterhead',
+      cancelText: 'Cancel',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
+
+    setIsUploadingLetterhead(true);
+    setErrorMessage(null);
+    try {
+      const updated = await labApi.deleteLetterhead(activeLabId);
+      queryClient.setQueryData(['labSettings', activeLabId], updated);
+      setSuccessMessage('Laboratory letterhead graphic removed successfully.');
+      toast.success('Laboratory letterhead graphic removed successfully.');
+    } catch (err: any) {
+      const msg = err?.response?.data?.detail || err?.message || 'Failed to remove letterhead';
+      setErrorMessage(msg);
+      toast.error(msg);
+    } finally {
+      setIsUploadingLetterhead(false);
     }
   };
 
@@ -440,31 +489,136 @@ export const ReportSettingsPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Pre-Printed A4 Letterhead Margins */}
+              {/* Lab Letterhead Background Image & Clearance Margins */}
               <div className="border-t border-slate-200 pt-4 mt-4">
                 <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-1">
-                  <Printer className="w-4 h-4 text-teal-600" />
-                  A4 Pre-Printed Letterhead Paper Margins
+                  <ImageIcon className="w-4 h-4 text-teal-600" />
+                  A4 Laboratory Letterhead Graphic &amp; Clearance Margins
                 </h4>
-                <p className="text-xs text-slate-500 mb-3">
-                  Default margin clearance when printing reports on physical stationery that already has pre-printed headers and footers.
+                <p className="text-xs text-slate-500 mb-4">
+                  Upload an official A4 letterhead graphic (with your lab's pre-designed header branding and footer). When enabled, this letterhead is rendered as the full-page background on patient diagnostic reports.
                 </p>
+
+                {/* Letterhead Preview / Upload Box */}
+                <div className="mb-4">
+                  {settings?.letterhead_image_url ? (
+                    <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                          <img
+                            src={`/storage/${settings.letterhead_image_url.replace(/^(\.\/)?storage\//, '')}`}
+                            alt="Letterhead Preview"
+                            className="w-16 h-22 object-cover rounded-lg border border-slate-300 shadow-sm bg-white"
+                          />
+                          <div>
+                            <span className="text-xs font-bold text-slate-900 block">
+                              Active Letterhead Background Graphic
+                            </span>
+                            <span className="text-[11px] text-emerald-700 font-medium flex items-center gap-1 mt-0.5">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Rendered on PDF Reports
+                            </span>
+                            <span className="text-[10px] text-slate-400 block mt-0.5">
+                              Recommended resolution: 1240 × 1754 px or 2480 × 3508 px (A4 standard)
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 self-end sm:self-auto">
+                          <label className="cursor-pointer">
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 shadow-sm">
+                              <Upload className="w-3.5 h-3.5 text-slate-500" />
+                              {isUploadingLetterhead ? 'Uploading...' : 'Replace Letterhead'}
+                            </span>
+                            <input
+                              type="file"
+                              accept="image/png,image/jpeg,image/webp"
+                              className="hidden"
+                              disabled={isUploadingLetterhead}
+                              onChange={handleLetterheadUpload}
+                            />
+                          </label>
+
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={handleLetterheadDelete}
+                            disabled={isUploadingLetterhead}
+                            className="text-xs text-rose-600 border-rose-200 hover:bg-rose-50 h-8 px-2.5"
+                            title="Remove Letterhead Image"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-2 pt-2 border-t border-slate-200">
+                        <input
+                          type="checkbox"
+                          id="use_letterhead_background"
+                          className="rounded border-slate-300 text-teal-600 focus:ring-teal-500 w-4 h-4 mt-0.5 cursor-pointer"
+                          {...register('use_letterhead_background')}
+                        />
+                        <div>
+                          <label htmlFor="use_letterhead_background" className="text-xs font-bold text-slate-800 cursor-pointer">
+                            Display Letterhead Background on Generated PDF Reports
+                          </label>
+                          <p className="text-[11px] text-slate-500">
+                            When enabled, report text and tables flow on top of this background graphic.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-4 bg-slate-50 border border-dashed border-slate-300 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center shrink-0">
+                          <ImageIcon className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <span className="text-xs font-bold text-slate-800 block">
+                            No Letterhead Background Uploaded
+                          </span>
+                          <span className="text-[11px] text-slate-500">
+                            Upload a pre-designed A4 letterhead graphic (PNG/JPG, up to 10MB) to brand all reports for this lab.
+                          </span>
+                        </div>
+                      </div>
+
+                      <label className="cursor-pointer shrink-0">
+                        <span className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-teal-600 rounded-lg hover:bg-teal-700 shadow-sm">
+                          <Upload className="w-3.5 h-3.5" />
+                          {isUploadingLetterhead ? 'Uploading...' : 'Upload A4 Letterhead'}
+                        </span>
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp"
+                          className="hidden"
+                          disabled={isUploadingLetterhead}
+                          onChange={handleLetterheadUpload}
+                        />
+                      </label>
+                    </div>
+                  )}
+                </div>
+
+                {/* Clearance Margins */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Top Margin for Pre-Printed Header (mm)
+                      Header Clearance Margin (mm)
                     </label>
                     <Input
                       type="number"
-                      min={20}
+                      min={10}
                       max={120}
                       {...register('letterhead_top_margin_mm')}
                     />
-                    <span className="text-[11px] text-slate-400 mt-1 block">Default: 48 mm (~1.9 inches)</span>
+                    <span className="text-[11px] text-slate-400 mt-1 block">Default: 48 mm (~1.9 in) — Top space reserved for header graphic</span>
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Bottom Margin for Pre-Printed Footer (mm)
+                      Footer Clearance Margin (mm)
                     </label>
                     <Input
                       type="number"
@@ -472,7 +626,7 @@ export const ReportSettingsPage: React.FC = () => {
                       max={100}
                       {...register('letterhead_bottom_margin_mm')}
                     />
-                    <span className="text-[11px] text-slate-400 mt-1 block">Default: 28 mm (~1.1 inches)</span>
+                    <span className="text-[11px] text-slate-400 mt-1 block">Default: 28 mm (~1.1 in) — Bottom space reserved for footer graphic</span>
                   </div>
                 </div>
               </div>

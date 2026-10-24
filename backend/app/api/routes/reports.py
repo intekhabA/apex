@@ -434,6 +434,14 @@ async def render_and_persist_report_pdf(
 
     enable_qr = lab_settings.enable_qr_verification if (lab_settings and lab_settings.enable_qr_verification is not None) else True
 
+    letterhead_image = None
+    if lab_settings and lab_settings.letterhead_image_url:
+        resolved_path = storage_service.get_local_path(lab_settings.letterhead_image_url)
+        if os.path.exists(resolved_path):
+            letterhead_image = resolved_path
+        elif os.path.exists(lab_settings.letterhead_image_url):
+            letterhead_image = lab_settings.letterhead_image_url
+
     lab_info = {
         "name": lab.name,
         "address": f"{lab.address_street or ''}, {lab.city or ''} {lab.state or ''}",
@@ -444,6 +452,8 @@ async def render_and_persist_report_pdf(
         "show_report_header_status": show_header_status,
         "show_qr_side_text": show_qr_side_text,
         "primary_color_hex": lab_settings.primary_color_hex if lab_settings else "#0284c7",
+        "letterhead_image": letterhead_image,
+        "use_letterhead_background": lab_settings.use_letterhead_background if (lab_settings and lab_settings.use_letterhead_background is not None) else True,
     }
     patient_info = {
         "name": report.patient.full_name if report.patient else "Patient",

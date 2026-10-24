@@ -129,6 +129,30 @@ export const labApi = {
     return res.data.data;
   },
 
+  uploadLetterhead: async (file: File, labId?: string): Promise<LaboratorySettings> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const query = labId ? `?lab_id=${encodeURIComponent(labId)}` : '';
+    const res = await apiClient.post<APIResponse<LaboratorySettings>>(
+      `/lab/letterhead${query}`,
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    );
+    if (!res.data.success || !res.data.data) {
+      throw new Error(res.data.message || 'Failed to upload laboratory letterhead');
+    }
+    return res.data.data;
+  },
+
+  deleteLetterhead: async (labId?: string): Promise<LaboratorySettings> => {
+    const query = labId ? `?lab_id=${encodeURIComponent(labId)}` : '';
+    const res = await apiClient.delete<APIResponse<LaboratorySettings>>(`/lab/letterhead${query}`);
+    if (!res.data.success || !res.data.data) {
+      throw new Error(res.data.message || 'Failed to remove letterhead');
+    }
+    return res.data.data;
+  },
+
   getPermissionModules: async (): Promise<PermissionModulesResponse> => {
     const res = await apiClient.get<APIResponse<PermissionModulesResponse>>('/lab/permissions/modules');
     if (!res.data.success || !res.data.data) {

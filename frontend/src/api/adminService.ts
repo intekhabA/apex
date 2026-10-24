@@ -87,6 +87,30 @@ export const adminApi = {
     return res.data.data;
   },
 
+  uploadLaboratoryLetterhead: async (labId: string, file: File): Promise<LaboratorySettings> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await apiClient.post<APIResponse<LaboratorySettings>>(
+      `/admin/laboratories/${labId}/letterhead`,
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    );
+    if (!res.data.success || !res.data.data) {
+      throw new Error(res.data.message || 'Failed to upload laboratory letterhead');
+    }
+    return res.data.data;
+  },
+
+  deleteLaboratoryLetterhead: async (labId: string): Promise<LaboratorySettings> => {
+    const res = await apiClient.delete<APIResponse<LaboratorySettings>>(
+      `/admin/laboratories/${labId}/letterhead`
+    );
+    if (!res.data.success || !res.data.data) {
+      throw new Error(res.data.message || 'Failed to remove laboratory letterhead');
+    }
+    return res.data.data;
+  },
+
   updateLaboratory: async (
     labId: string,
     payload: LaboratoryUpdatePayload

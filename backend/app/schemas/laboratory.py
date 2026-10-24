@@ -69,6 +69,8 @@ class LaboratorySettingsUpdate(BaseModel):
     show_qr_side_text: Optional[bool] = None
     letterhead_top_margin_mm: Optional[int] = None
     letterhead_bottom_margin_mm: Optional[int] = None
+    letterhead_image_url: Optional[str] = None
+    use_letterhead_background: Optional[bool] = None
     primary_color_hex: Optional[str] = None
     secondary_color_hex: Optional[str] = None
     default_signatory_name: Optional[str] = None
@@ -90,6 +92,8 @@ class LaboratorySettingsResponse(LaboratorySettingsUpdate):
     show_qr_side_text: bool = True
     letterhead_top_margin_mm: Optional[int] = 48
     letterhead_bottom_margin_mm: Optional[int] = 28
+    letterhead_image_url: Optional[str] = None
+    use_letterhead_background: bool = True
     notify_on_booking: bool = True
     notify_on_sample_collected: bool = True
     notify_on_report_finalized: bool = True

@@ -253,6 +253,79 @@ async def delete_lab_default_signature(
     )
 
 
+@router.post("/letterhead", response_model=APIResponse[LaboratorySettingsResponse])
+async def upload_lab_letterhead(
+    lab_id: Optional[str] = Query(None),
+    file: UploadFile = File(...),
+    current_user: User = Depends(require_lab_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Upload laboratory letterhead background image."""
+    target_lab_id = lab_id if (getattr(current_user.role, "value", str(current_user.role)) == "SUPER_ADMIN" and lab_id) else current_user.lab_id
+    if not target_lab_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No active laboratory.")
+
+    contents = await file.read()
+    if len(contents) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Letterhead image must be under 10 MB.")
+
+    res = await db.execute(select(LaboratorySettings).where(LaboratorySettings.lab_id == target_lab_id))
+    settings = res.scalar_one_or_none()
+    if not settings:
+        settings = LaboratorySettings(lab_id=target_lab_id)
+        db.add(settings)
+
+    ext = os.path.splitext(file.filename or "")[1].lower() or ".png"
+    if ext not in [".png", ".jpg", ".jpeg", ".webp"]:
+        ext = ".png"
+
+    rel_path = f"letterheads/labs/{target_lab_id}/letterhead{ext}"
+    stored_path = await storage_service.save_file_bytes(
+        file_bytes=contents,
+        rel_path=rel_path,
+        content_type=file.content_type or "image/png",
+    )
+    settings.letterhead_image_url = stored_path
+    settings.use_letterhead_background = True
+    await db.commit()
+    await db.refresh(settings)
+
+    return APIResponse(
+        success=True,
+        message="Laboratory letterhead uploaded successfully.",
+        data=LaboratorySettingsResponse.model_validate(settings),
+    )
+
+
+@router.delete("/letterhead", response_model=APIResponse[LaboratorySettingsResponse])
+async def delete_lab_letterhead(
+    lab_id: Optional[str] = Query(None),
+    current_user: User = Depends(require_lab_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Remove laboratory custom letterhead image."""
+    target_lab_id = lab_id if (getattr(current_user.role, "value", str(current_user.role)) == "SUPER_ADMIN" and lab_id) else current_user.lab_id
+    if not target_lab_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No active laboratory.")
+
+    res = await db.execute(select(LaboratorySettings).where(LaboratorySettings.lab_id == target_lab_id))
+    settings = res.scalar_one_or_none()
+    if settings and settings.letterhead_image_url:
+        try:
+            await storage_service.delete_file(settings.letterhead_image_url)
+        except Exception:
+            pass
+        settings.letterhead_image_url = None
+        await db.commit()
+        await db.refresh(settings)
+
+    return APIResponse(
+        success=True,
+        message="Laboratory letterhead removed.",
+        data=LaboratorySettingsResponse.model_validate(settings) if settings else None,
+    )
+
+
 
 @router.get("/users", response_model=APIResponse[List[UserResponse]])
 async def list_lab_staff(

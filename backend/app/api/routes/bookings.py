@@ -614,6 +614,14 @@ async def download_booking_reports_pdf(
             detail="No diagnostic reports found for this booking order.",
         )
 
+    letterhead_image = None
+    if lab_settings and lab_settings.letterhead_image_url:
+        resolved_path = storage_service.get_local_path(lab_settings.letterhead_image_url)
+        if os.path.exists(resolved_path):
+            letterhead_image = resolved_path
+        elif os.path.exists(lab_settings.letterhead_image_url):
+            letterhead_image = lab_settings.letterhead_image_url
+
     # 4. Prepare data payloads
     lab_info = {
         "name": lab.name if lab else "TrustMyLab Diagnostic Services",
@@ -628,6 +636,8 @@ async def download_booking_reports_pdf(
         "default_signatory_signature_url": lab_settings.default_signatory_signature_url if lab_settings else None,
         "enable_qr_verification": lab_settings.enable_qr_verification if (lab_settings and lab_settings.enable_qr_verification is not None) else True,
         "show_qr_side_text": lab_settings.show_qr_side_text if (lab_settings and lab_settings.show_qr_side_text is not None) else True,
+        "letterhead_image": letterhead_image,
+        "use_letterhead_background": lab_settings.use_letterhead_background if (lab_settings and lab_settings.use_letterhead_background is not None) else True,
     }
     patient = booking.patient
     patient_info = {
