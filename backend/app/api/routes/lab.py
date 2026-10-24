@@ -1,6 +1,6 @@
 import os
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Request, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, status, Request, UploadFile, File, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -102,20 +102,33 @@ async def update_lab_profile(
 
 @router.get("/settings", response_model=APIResponse[LaboratorySettingsResponse])
 async def get_lab_settings(
+    lab_id: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_lab_staff),
 ):
     """Retrieve laboratory configuration, report headers, signatories, and disclaimers."""
-    if not current_user.lab_id:
+    target_lab_id = current_user.lab_id
+    if getattr(current_user.role, "value", str(current_user.role)) == "SUPER_ADMIN":
+        if lab_id:
+            target_lab_id = lab_id
+        elif not target_lab_id:
+            first_lab = await db.execute(
+                select(Laboratory).where(Laboratory.deleted_at.is_(None)).order_by(Laboratory.created_at)
+            )
+            fl = first_lab.scalars().first()
+            if fl:
+                target_lab_id = str(fl.id)
+
+    if not target_lab_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No active laboratory.")
 
     res = await db.execute(
-        select(LaboratorySettings).where(LaboratorySettings.lab_id == current_user.lab_id)
+        select(LaboratorySettings).where(LaboratorySettings.lab_id == target_lab_id)
     )
     settings = res.scalar_one_or_none()
     if not settings:
         # Create default settings if not yet existing
-        settings = LaboratorySettings(lab_id=current_user.lab_id)
+        settings = LaboratorySettings(lab_id=target_lab_id)
         db.add(settings)
         await db.commit()
         await db.refresh(settings)
@@ -130,19 +143,32 @@ async def get_lab_settings(
 @router.put("/settings", response_model=APIResponse[LaboratorySettingsResponse])
 async def update_lab_settings(
     payload: LaboratorySettingsUpdate,
+    lab_id: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_lab_admin),
 ):
     """Configure report templates, signatory credentials, tax rates, and disclaimers."""
-    if not current_user.lab_id:
+    target_lab_id = current_user.lab_id
+    if getattr(current_user.role, "value", str(current_user.role)) == "SUPER_ADMIN":
+        if lab_id:
+            target_lab_id = lab_id
+        elif not target_lab_id:
+            first_lab = await db.execute(
+                select(Laboratory).where(Laboratory.deleted_at.is_(None)).order_by(Laboratory.created_at)
+            )
+            fl = first_lab.scalars().first()
+            if fl:
+                target_lab_id = str(fl.id)
+
+    if not target_lab_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No active laboratory.")
 
     res = await db.execute(
-        select(LaboratorySettings).where(LaboratorySettings.lab_id == current_user.lab_id)
+        select(LaboratorySettings).where(LaboratorySettings.lab_id == target_lab_id)
     )
     settings = res.scalar_one_or_none()
     if not settings:
-        settings = LaboratorySettings(lab_id=current_user.lab_id)
+        settings = LaboratorySettings(lab_id=target_lab_id)
         db.add(settings)
 
     update_data = payload.model_dump(exclude_unset=True)

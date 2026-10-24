@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   AlertCircle,
   FlaskConical,
+  FileText,
 } from 'lucide-react';
 import { adminApi } from '@/api/adminService';
 import { Button, Input, Badge, Card, CardContent, LoadingSpinner, toast, confirmDialog } from '@/components/ui';
@@ -227,6 +228,14 @@ export const LabsListPage: React.FC = () => {
                           title="View Specifications & Staff"
                         >
                           <Eye className="w-4 h-4" />
+                        </button>
+
+                        <button
+                          onClick={() => setSelectedLabId(lab.id)}
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-brand-600 hover:bg-brand-50 transition-colors"
+                          title="Configure PDF Report Specifications"
+                        >
+                          <FileText className="w-4 h-4" />
                         </button>
 
                         <button

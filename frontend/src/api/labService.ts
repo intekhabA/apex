@@ -28,16 +28,18 @@ export const labApi = {
     return res.data.data;
   },
 
-  getSettings: async (): Promise<LaboratorySettings> => {
-    const res = await apiClient.get<APIResponse<LaboratorySettings>>('/lab/settings');
+  getSettings: async (labId?: string): Promise<LaboratorySettings> => {
+    const url = labId ? `/lab/settings?lab_id=${labId}` : '/lab/settings';
+    const res = await apiClient.get<APIResponse<LaboratorySettings>>(url);
     if (!res.data.success || !res.data.data) {
       throw new Error(res.data.message || 'Failed to fetch laboratory settings');
     }
     return res.data.data;
   },
 
-  updateSettings: async (payload: LaboratorySettingsUpdatePayload): Promise<LaboratorySettings> => {
-    const res = await apiClient.put<APIResponse<LaboratorySettings>>('/lab/settings', payload);
+  updateSettings: async (payload: LaboratorySettingsUpdatePayload, labId?: string): Promise<LaboratorySettings> => {
+    const url = labId ? `/lab/settings?lab_id=${labId}` : '/lab/settings';
+    const res = await apiClient.put<APIResponse<LaboratorySettings>>(url, payload);
     if (!res.data.success || !res.data.data) {
       throw new Error(res.data.message || 'Failed to update laboratory settings');
     }

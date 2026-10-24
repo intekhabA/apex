@@ -3,8 +3,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { FileCheck, Save, ShieldCheck, QrCode, PenTool, Upload, Trash2 } from 'lucide-react';
+import { FileCheck, Save, ShieldCheck, QrCode, PenTool, Upload, Trash2, Building2 } from 'lucide-react';
 import { labApi } from '@/api/labService';
+import { adminApi } from '@/api/adminService';
+import { useAuthStore } from '@/store/authStore';
 import { Input, Button, Card, CardHeader, CardTitle, CardContent, Alert, LoadingSpinner, toast, confirmDialog } from '@/components/ui';
 import { LaboratorySettingsUpdatePayload } from '@/types';
 
@@ -28,13 +30,32 @@ type FormData = z.infer<typeof settingsSchema>;
 
 export const ReportSettingsPage: React.FC = () => {
   const queryClient = useQueryClient();
+  const { user } = useAuthStore();
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+
+  const [selectedLabId, setSelectedLabId] = useState<string>('');
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isUploadingSig, setIsUploadingSig] = useState<boolean>(false);
 
+  const { data: laboratories = [] } = useQuery({
+    queryKey: ['adminLaboratories'],
+    queryFn: () => adminApi.listLaboratories(),
+    enabled: isSuperAdmin,
+  });
+
+  useEffect(() => {
+    if (isSuperAdmin && laboratories.length > 0 && !selectedLabId) {
+      setSelectedLabId(laboratories[0].id);
+    }
+  }, [isSuperAdmin, laboratories, selectedLabId]);
+
+  const activeLabId = isSuperAdmin ? selectedLabId || undefined : undefined;
+
   const { data: settings, isLoading } = useQuery({
-    queryKey: ['labSettings'],
-    queryFn: labApi.getSettings,
+    queryKey: ['labSettings', activeLabId],
+    queryFn: () => labApi.getSettings(activeLabId),
+    enabled: !isSuperAdmin || !!activeLabId,
   });
 
   const {
@@ -68,11 +89,12 @@ export const ReportSettingsPage: React.FC = () => {
   }, [settings, reset]);
 
   const updateMutation = useMutation({
-    mutationFn: (payload: LaboratorySettingsUpdatePayload) => labApi.updateSettings(payload),
+    mutationFn: (payload: LaboratorySettingsUpdatePayload) => labApi.updateSettings(payload, activeLabId),
     onSuccess: (updated) => {
       setSuccessMessage('Report templates and signatory specifications saved.');
       toast.success('Report templates and signatory specifications saved.');
-      queryClient.setQueryData(['labSettings'], updated);
+      queryClient.setQueryData(['labSettings', activeLabId], updated);
+      queryClient.invalidateQueries({ queryKey: ['adminLaboratories'] });
     },
     onError: (err: any) => {
       const msg = err?.response?.data?.message || err?.message || 'Failed to update settings';
@@ -150,6 +172,31 @@ export const ReportSettingsPage: React.FC = () => {
           Configure diagnostic report disclaimers, branding colors, tax defaults, and medical signatory details.
         </p>
       </div>
+
+      {isSuperAdmin && (
+        <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-center gap-2.5">
+            <Building2 className="w-5 h-5 text-amber-600 flex-shrink-0" />
+            <div>
+              <p className="font-bold text-amber-950 text-sm">Super Admin Mode: Platform Laboratory Selection</p>
+              <p className="text-xs text-amber-700">Select a diagnostic laboratory to configure its report header, QR verification, and PDF layout options.</p>
+            </div>
+          </div>
+          <div className="w-full sm:w-80">
+            <select
+              value={selectedLabId}
+              onChange={(e) => setSelectedLabId(e.target.value)}
+              className="w-full text-xs font-semibold rounded-lg border-amber-300 bg-white text-slate-800 focus:ring-amber-500 py-2 px-3 shadow-sm"
+            >
+              {laboratories.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.name} ({l.code})
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
 
       <Card>
         <CardHeader>

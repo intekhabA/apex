@@ -22,6 +22,7 @@ from app.schemas.laboratory import (
     LaboratoryDetailResponse,
     LaboratoryStatusUpdate,
     LaboratorySettingsResponse,
+    LaboratorySettingsUpdate,
 )
 from app.schemas.user import UserResponse
 from app.schemas.dashboard import SuperAdminDashboardResponse
@@ -139,6 +140,8 @@ async def onboard_laboratory(
         currency_symbol="₹",
         default_tax_rate=0.00,
         enable_qr_verification=True,
+        show_report_header_status=True,
+        show_qr_side_text=True,
         primary_color_hex="#0284c7",
         secondary_color_hex="#0f172a",
         default_signatory_name=f"{payload.initial_admin_first_name} {payload.initial_admin_last_name}",
@@ -325,6 +328,61 @@ async def list_laboratory_staff(
         success=True,
         message=f"Retrieved {len(staff)} staff members for laboratory.",
         data=[UserResponse.model_validate(u) for u in staff],
+    )
+
+
+@router.get("/laboratories/{lab_id}/settings", response_model=APIResponse[LaboratorySettingsResponse])
+async def get_laboratory_settings_superadmin(
+    lab_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_super_admin),
+):
+    """Retrieve full configuration and report settings of a laboratory for Super Admin."""
+    res = await db.execute(select(LaboratorySettings).where(LaboratorySettings.lab_id == lab_id))
+    settings = res.scalar_one_or_none()
+    if not settings:
+        settings = LaboratorySettings(lab_id=lab_id)
+        db.add(settings)
+        await db.commit()
+        await db.refresh(settings)
+
+    return APIResponse(
+        success=True,
+        message="Laboratory settings retrieved.",
+        data=LaboratorySettingsResponse.model_validate(settings),
+    )
+
+
+@router.put("/laboratories/{lab_id}/settings", response_model=APIResponse[LaboratorySettingsResponse])
+async def update_laboratory_settings_superadmin(
+    lab_id: str,
+    payload: LaboratorySettingsUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_super_admin),
+):
+    """Update laboratory report formatting, header/QR toggles, and specifications by Super Admin."""
+    lab_res = await db.execute(select(Laboratory).where(Laboratory.id == lab_id, Laboratory.deleted_at.is_(None)))
+    lab = lab_res.scalar_one_or_none()
+    if not lab:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Laboratory not found.")
+
+    res = await db.execute(select(LaboratorySettings).where(LaboratorySettings.lab_id == lab_id))
+    settings = res.scalar_one_or_none()
+    if not settings:
+        settings = LaboratorySettings(lab_id=lab_id)
+        db.add(settings)
+
+    update_data = payload.model_dump(exclude_unset=True)
+    for field, val in update_data.items():
+        setattr(settings, field, val)
+
+    await db.commit()
+    await db.refresh(settings)
+
+    return APIResponse(
+        success=True,
+        message=f"Settings for laboratory '{lab.name}' updated successfully.",
+        data=LaboratorySettingsResponse.model_validate(settings),
     )
 
 

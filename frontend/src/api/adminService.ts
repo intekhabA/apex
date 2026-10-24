@@ -5,6 +5,8 @@ import {
   LaboratoryDetail,
   LaboratoryCreatePayload,
   LaboratoryUpdatePayload,
+  LaboratorySettings,
+  LaboratorySettingsUpdatePayload,
   UserResponse,
 } from '@/types';
 
@@ -41,6 +43,28 @@ export const adminApi = {
     const res = await apiClient.get<APIResponse<LaboratoryDetail>>(`/admin/laboratories/${labId}`);
     if (!res.data.success || !res.data.data) {
       throw new Error(res.data.message || 'Failed to fetch laboratory');
+    }
+    return res.data.data;
+  },
+
+  getLaboratorySettings: async (labId: string): Promise<LaboratorySettings> => {
+    const res = await apiClient.get<APIResponse<LaboratorySettings>>(`/admin/laboratories/${labId}/settings`);
+    if (!res.data.success || !res.data.data) {
+      throw new Error(res.data.message || 'Failed to fetch laboratory settings');
+    }
+    return res.data.data;
+  },
+
+  updateLaboratorySettings: async (
+    labId: string,
+    payload: LaboratorySettingsUpdatePayload
+  ): Promise<LaboratorySettings> => {
+    const res = await apiClient.put<APIResponse<LaboratorySettings>>(
+      `/admin/laboratories/${labId}/settings`,
+      payload
+    );
+    if (!res.data.success || !res.data.data) {
+      throw new Error(res.data.message || 'Failed to update laboratory settings');
     }
     return res.data.data;
   },

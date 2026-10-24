@@ -190,3 +190,18 @@ async def test_super_admin_onboard_labs_and_gate_check(client: AsyncClient, seed
     })
     assert deactivate_lab_res.status_code == 200
     assert deactivate_lab_res.json()["data"]["is_active"] is False
+
+    # 15. Super Admin getting and updating Laboratory Settings (PDF Header and QR toggles)
+    sa_settings_get = await client.get(f"/api/admin/laboratories/{lab_y_id}/settings", headers=sa_headers)
+    assert sa_settings_get.status_code == 200
+    assert sa_settings_get.json()["data"]["show_report_header_status"] is True
+    assert sa_settings_get.json()["data"]["show_qr_side_text"] is True
+
+    sa_settings_update = await client.put(f"/api/admin/laboratories/{lab_y_id}/settings", headers=sa_headers, json={
+        "show_report_header_status": False,
+        "show_qr_side_text": False,
+        "enable_qr_verification": True,
+    })
+    assert sa_settings_update.status_code == 200
+    assert sa_settings_update.json()["data"]["show_report_header_status"] is False
+    assert sa_settings_update.json()["data"]["show_qr_side_text"] is False
