@@ -49,6 +49,8 @@ export interface TestParameter {
   result_type: ResultValueType;
   decimal_precision: number;
   display_order: number;
+  group_name?: string | null;
+  subgroup_name?: string | null;
   options_json?: any;
   reference_ranges: ReferenceRange[];
 }
@@ -64,6 +66,7 @@ export interface DiagnosticTest {
   sample_type: SampleType;
   sample_container?: string;
   preparation_instructions?: string;
+  interpretation?: string | null;
   turnaround_hours: number;
   default_price: number;
   effective_price?: number;

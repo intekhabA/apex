@@ -43,6 +43,8 @@ export const ParameterModal: React.FC<Props> = ({
   const [resultType, setResultType] = useState<ResultValueType>('NUMBER');
   const [decimalPrecision, setDecimalPrecision] = useState(2);
   const [displayOrder, setDisplayOrder] = useState(0);
+  const [groupName, setGroupName] = useState('');
+  const [subgroupName, setSubgroupName] = useState('');
   const [referenceRanges, setReferenceRanges] = useState<ReferenceRangeFormItem[]>([]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -59,6 +61,8 @@ export const ParameterModal: React.FC<Props> = ({
         setResultType(parameter.result_type || 'NUMBER');
         setDecimalPrecision(parameter.decimal_precision ?? 2);
         setDisplayOrder(parameter.display_order ?? 0);
+        setGroupName(parameter.group_name || '');
+        setSubgroupName(parameter.subgroup_name || '');
         setReferenceRanges(
           (parameter.reference_ranges || []).map((rr) => ({
             id: rr.id,
@@ -81,6 +85,8 @@ export const ParameterModal: React.FC<Props> = ({
         setResultType('NUMBER');
         setDecimalPrecision(2);
         setDisplayOrder(0);
+        setGroupName('');
+        setSubgroupName('');
         setReferenceRanges([
           {
             gender: '',
@@ -138,6 +144,8 @@ export const ParameterModal: React.FC<Props> = ({
         result_type: resultType,
         decimal_precision: Number(decimalPrecision) || 0,
         display_order: Number(displayOrder) || 0,
+        group_name: groupName.trim() || null,
+        subgroup_name: subgroupName.trim() || null,
         reference_ranges: referenceRanges
           .filter((rr) => rr.display_range_string.trim())
           .map((rr) => ({
@@ -285,6 +293,33 @@ export const ParameterModal: React.FC<Props> = ({
               onChange={(e) => setDisplayOrder(Number(e.target.value))}
               placeholder="0"
             />
+          </div>
+        </div>
+
+        {/* Group and Subgroup Hierarchy */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+              Department / Group
+            </label>
+            <Input
+              value={groupName}
+              onChange={(e) => setGroupName(e.target.value)}
+              placeholder="e.g. HAEMATOLOGY"
+            />
+            <span className="text-[10px] text-slate-500 mt-0.5 block">Defaults to test category if left empty.</span>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+              Subgroup Title
+            </label>
+            <Input
+              value={subgroupName}
+              onChange={(e) => setSubgroupName(e.target.value)}
+              placeholder="e.g. DIFFERENTIAL COUNT : or RBCs Indices"
+            />
+            <span className="text-[10px] text-slate-500 mt-0.5 block">Leave empty for direct parameters.</span>
           </div>
         </div>
 

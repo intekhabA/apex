@@ -31,6 +31,7 @@ export interface LaboratorySettings {
   currency_symbol: string;
   default_tax_rate: number;
   enable_qr_verification: boolean;
+  footer_code_type?: 'BARCODE' | 'QR_CODE' | 'BOTH' | 'NONE';
   show_report_header_status?: boolean;
   show_qr_side_text?: boolean;
   letterhead_top_margin_mm?: number;
@@ -96,6 +97,7 @@ export interface LaboratorySettingsUpdatePayload {
   currency_symbol?: string;
   default_tax_rate?: number;
   enable_qr_verification?: boolean;
+  footer_code_type?: 'BARCODE' | 'QR_CODE' | 'BOTH' | 'NONE';
   show_report_header_status?: boolean;
   show_qr_side_text?: boolean;
   letterhead_top_margin_mm?: number;

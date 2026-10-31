@@ -65,6 +65,7 @@ class LaboratorySettingsUpdate(BaseModel):
     currency_symbol: Optional[str] = None
     default_tax_rate: Optional[Decimal] = None
     enable_qr_verification: Optional[bool] = None
+    footer_code_type: Optional[str] = "BARCODE"
     show_report_header_status: Optional[bool] = None
     show_qr_side_text: Optional[bool] = None
     letterhead_top_margin_mm: Optional[int] = None

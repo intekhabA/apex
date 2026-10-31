@@ -57,6 +57,7 @@ class Test(Base, UUIDMixin, TimestampMixin):
     sample_type = Column(SQLEnum(SampleTypeEnum), nullable=False)
     sample_container = Column(String(100), nullable=True)
     preparation_instructions = Column(Text, nullable=True)
+    interpretation = Column(Text, nullable=True)
     turnaround_hours = Column(Integer, default=24)
     default_price = Column(Numeric(10, 2), default=0.00, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False, index=True)
@@ -77,6 +78,8 @@ class TestParameter(Base, UUIDMixin, TimestampMixin):
     decimal_precision = Column(Integer, default=2)
     display_order = Column(Integer, default=0)
     options_json = Column(JSON, nullable=True)
+    group_name = Column(String(150), nullable=True)
+    subgroup_name = Column(String(150), nullable=True)
 
     __table_args__ = (
         UniqueConstraint("test_id", "code", name="uq_test_param_code"),

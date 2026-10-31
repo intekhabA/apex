@@ -28,6 +28,7 @@ const editTestSchema = z.object({
   ]),
   sample_container: z.string().optional(),
   preparation_instructions: z.string().optional(),
+  interpretation: z.string().optional(),
   turnaround_hours: z.coerce.number().min(1, 'TAT must be at least 1 hour').default(24),
   default_price: z.coerce.number().min(0, 'Price must be 0 or greater'),
   is_active: z.boolean().default(true),
@@ -127,6 +128,7 @@ export const EditTestModal: React.FC<EditTestModalProps> = ({
         sample_type: test.sample_type,
         sample_container: test.sample_container || '',
         preparation_instructions: test.preparation_instructions || '',
+        interpretation: test.interpretation || '',
         turnaround_hours: test.turnaround_hours,
         default_price: Number(test.default_price),
         is_active: test.is_active,
@@ -340,6 +342,19 @@ export const EditTestModal: React.FC<EditTestModalProps> = ({
           />
         </div>
 
+        {/* Clinical Interpretation & Notes */}
+        <div>
+          <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+            Clinical Interpretation &amp; Report Notes
+          </label>
+          <textarea
+            {...register('interpretation')}
+            rows={3}
+            className="w-full text-sm rounded-lg border border-slate-300 py-2 px-3 focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
+            placeholder="Standard clinical interpretation printed on diagnostic reports for this test (e.g. physiological baseline, elevated indicators)."
+          />
+        </div>
+
         {/* Sub-Parameters & Analytes Manager */}
         <div className="pt-3 border-t border-slate-200">
           <div className="flex items-center justify-between mb-2">
@@ -370,6 +385,7 @@ export const EditTestModal: React.FC<EditTestModalProps> = ({
                   <tr>
                     <th className="px-3 py-2 text-left">Code</th>
                     <th className="px-3 py-2 text-left">Parameter Name</th>
+                    <th className="px-3 py-2 text-left">Group / Subgroup</th>
                     <th className="px-3 py-2 text-left">Unit</th>
                     <th className="px-3 py-2 text-left">Type</th>
                     <th className="px-3 py-2 text-left">Reference Interval</th>
@@ -381,6 +397,22 @@ export const EditTestModal: React.FC<EditTestModalProps> = ({
                     <tr key={p.id} className="hover:bg-slate-50">
                       <td className="px-3 py-2 font-mono font-medium text-slate-700">{p.code}</td>
                       <td className="px-3 py-2 font-semibold text-slate-900">{p.name}</td>
+                      <td className="px-3 py-2 text-slate-600">
+                        <div className="flex flex-col gap-0.5">
+                          {p.group_name && (
+                            <span className="text-[10px] font-bold text-slate-700 uppercase">
+                              {p.group_name}
+                            </span>
+                          )}
+                          {p.subgroup_name ? (
+                            <span className="inline-block px-1.5 py-0.5 text-[10px] font-medium bg-indigo-50 text-indigo-700 rounded border border-indigo-100 w-fit">
+                              {p.subgroup_name}
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-slate-400">—</span>
+                          )}
+                        </div>
+                      </td>
                       <td className="px-3 py-2 text-slate-600">{p.unit || '—'}</td>
                       <td className="px-3 py-2 text-slate-500">{p.result_type}</td>
                       <td className="px-3 py-2 text-slate-700">

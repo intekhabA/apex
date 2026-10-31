@@ -251,6 +251,8 @@ async def save_result_values(
             existing_val.flag = flag
             existing_val.reference_range_display = range_display
             existing_val.technician_comment = item.technician_comment
+            existing_val.group_name = getattr(param, "group_name", None)
+            existing_val.subgroup_name = getattr(param, "subgroup_name", None)
         else:
             new_val = TestResultValue(
                 report_id=report.id,
@@ -263,6 +265,8 @@ async def save_result_values(
                 reference_range_display=range_display,
                 flag=flag,
                 technician_comment=item.technician_comment,
+                group_name=getattr(param, "group_name", None),
+                subgroup_name=getattr(param, "subgroup_name", None),
             )
             db.add(new_val)
 

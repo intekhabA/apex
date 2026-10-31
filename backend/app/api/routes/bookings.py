@@ -562,6 +562,7 @@ async def download_booking_reports_pdf(
     letterhead: bool = False,
     top_margin_mm: Optional[int] = None,
     bottom_margin_mm: Optional[int] = None,
+    footer_code_type: Optional[str] = Query(None, description="Footer code display: BARCODE, QR_CODE, BOTH, NONE"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_lab_staff),
 ):
@@ -624,6 +625,8 @@ async def download_booking_reports_pdf(
         if chief_sig_local:
             chief_sig = chief_sig_local
 
+    eff_code_type = footer_code_type or (getattr(lab_settings, "footer_code_type", "BARCODE") if lab_settings else "BARCODE")
+
     # 4. Prepare data payloads
     lab_info = {
         "name": lab.name if lab else "TrustMyLab Diagnostic Services",
@@ -637,6 +640,7 @@ async def download_booking_reports_pdf(
         "default_signatory_reg_no": lab_settings.default_signatory_reg_no if lab_settings else None,
         "default_signatory_signature_url": chief_sig,
         "enable_qr_verification": lab_settings.enable_qr_verification if (lab_settings and lab_settings.enable_qr_verification is not None) else True,
+        "footer_code_type": eff_code_type,
         "show_qr_side_text": lab_settings.show_qr_side_text if (lab_settings and lab_settings.show_qr_side_text is not None) else True,
         "letterhead_image": letterhead_image,
         "use_letterhead_background": lab_settings.use_letterhead_background if (lab_settings and lab_settings.use_letterhead_background is not None) else True,
@@ -675,14 +679,18 @@ async def download_booking_reports_pdf(
         vals = [
             {
                 "parameter_name": v.parameter_name,
+                "parameter_code": getattr(v, "parameter_code", ""),
                 "numeric_value": v.numeric_value,
                 "text_value": v.text_value,
                 "unit": v.unit,
                 "reference_range_display": v.reference_range_display,
                 "flag": v.flag.value if v.flag else "NORMAL",
+                "group_name": getattr(v, "group_name", None),
+                "subgroup_name": getattr(v, "subgroup_name", None),
             }
             for v in r.result_values
         ]
+        cat_name = r.test.category.name if (r.test and "category" in r.test.__dict__ and r.test.category) else "HAEMATOLOGY"
         reports_data.append({
             "report_id_display": r.report_id_display,
             "status": r.status.value,
@@ -692,6 +700,9 @@ async def download_booking_reports_pdf(
             "test_name": r.test.name if r.test else "Diagnostic Investigation",
             "test_code": r.test.code if r.test else "",
             "test_type": r.test.test_type.value if r.test else "PATHOLOGY",
+            "category_name": cat_name,
+            "group_name": getattr(r.test, "group_name", None) or cat_name,
+            "interpretation": getattr(r, "interpretation", None) or (getattr(r.test, "interpretation", None) if r.test else None),
             "sample_id_display": r.sample.sample_id_display if r.sample else "N/A",
             "sample_type": r.sample.sample_type if r.sample else "N/A",
             "sample_container": r.sample.sample_container if r.sample else "Standard Tube",
@@ -701,6 +712,7 @@ async def download_booking_reports_pdf(
                 "imaging_findings": r.imaging_findings,
                 "imaging_impression": r.imaging_impression,
                 "recommendations": r.recommendations,
+                "interpretation": getattr(r, "interpretation", None) or (getattr(r.test, "interpretation", None) if r.test else None),
             },
         })
 

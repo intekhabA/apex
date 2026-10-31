@@ -16,6 +16,7 @@ const settingsSchema = z.object({
   currency_symbol: z.string().min(1).max(5),
   default_tax_rate: z.coerce.number().min(0).max(100),
   enable_qr_verification: z.boolean(),
+  footer_code_type: z.enum(['BARCODE', 'QR_CODE', 'BOTH', 'NONE']),
   show_report_header_status: z.boolean(),
   show_qr_side_text: z.boolean(),
   use_letterhead_background: z.boolean().optional(),
@@ -69,7 +70,7 @@ export const ReportSettingsPage: React.FC = () => {
     watch,
     formState: { errors },
   } = useForm<FormData>({
-    resolver: zodResolver(settingsSchema),
+    resolver: zodResolver(settingsSchema) as any,
   });
 
   useEffect(() => {
@@ -80,6 +81,7 @@ export const ReportSettingsPage: React.FC = () => {
         currency_symbol: settings.currency_symbol || '₹',
         default_tax_rate: settings.default_tax_rate || 0,
         enable_qr_verification: settings.enable_qr_verification ?? true,
+        footer_code_type: settings.footer_code_type || 'BARCODE',
         show_report_header_status: settings.show_report_header_status ?? true,
         show_qr_side_text: settings.show_qr_side_text ?? true,
         use_letterhead_background: settings.use_letterhead_background ?? true,
@@ -450,6 +452,56 @@ export const ReportSettingsPage: React.FC = () => {
                     <p className="text-xs text-slate-500">
                       When enabled, displays <code>REPORT #REP-..., STATUS: FINAL, Version: v1.0</code> on the top right of the PDF report. When disabled, this block is omitted.
                     </p>
+                  </div>
+                </div>
+
+                {/* Footer Code Display Selector: Barcode or QR Code */}
+                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
+                  <div>
+                    <label className="text-sm font-bold text-slate-800 block">
+                      Report Footer Authentication &amp; Tracking Code
+                    </label>
+                    <p className="text-xs text-slate-500">
+                      Select which tracking code to display in the report verification footer (middle column).
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                    <label className={`flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer text-xs font-semibold transition-all ${watch('footer_code_type') === 'BARCODE' ? 'border-brand-500 bg-brand-50 text-brand-700 shadow-sm' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'}`}>
+                      <input
+                        type="radio"
+                        value="BARCODE"
+                        {...register('footer_code_type')}
+                        className="text-brand-600 focus:ring-brand-500"
+                      />
+                      <span>Barcode Only</span>
+                    </label>
+                    <label className={`flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer text-xs font-semibold transition-all ${watch('footer_code_type') === 'QR_CODE' ? 'border-brand-500 bg-brand-50 text-brand-700 shadow-sm' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'}`}>
+                      <input
+                        type="radio"
+                        value="QR_CODE"
+                        {...register('footer_code_type')}
+                        className="text-brand-600 focus:ring-brand-500"
+                      />
+                      <span>QR Code Only</span>
+                    </label>
+                    <label className={`flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer text-xs font-semibold transition-all ${watch('footer_code_type') === 'BOTH' ? 'border-brand-500 bg-brand-50 text-brand-700 shadow-sm' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'}`}>
+                      <input
+                        type="radio"
+                        value="BOTH"
+                        {...register('footer_code_type')}
+                        className="text-brand-600 focus:ring-brand-500"
+                      />
+                      <span>Both Barcode &amp; QR</span>
+                    </label>
+                    <label className={`flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer text-xs font-semibold transition-all ${watch('footer_code_type') === 'NONE' ? 'border-brand-500 bg-brand-50 text-brand-700 shadow-sm' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'}`}>
+                      <input
+                        type="radio"
+                        value="NONE"
+                        {...register('footer_code_type')}
+                        className="text-brand-600 focus:ring-brand-500"
+                      />
+                      <span>None (ID Only)</span>
+                    </label>
                   </div>
                 </div>
 

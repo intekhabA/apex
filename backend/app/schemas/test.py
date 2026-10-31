@@ -78,6 +78,8 @@ class TestParameterBase(BaseModel):
     decimal_precision: int = 2
     display_order: int = 0
     options_json: Optional[Any] = None
+    group_name: Optional[str] = None
+    subgroup_name: Optional[str] = None
 
 
 class TestParameterCreate(TestParameterBase):
@@ -93,6 +95,8 @@ class TestParameterUpdate(BaseModel):
     decimal_precision: Optional[int] = None
     display_order: Optional[int] = None
     options_json: Optional[Any] = None
+    group_name: Optional[str] = None
+    subgroup_name: Optional[str] = None
     reference_ranges: Optional[List[ReferenceRangeCreate]] = None
 
 
@@ -119,6 +123,7 @@ class TestBase(BaseModel):
     sample_type: SampleTypeEnum
     sample_container: Optional[str] = None
     preparation_instructions: Optional[str] = None
+    interpretation: Optional[str] = None
     turnaround_hours: int = 24
     default_price: Decimal = Field(default=Decimal("0.00"), ge=0)
     is_active: bool = True
@@ -137,6 +142,7 @@ class TestUpdate(BaseModel):
     sample_type: Optional[SampleTypeEnum] = None
     sample_container: Optional[str] = None
     preparation_instructions: Optional[str] = None
+    interpretation: Optional[str] = None
     turnaround_hours: Optional[int] = None
     default_price: Optional[Decimal] = None
     is_active: Optional[bool] = None

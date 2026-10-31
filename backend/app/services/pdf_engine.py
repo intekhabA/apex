@@ -22,13 +22,56 @@ from reportlab.platypus import (
     Image,
     KeepTogether,
     HRFlowable,
+    PageBreak,
 )
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.pdfgen import canvas
+from reportlab.graphics.barcode import code128
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 import qrcode
 
 logger = logging.getLogger(__name__)
+
+DEVANAGARI_FONT_PATH = "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Regular.ttf"
+DEVANAGARI_BOLD_PATH = "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf"
+HAS_DEVANAGARI = False
+
+if os.path.exists(DEVANAGARI_FONT_PATH):
+    try:
+        pdfmetrics.registerFont(TTFont("Devanagari", DEVANAGARI_FONT_PATH))
+        if os.path.exists(DEVANAGARI_BOLD_PATH):
+            pdfmetrics.registerFont(TTFont("Devanagari-Bold", DEVANAGARI_BOLD_PATH))
+        else:
+            pdfmetrics.registerFont(TTFont("Devanagari-Bold", DEVANAGARI_FONT_PATH))
+        HAS_DEVANAGARI = True
+    except Exception as e:
+        logger.warning("Could not register Devanagari font: %s", e)
+
+
+def infer_subgroup(param_name: str, param_code: str = "") -> Optional[str]:
+    """Infers standard subgroup hierarchy for test parameters when not explicitly set."""
+    name_upper = (param_name or "").upper()
+    code_upper = (param_code or "").upper()
+
+    # Direct parameters under CBC that do not belong to a subgroup
+    if code_upper in ["HB", "WBC"] or any(k in name_upper for k in ["HEMOGLOBIN", "HAEMOGLOBIN", "TOTAL LEUCOCYTE", "TOTAL LEUKOCYTE"]):
+        return None
+
+    # Differential Count
+    if any(k in name_upper for k in ["NEUTROPHIL", "LYMPHOCYTE", "MONOCYTE", "EOSINOPHIL", "BASOPHIL", "BAND CELL", "POLYMORPH"]) or code_upper in ["NEUT", "LYMPH", "MONO", "EOS", "BASO"]:
+        return "DIFFERENTIAL COUNT :"
+
+    # RBCs Indices
+    if any(k in name_upper for k in ["RBC COUNT", "RBCS COUNT", "PACKED CELL VOLUME", "PCV", "MCV", "MCH", "MCHC", "RDW"]) or code_upper in ["RBC", "HCT", "MCV", "MCH", "MCHC", "RDW_CV", "RDW_SD", "RDW"]:
+        return "RBCs Indices"
+
+    # Platelet Indices
+    if any(k in name_upper for k in ["PLATELET", "MPV", "PDW", "PCT"]) or code_upper in ["PLT", "MPV", "PDW", "PCT"]:
+        return "Platelet Indices"
+
+    return None
 
 DEFAULT_SIGNATURE_PATH = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "static", "signatures", "default_doctor_signature.png")
@@ -348,8 +391,11 @@ def generate_medical_report_pdf(
     top_margin_mm: Optional[int] = None,
     bottom_margin_mm: Optional[int] = None,
 ) -> str:
-    """Renders a production-grade, sealed Diagnostic Medical Report PDF using ReportLab.
-    Supports pre-printed A4 letterhead mode (suppresses digital lab banner & reserves margins).
+    """Renders a diagnostic test report PDF matching the exact visual style of Uttam Diagnostic Center:
+    - Group and Subgroup hierarchy (HAEMATOLOGY -> COMPLETE BLOOD COUNT -> DIFFERENTIAL COUNT -> RBCs Indices -> Platelet Indices)
+    - Clean unbordered report layout (no boxed grid table format)
+    - Two clean horizontal black dividing lines for column headers
+    - Red & Cyan letterhead branding, patient demographics, barcode, interpretation, emergency strip, and legal disclaimer.
     """
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
@@ -367,13 +413,11 @@ def generate_medical_report_pdf(
     # 1 mm = 72 / 25.4 points
     mm_pt = 72.0 / 25.4
     if is_letterhead or has_letterhead_bg:
-        # Default letterhead header space: ~48mm (~1.9 inches)
         top_m = float(top_margin_mm * mm_pt) if top_margin_mm else (48.0 * mm_pt)
-        # Default letterhead footer space: ~28mm (~1.1 inches)
         bottom_m = float(bottom_margin_mm * mm_pt) if bottom_margin_mm else (28.0 * mm_pt)
     else:
-        top_m = 36.0
-        bottom_m = 36.0
+        top_m = 24.0
+        bottom_m = 24.0
 
     doc = SimpleDocTemplate(
         output_path,
@@ -386,491 +430,580 @@ def generate_medical_report_pdf(
 
     styles = getSampleStyleSheet()
 
-    # Custom styles
-    brand_color = colors.HexColor("#0D9488")  # Teal 600
-    brand_dark = colors.HexColor("#115E59")   # Teal 800
-    slate_dark = colors.HexColor("#1E293B")   # Slate 800
-    slate_muted = colors.HexColor("#64748B")  # Slate 500
-    slate_light = colors.HexColor("#F8FAFC")  # Slate 50
+    # Colors
+    cyan_brand = colors.HexColor(lab_info.get("primary_color_hex", "#0099DD"))
+    red_accent = colors.HexColor("#CC0000")
+    green_emergency = colors.HexColor("#008855")
+    dark_text = colors.HexColor("#1A1A1A")
+    muted_text = colors.HexColor("#555555")
 
-    title_style = ParagraphStyle(
-        "LabTitle",
+    # Typography styles
+    hindi_font = "Devanagari" if HAS_DEVANAGARI else "Helvetica"
+    hindi_bold = "Devanagari-Bold" if HAS_DEVANAGARI else "Helvetica-Bold"
+
+    title_main_style = ParagraphStyle(
+        "UttamMainTitle",
         parent=styles["Normal"],
         fontName="Helvetica-Bold",
-        fontSize=18,
-        leading=22,
-        textColor=brand_dark,
+        fontSize=22,
+        leading=25,
+        alignment=1,  # Center
+        textColor=cyan_brand,
     )
-    subtitle_style = ParagraphStyle(
-        "LabSubtitle",
+    title_sub_style = ParagraphStyle(
+        "UttamSubTitle",
+        parent=styles["Normal"],
+        fontName="Helvetica-Bold",
+        fontSize=13,
+        leading=16,
+        alignment=1,  # Center
+        textColor=red_accent,
+    )
+    address_hindi_style = ParagraphStyle(
+        "UttamHindiAddress",
+        parent=styles["Normal"],
+        fontName=hindi_font,
+        fontSize=7.5,
+        leading=10,
+        alignment=1,  # Center
+        textColor=red_accent,
+    )
+    reg_phone_style = ParagraphStyle(
+        "UttamRegPhone",
+        parent=styles["Normal"],
+        fontName="Helvetica",
+        fontSize=8,
+        leading=10.5,
+        alignment=2,  # Right
+        textColor=dark_text,
+    )
+    demo_label_style = ParagraphStyle(
+        "DemoLabel",
         parent=styles["Normal"],
         fontName="Helvetica",
         fontSize=8.5,
-        leading=11,
-        textColor=slate_muted,
+        leading=12,
+        textColor=dark_text,
     )
-    section_heading = ParagraphStyle(
-        "SectionHeading",
-        parent=styles["Normal"],
-        fontName="Helvetica-Bold",
-        fontSize=12,
-        leading=15,
-        textColor=brand_dark,
-    )
-    meta_label = ParagraphStyle(
-        "MetaLabel",
+    col_hdr_style = ParagraphStyle(
+        "ColHeader",
         parent=styles["Normal"],
         fontName="Helvetica-Bold",
         fontSize=8.5,
         leading=11,
-        textColor=slate_muted,
+        textColor=colors.black,
     )
-    meta_value = ParagraphStyle(
-        "MetaValue",
+    group_hdr_style = ParagraphStyle(
+        "GroupHeader",
         parent=styles["Normal"],
-        fontName="Helvetica",
+        fontName="Helvetica-Bold",
+        fontSize=10.5,
+        leading=13,
+        alignment=1,  # Centered
+        textColor=colors.black,
+    )
+    test_hdr_style = ParagraphStyle(
+        "TestHeader",
+        parent=styles["Normal"],
+        fontName="Helvetica-Bold",
         fontSize=9,
         leading=12,
-        textColor=slate_dark,
+        alignment=0,  # Left
+        textColor=colors.black,
     )
-    table_header = ParagraphStyle(
-        "TableHeader",
+    subgroup_hdr_style = ParagraphStyle(
+        "SubgroupHeader",
         parent=styles["Normal"],
         fontName="Helvetica-Bold",
         fontSize=8.5,
         leading=11,
-        textColor=colors.white,
+        alignment=0,  # Left
+        textColor=colors.black,
     )
-    table_cell = ParagraphStyle(
-        "TableCell",
+    param_text_style = ParagraphStyle(
+        "ParamText",
         parent=styles["Normal"],
         fontName="Helvetica",
         fontSize=8.5,
         leading=11,
-        textColor=slate_dark,
+        textColor=dark_text,
     )
-    table_cell_bold = ParagraphStyle(
-        "TableCellBold",
+    param_text_bold = ParagraphStyle(
+        "ParamTextBold",
         parent=styles["Normal"],
         fontName="Helvetica-Bold",
         fontSize=8.5,
         leading=11,
-        textColor=slate_dark,
+        textColor=dark_text,
     )
-    flag_low = ParagraphStyle(
-        "FlagLow",
+    interp_style = ParagraphStyle(
+        "InterpretationText",
         parent=styles["Normal"],
-        fontName="Helvetica-Bold",
-        fontSize=8.5,
-        leading=11,
-        textColor=colors.HexColor("#D97706"),  # Amber
-    )
-    flag_high = ParagraphStyle(
-        "FlagHigh",
-        parent=styles["Normal"],
-        fontName="Helvetica-Bold",
-        fontSize=8.5,
-        leading=11,
-        textColor=colors.HexColor("#E11D48"),  # Rose
-    )
-    flag_critical = ParagraphStyle(
-        "FlagCritical",
-        parent=styles["Normal"],
-        fontName="Helvetica-Bold",
-        fontSize=8.5,
-        leading=11,
-        textColor=colors.HexColor("#DC2626"),  # Red
+        fontName="Helvetica",
+        fontSize=7.5,
+        leading=10,
+        textColor=dark_text,
     )
 
     story = []
 
+    # 1. Laboratory Banner / Letterhead
     if not is_letterhead and not has_letterhead_bg:
-        # 1. Header: Laboratory Banner (Standard Plain Paper Mode)
-        lab_text = f"<b>{lab_info.get('name', 'TrustMyLab Diagnostic Services')}</b>"
-        lab_details = (
-            f"{lab_info.get('address', '123 Medical Center Way')}<br/>"
-            f"Phone: {lab_info.get('phone', 'N/A')} | Email: {lab_info.get('email', 'N/A')}<br/>"
-            f"Licence / Accreditation: {lab_info.get('license', 'ISO 15189 / NABL Certified')}"
+        raw_name = lab_info.get("name", "UTTAM Diagnostic Center").strip()
+        name_tokens = raw_name.split(None, 1)
+        name_first = name_tokens[0] if name_tokens else "UTTAM"
+        name_rest = name_tokens[1] if len(name_tokens) > 1 else "Diagnostic Center"
+
+        phone_str = lab_info.get("phone", "9918613886, 9519205517")
+        phones = [p.strip() for p in phone_str.replace(";", ",").split(",") if p.strip()]
+        mob_line_1 = phones[0] if len(phones) > 0 else "9918613886"
+        if len(phones) > 1:
+            mob_line_1 += f", {phones[1]}"
+
+        reg_block = (
+            f"<b>Regd.- {lab_info.get('license', 'RMEE2342261')}</b><br/>"
+            f"<font color='#CC0000'><b>Mob. :</b></font> {mob_line_1}"
+        )
+        if len(phones) > 2:
+            reg_block += f"<br/>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{', '.join(phones[2:4])}"
+        if len(phones) > 4:
+            reg_block += f"<br/>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{', '.join(phones[4:6])}"
+
+        hindi_address = (
+            lab_info.get("address_hindi")
+            or "पता-पटेल नगर निकट दीवानी न्यायालय गेट नं0 1 सिविल लाइन, भिनगा (श्रावस्ती)"
         )
 
-        show_header_status = lab_info.get("show_report_header_status", True)
-        if "show_header_status" in report_info and report_info["show_header_status"] is not None:
-            show_header_status = report_info["show_header_status"]
-        elif "show_report_header_status" in report_info and report_info["show_report_header_status"] is not None:
-            show_header_status = report_info["show_report_header_status"]
+        # Left logo mark / badge
+        logo_flowable = None
+        lab_logo_path = lab_info.get("logo_image")
+        if lab_logo_path and os.path.exists(lab_logo_path):
+            try:
+                logo_flowable = Image(lab_logo_path, width=1.1 * inch, height=0.65 * inch)
+            except Exception:
+                logo_flowable = None
 
-        if show_header_status:
-            header_right_flowable = Paragraph(
-                f"<b>REPORT #{report_info.get('report_id_display', '')}</b><br/>"
-                f"<font color='#0D9488'><b>STATUS: {report_info.get('status', 'FINAL')}</b></font><br/>"
-                f"Version: v{report_info.get('version', 1)}.0",
-                ParagraphStyle("ReportRef", parent=styles["Normal"], alignment=2, fontSize=9, leading=12),
+        if not logo_flowable:
+            logo_sub = Paragraph(
+                f"<font color='#CC0000' size=14><b>✚</b></font><br/>"
+                f"<b><font size=7 color='#CC0000'>{raw_name}</font></b>",
+                ParagraphStyle("LogoSub", parent=styles["Normal"], alignment=1, leading=8.5),
             )
+            logo_cell = logo_sub
         else:
-            header_right_flowable = Paragraph("", styles["Normal"])
+            logo_cell = Table([[logo_flowable], [Paragraph(f"<font size=6.5 color='#CC0000'><b>{raw_name}</b></font>", ParagraphStyle("LgSub", alignment=1, leading=7.5))]], colWidths=[95])
+            logo_cell.setStyle(TableStyle([("ALIGN", (0, 0), (-1, -1), "CENTER"), ("VALIGN", (0, 0), (-1, -1), "MIDDLE"), ("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0), ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 0)]))
 
-        lab_table = Table(
+        header_center = [
+            Paragraph(f"<b>{name_first}</b>", title_main_style),
+            Paragraph(f"<b>{name_rest}</b>", title_sub_style),
+            Spacer(1, 1),
+            Paragraph(hindi_address, address_hindi_style),
+        ]
+
+        top_header_table = Table(
             [
                 [
-                    Paragraph(lab_text, title_style),
-                    header_right_flowable,
-                ],
-                [Paragraph(lab_details, subtitle_style), ""],
+                    logo_cell,
+                    header_center,
+                    Paragraph(reg_block, reg_phone_style),
+                ]
             ],
-            colWidths=[360, 160],
+            colWidths=[105, 265, 153],
         )
-        lab_table.setStyle(
+        top_header_table.setStyle(
             TableStyle(
                 [
-                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
-                    ("TOPPADDING", (0, 0), (-1, -1), 2),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("TOPPADDING", (0, 0), (-1, -1), 0),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 0),
                 ]
             )
         )
-        story.append(lab_table)
-        story.append(Spacer(1, 8))
-        story.append(HRFlowable(width="100%", thickness=2, color=brand_color, spaceAfter=8))
+        story.append(top_header_table)
+        story.append(HRFlowable(width="100%", thickness=1.5, color=red_accent, spaceBefore=4, spaceAfter=6))
     else:
-        # Pre-printed Letterhead Mode:
-        # The laboratory logo, header, and branding are already physically on the A4 letterhead.
-        # Print a clean report identifier strip directly above demographics.
+        # Pre-printed letterhead mode: lab branding is pre-printed.
         show_header_status = lab_info.get("show_report_header_status", True)
         if "show_header_status" in report_info and report_info["show_header_status"] is not None:
             show_header_status = report_info["show_header_status"]
-        elif "show_report_header_status" in report_info and report_info["show_report_header_status"] is not None:
-            show_header_status = report_info["show_report_header_status"]
-
         if show_header_status:
-            letterhead_ref_table = Table(
+            lh_strip = Table(
                 [
                     [
-                        Paragraph(
-                            "<b>DIAGNOSTIC MEDICAL REPORT</b>",
-                            ParagraphStyle("LhHead", parent=styles["Normal"], fontSize=9.5, leading=11, fontName="Helvetica-Bold", textColor=brand_dark),
-                        ),
-                        Paragraph(
-                            f"<b>REPORT #{report_info.get('report_id_display', '')}</b> &nbsp;|&nbsp; "
-                            f"<font color='#0D9488'><b>STATUS: {report_info.get('status', 'FINAL')}</b></font> &nbsp;|&nbsp; "
-                            f"Version: v{report_info.get('version', 1)}.0",
-                            ParagraphStyle("LhRef", parent=styles["Normal"], alignment=2, fontSize=8, leading=10, textColor=slate_dark),
-                        ),
+                        Paragraph("<b>DIAGNOSTIC MEDICAL REPORT</b>", ParagraphStyle("LhHead", parent=styles["Normal"], fontSize=9, fontName="Helvetica-Bold", textColor=cyan_brand)),
+                        Paragraph(f"<b>REPORT #{report_info.get('report_id_display', '')}</b> &nbsp;|&nbsp; STATUS: <b>{report_info.get('status', 'FINAL')}</b> &nbsp;|&nbsp; Version: v{report_info.get('version', 1)}.0", ParagraphStyle("LhRef", parent=styles["Normal"], alignment=2, fontSize=8, textColor=dark_text)),
                     ]
                 ],
-                colWidths=[180, 340],
+                colWidths=[200, 323],
             )
-            letterhead_ref_table.setStyle(
-                TableStyle(
-                    [
-                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                        ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
-                        ("TOPPADDING", (0, 0), (-1, -1), 0),
-                        ("LEFTPADDING", (0, 0), (-1, -1), 0),
-                        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-                    ]
-                )
-            )
-            story.append(letterhead_ref_table)
+            lh_strip.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "MIDDLE"), ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 2), ("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0)]))
+            story.append(lh_strip)
             story.append(Spacer(1, 3))
 
-    # 2. Patient & Booking Demographics Card
-    patient_data = [
+    # 2. Patient & Request Demographics (No outer box / borders, clean two-column format)
+    patient_name = str(patient_info.get("name") or patient_info.get("full_name") or "N/A")
+    age_str = str(patient_info.get("age") or "N/A")
+    gender_str = str(patient_info.get("gender") or "N/A").upper()
+    referred_by = str(patient_info.get("referred_by") or "DR. SELF")
+
+    req_id = (
+        report_info.get("booking_id_display")
+        or patient_info.get("booking_id_display")
+        or report_info.get("report_id_display")
+        or report_info.get("report_number")
+        or report_info.get("id")
+        or "N/A"
+    )
+    recv_date = (
+        report_info.get("received_date")
+        or report_info.get("sample_collected_at")
+        or report_info.get("date")
+        or "N/A"
+    )
+    rep_date = (
+        report_info.get("reporting_date")
+        or report_info.get("finalized_at")
+        or report_info.get("created_at")
+        or report_info.get("date")
+        or "N/A"
+    )
+
+    demo_left_text = (
+        f"<b>Name Of Patient</b> &nbsp;: &nbsp;{patient_name}<br/>"
+        f"<b>Age / Gender</b> &nbsp;&nbsp;&nbsp;&nbsp;: &nbsp;{age_str} Yrs / {gender_str}<br/>"
+        f"<b>Referred By</b> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: &nbsp;{referred_by}"
+    )
+
+    demo_right_text = (
+        f"<b>Test Request ID</b> &nbsp;: &nbsp;{req_id}<br/>"
+        f"<b>Received Date</b> &nbsp;&nbsp;&nbsp;: &nbsp;{recv_date}<br/>"
+        f"<b>Reporting Date</b> &nbsp;&nbsp;: &nbsp;{rep_date}"
+    )
+
+    demo_table = Table(
         [
-            Paragraph("PATIENT NAME:", meta_label),
-            Paragraph(f"<b>{str(patient_info.get('name') or 'N/A')}</b>", meta_value),
-            Paragraph("PATIENT ID:", meta_label),
-            Paragraph(str(patient_info.get("id_display") or "N/A"), meta_value),
+            [
+                Paragraph(demo_left_text, demo_label_style),
+                Paragraph(demo_right_text, demo_label_style),
+            ]
         ],
-        [
-            Paragraph("AGE / GENDER:", meta_label),
-            Paragraph(f"{str(patient_info.get('age') or 'N/A')} Yrs / {str(patient_info.get('gender') or 'N/A')}", meta_value),
-            Paragraph("BOOKING ID:", meta_label),
-            Paragraph(str(patient_info.get("booking_id_display") or "N/A"), meta_value),
-        ],
-        [
-            Paragraph("REFERRED BY:", meta_label),
-            Paragraph(str(patient_info.get("referred_by") or "Self / Dr. Consultation"), meta_value),
-            Paragraph("DATE / TIME:", meta_label),
-            Paragraph(str(report_info.get("date") or "N/A"), meta_value),
-        ],
-    ]
-    p_table = Table(patient_data, colWidths=[95, 165, 95, 165])
-    p_table.setStyle(
+        colWidths=[265, 258],
+    )
+    demo_table.setStyle(
         TableStyle(
             [
-                ("BACKGROUND", (0, 0), (-1, -1), slate_light),
-                ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
-                ("INNERGRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#E2E8F0")),
-                ("TOPPADDING", (0, 0), (-1, -1), 4),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-                ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("TOPPADDING", (0, 0), (-1, -1), 1),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
             ]
         )
     )
-    story.append(p_table)
-    story.append(Spacer(1, 14))
+    story.append(demo_table)
+    story.append(Spacer(1, 4))
 
-    # 3. Diagnostic Test Title
-    test_title_text = f"<b>{test_info.get('name', 'Diagnostic Investigation')}</b> ({test_info.get('code', '')})"
-    story.append(Paragraph(test_title_text, section_heading))
-    story.append(Spacer(1, 6))
+    # 3. Test Results Section (Unbordered format with two black lines for column header, Group & Subgroup hierarchy)
+    test_title_raw = (test_info.get("name") or "Investigation").upper()
+    group_name = (test_info.get("category_name") or "HAEMATOLOGY").upper()
 
-    # 4. Results Section: Pathology Analyte Table OR Radiology Narrative
+    col_widths = [215, 95, 75, 138]
+
     if result_values:
-        # Pathology Analyte Table
+        # Build Table rows with Group, Test Header, Subgroups and Parameter rows
         table_rows = [
             [
-                Paragraph("<b>TEST PARAMETER / ANALYTE</b>", table_header),
-                Paragraph("<b>OBSERVED VALUE</b>", table_header),
-                Paragraph("<b>UNIT</b>", table_header),
-                Paragraph("<b>REFERENCE INTERVAL</b>", table_header),
-                Paragraph("<b>FLAG</b>", table_header),
+                Paragraph("<b>Test Description</b>", col_hdr_style),
+                Paragraph("<b>Observe Value</b>", col_hdr_style),
+                Paragraph("<b>Units</b>", col_hdr_style),
+                Paragraph("<b>Biological Reference Range</b>", col_hdr_style),
             ]
         ]
-        for v in result_values:
-            flag_str = str(v.get("flag", "NORMAL"))
-            if "CRITICAL" in flag_str:
-                f_style = flag_critical
-            elif "HIGH" in flag_str:
-                f_style = flag_high
-            elif "LOW" in flag_str:
-                f_style = flag_low
-            else:
-                f_style = table_cell
+        table_style_commands = [
+            ("LINEABOVE", (0, 0), (-1, 0), 1.2, colors.black),
+            ("LINEBELOW", (0, 0), (-1, 0), 1.2, colors.black),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 0),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+            ("TOPPADDING", (0, 0), (-1, -1), 1.5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 1.5),
+        ]
 
-            val_display = format_result_value(v.get("numeric_value"), v.get("text_value"))
+        row_idx = 1
+
+        # Check if first result value overrides group_name
+        for v in result_values:
+            if v.get("group_name"):
+                group_name = str(v["group_name"]).upper()
+                break
+
+        # Group Title row (Centered bold, e.g. HAEMATOLOGY)
+        table_rows.append([Paragraph(f"<b>{group_name}</b>", group_hdr_style), "", "", ""])
+        table_style_commands.append(("SPAN", (0, row_idx), (3, row_idx)))
+        table_style_commands.append(("TOPPADDING", (0, row_idx), (3, row_idx), 4))
+        table_style_commands.append(("BOTTOMPADDING", (0, row_idx), (3, row_idx), 3))
+        row_idx += 1
+
+        # Test Title row (Left-aligned, underlined bold, e.g. COMPLETE BLOOD COUNT)
+        table_rows.append([Paragraph(f"<u><b>{test_title_raw}</b></u>", test_hdr_style), "", "", ""])
+        table_style_commands.append(("SPAN", (0, row_idx), (3, row_idx)))
+        table_style_commands.append(("TOPPADDING", (0, row_idx), (3, row_idx), 3))
+        table_style_commands.append(("BOTTOMPADDING", (0, row_idx), (3, row_idx), 2))
+        row_idx += 1
+
+        # Partition parameters into direct parameters and subgroups
+        direct_params = []
+        subgroup_map = {}
+
+        for v in result_values:
+            sg = v.get("subgroup_name") or infer_subgroup(v.get("parameter_name", ""), v.get("parameter_code", ""))
+            if not sg:
+                direct_params.append(v)
+            else:
+                if sg not in subgroup_map:
+                    subgroup_map[sg] = []
+                subgroup_map[sg].append(v)
+
+        # 1. Render direct parameters
+        for v in direct_params:
+            p_name = v.get("parameter_name") or v.get("name") or ""
+            p_val = v.get("value")
+            if p_val is not None and v.get("numeric_value") is None and v.get("text_value") is None:
+                val_display = str(p_val)
+            else:
+                val_display = format_result_value(v.get("numeric_value"), v.get("text_value"))
+            p_unit = v.get("unit") or ""
+            p_ref = v.get("reference_range_display") or v.get("reference_range") or ""
+            flag_str = str(v.get("flag", "NORMAL")).upper()
+            is_abnormal = flag_str in ["HIGH", "LOW", "CRITICAL_HIGH", "CRITICAL_LOW", "ABNORMAL"]
+            v_style = param_text_bold if is_abnormal else param_text_style
 
             table_rows.append(
                 [
-                    Paragraph(f"<b>{v.get('parameter_name', '')}</b>", table_cell_bold),
-                    Paragraph(val_display, table_cell_bold),
-                    Paragraph(v.get("unit") or "—", table_cell),
-                    Paragraph(v.get("reference_range_display") or "—", table_cell),
-                    Paragraph(flag_str.replace("_", " "), f_style),
+                    Paragraph(p_name, param_text_style),
+                    Paragraph(val_display, v_style),
+                    Paragraph(p_unit, param_text_style),
+                    Paragraph(p_ref, param_text_style),
                 ]
+            )
+            row_idx += 1
+
+        # 2. Render each subgroup and its parameters
+        for sg_name, sg_params in subgroup_map.items():
+            # Subgroup Heading (Left-aligned, bold, underlined)
+            table_rows.append([Paragraph(f"<u><b>{sg_name}</b></u>", subgroup_hdr_style), "", "", ""])
+            table_style_commands.append(("SPAN", (0, row_idx), (3, row_idx)))
+            table_style_commands.append(("TOPPADDING", (0, row_idx), (3, row_idx), 4))
+            table_style_commands.append(("BOTTOMPADDING", (0, row_idx), (3, row_idx), 2))
+            row_idx += 1
+
+            for v in sg_params:
+                p_name = v.get("parameter_name") or v.get("name") or ""
+                p_val = v.get("value")
+                if p_val is not None and v.get("numeric_value") is None and v.get("text_value") is None:
+                    val_display = str(p_val)
+                else:
+                    val_display = format_result_value(v.get("numeric_value"), v.get("text_value"))
+                p_unit = v.get("unit") or ""
+                p_ref = v.get("reference_range_display") or v.get("reference_range") or ""
+                flag_str = str(v.get("flag", "NORMAL")).upper()
+                is_abnormal = flag_str in ["HIGH", "LOW", "CRITICAL_HIGH", "CRITICAL_LOW", "ABNORMAL"]
+                v_style = param_text_bold if is_abnormal else param_text_style
+
+                table_rows.append(
+                    [
+                        Paragraph(f"&nbsp;&nbsp;{p_name}", param_text_style),
+                        Paragraph(val_display, v_style),
+                        Paragraph(p_unit, param_text_style),
+                        Paragraph(p_ref, param_text_style),
+                    ]
+                )
+                row_idx += 1
+
+        # 3. Interpretation Section
+        interp_text = (
+            report_info.get("interpretation")
+            or narrative_info.get("interpretation")
+            or narrative_info.get("imaging_impression")
+            or narrative_info.get("imaging_findings")
+            or narrative_info.get("clinical_history")
+            or test_info.get("interpretation")
+        )
+        if not interp_text and ("CBC" in (test_info.get("code") or "").upper() or "COMPLETE BLOOD COUNT" in test_title_raw):
+            interp_text = (
+                "Hemoglobin/platelet/leucocyte count and platelets count are stable till 24 hrs. "
+                "The cell morphology is well preserved for 48 hrs. However, haematocrit & MCV variation is observed "
+                "(MCV -3.5 - 7.5% and HCT - 0.4 - 4.0% leading to a decrease in MCHC). "
+                "A fresh smear is recommended for an accurate differential WBC count and interpretation of RBC morphology."
             )
 
-        res_table = Table(table_rows, colWidths=[170, 95, 65, 125, 65])
-        res_table.setStyle(
-            TableStyle(
-                [
-                    ("BACKGROUND", (0, 0), (-1, 0), brand_dark),
-                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                    ("TOPPADDING", (0, 0), (-1, -1), 4),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-                    ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, slate_light]),
-                    ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#E2E8F0")),
-                ]
-            )
-        )
+        if interp_text:
+            table_rows.append([Paragraph("<u><b>INTERPRETATION :</b></u>", subgroup_hdr_style), "", "", ""])
+            table_style_commands.append(("SPAN", (0, row_idx), (3, row_idx)))
+            table_style_commands.append(("TOPPADDING", (0, row_idx), (3, row_idx), 5))
+            table_style_commands.append(("BOTTOMPADDING", (0, row_idx), (3, row_idx), 2))
+            row_idx += 1
+
+            table_rows.append([Paragraph(interp_text, interp_style), "", "", ""])
+            table_style_commands.append(("SPAN", (0, row_idx), (3, row_idx)))
+            table_style_commands.append(("TOPPADDING", (0, row_idx), (3, row_idx), 2))
+            table_style_commands.append(("BOTTOMPADDING", (0, row_idx), (3, row_idx), 4))
+            row_idx += 1
+
+        res_table = Table(table_rows, colWidths=col_widths, repeatRows=1)
+        res_table.setStyle(TableStyle(table_style_commands))
         story.append(res_table)
     else:
-        # Radiology Narrative Findings
+        # Narrative / Radiology Findings
         narrative_elements = []
         is_single_box = bool(narrative_info.get("imaging_findings")) and not bool(narrative_info.get("clinical_history")) and not bool(narrative_info.get("imaging_impression"))
 
-        if is_single_box:
-            narrative_elements.append(Paragraph("<b>RADIOLOGICAL REPORT &amp; FINDINGS:</b>", meta_label))
-            narrative_elements.append(Spacer(1, 4))
-            narrative_elements.append(safe_reportlab_paragraph(narrative_info["imaging_findings"], meta_value))
-            narrative_elements.append(Spacer(1, 6))
+        narrative_elements.append(Paragraph(f"<b>{group_name}</b>", group_hdr_style))
+        narrative_elements.append(Spacer(1, 2))
+        narrative_elements.append(Paragraph(f"<u><b>{test_title_raw}</b></u>", test_hdr_style))
+        narrative_elements.append(Spacer(1, 4))
 
+        if is_single_box:
+            narrative_elements.append(Paragraph("<u><b>RADIOLOGICAL REPORT &amp; FINDINGS:</b></u>", subgroup_hdr_style))
+            narrative_elements.append(Spacer(1, 2))
+            narrative_elements.append(safe_reportlab_paragraph(narrative_info["imaging_findings"], param_text_style))
+            narrative_elements.append(Spacer(1, 4))
             if narrative_info.get("recommendations"):
-                narrative_elements.append(Paragraph("<b>RECOMMENDATIONS:</b>", meta_label))
-                narrative_elements.append(safe_reportlab_paragraph(narrative_info["recommendations"], meta_value))
+                narrative_elements.append(Paragraph("<u><b>RECOMMENDATIONS:</b></u>", subgroup_hdr_style))
+                narrative_elements.append(safe_reportlab_paragraph(narrative_info["recommendations"], param_text_style))
         else:
             if narrative_info.get("clinical_history"):
-                narrative_elements.append(Paragraph("<b>CLINICAL HISTORY &amp; INDICATION:</b>", meta_label))
-                narrative_elements.append(safe_reportlab_paragraph(narrative_info["clinical_history"], meta_value))
-                narrative_elements.append(Spacer(1, 6))
-
+                narrative_elements.append(Paragraph("<u><b>CLINICAL HISTORY &amp; INDICATION:</b></u>", subgroup_hdr_style))
+                narrative_elements.append(safe_reportlab_paragraph(narrative_info["clinical_history"], param_text_style))
+                narrative_elements.append(Spacer(1, 4))
             if narrative_info.get("imaging_findings"):
-                narrative_elements.append(Paragraph("<b>FINDINGS:</b>", meta_label))
-                narrative_elements.append(safe_reportlab_paragraph(narrative_info["imaging_findings"], meta_value))
-                narrative_elements.append(Spacer(1, 6))
-
+                narrative_elements.append(Paragraph("<u><b>FINDINGS:</b></u>", subgroup_hdr_style))
+                narrative_elements.append(safe_reportlab_paragraph(narrative_info["imaging_findings"], param_text_style))
+                narrative_elements.append(Spacer(1, 4))
             if narrative_info.get("imaging_impression"):
-                narrative_elements.append(Paragraph("<b>IMPRESSION:</b>", meta_label))
-                narrative_elements.append(safe_reportlab_paragraph(f"<b>{narrative_info['imaging_impression']}</b>", meta_value))
-                narrative_elements.append(Spacer(1, 6))
-
+                narrative_elements.append(Paragraph("<u><b>IMPRESSION:</b></u>", subgroup_hdr_style))
+                narrative_elements.append(safe_reportlab_paragraph(f"<b>{narrative_info['imaging_impression']}</b>", param_text_style))
+                narrative_elements.append(Spacer(1, 4))
             if narrative_info.get("recommendations"):
-                narrative_elements.append(Paragraph("<b>RECOMMENDATIONS:</b>", meta_label))
-                narrative_elements.append(safe_reportlab_paragraph(narrative_info["recommendations"], meta_value))
+                narrative_elements.append(Paragraph("<u><b>RECOMMENDATIONS:</b></u>", subgroup_hdr_style))
+                narrative_elements.append(safe_reportlab_paragraph(narrative_info["recommendations"], param_text_style))
 
         story.append(KeepTogether(narrative_elements))
 
-    story.append(Spacer(1, 20))
+    story.append(Spacer(1, 14))
 
-    # 5. Footer: QR Code, HMAC Security Stamp, and Digital Signature
-    enable_qr = lab_info.get("enable_qr_verification", True)
-    if "enable_qr_verification" in report_info and report_info["enable_qr_verification"] is not None:
-        enable_qr = report_info["enable_qr_verification"]
-
-    show_qr_side_text = lab_info.get("show_qr_side_text", True)
-    if "show_qr_side_text" in report_info and report_info["show_qr_side_text"] is not None:
-        show_qr_side_text = report_info["show_qr_side_text"]
-
+    # 4. Signature & Authentication elements
     approver_name = report_info.get("approved_by_name", "Authorized Laboratory Pathologist")
-
     sig_source = (
         report_info.get("signature_image")
         or report_info.get("signature_image_url")
         or report_info.get("signature_bytes")
     )
-    sig_flowable = get_signature_flowable(sig_source, max_width=140, max_height=38)
+    sig_flowable = get_signature_flowable(sig_source, max_width=120, max_height=32)
 
-    signatory_title = report_info.get("signatory_title") or "Consultant Pathologist / Radiologist"
+    signatory_title = report_info.get("signatory_title") or "Consultant Pathologist"
     signatory_degrees = report_info.get("signatory_degrees") or ""
     signatory_reg_no = report_info.get("signatory_reg_no") or ""
 
-    cred_parts = [signatory_title]
-    if signatory_degrees:
-        cred_parts.append(signatory_degrees)
+    cred_str = signatory_degrees if signatory_degrees else ""
     if signatory_reg_no:
-        cred_parts.append(f"Reg: {signatory_reg_no}")
-    cred_str = " | ".join(cred_parts)
+        cred_str = f"{cred_str} (Reg: {signatory_reg_no})" if cred_str else f"Reg: {signatory_reg_no}"
 
-    sig_cell_elements = [
-        Paragraph(
-            "<b>Digitally Authenticated &amp; Signed By:</b>",
-            ParagraphStyle("SigAuthHeader", parent=styles["Normal"], fontSize=7.5, leading=9.5, alignment=2, textColor=colors.HexColor("#475569")),
-        )
-    ]
+    sig_cell_elements = []
     if sig_flowable:
-        sig_cell_elements.append(Spacer(1, 2))
         sig_cell_elements.append(sig_flowable)
-        sig_cell_elements.append(Spacer(1, 2))
+        sig_cell_elements.append(Spacer(1, 1))
 
-    sig_info_text = (
-        f"<b>{approver_name}</b><br/>"
-        f"<font color='#64748B'>{cred_str}</font><br/>"
-        f"<font color='#94A3B8'>Date: {report_info.get('finalized_at', 'N/A')}</font>"
-    )
+    sig_info_text = f"<b>{approver_name}</b>"
+    if cred_str:
+        sig_info_text += f"<br/>{cred_str}"
+    if signatory_title:
+        sig_info_text += f"<br/>{signatory_title}"
+
     sig_cell_elements.append(
         Paragraph(
             sig_info_text,
-            ParagraphStyle("SigDocInfo", parent=styles["Normal"], fontSize=8, leading=10.5, alignment=2, textColor=slate_dark),
+            ParagraphStyle("SigDocInfo", parent=styles["Normal"], fontSize=8, leading=10, alignment=2, textColor=dark_text),
         )
     )
 
-    sig_sub_table = Table(
-        [[elem] for elem in sig_cell_elements],
-        colWidths=[185],
+    # Center column: Barcode / QR Code / Tracking ID & Date
+    raw_code_type = report_info.get("footer_code_type") or lab_info.get("footer_code_type")
+    enable_qr = lab_info.get("enable_qr_verification", True)
+    if "enable_qr_verification" in report_info and report_info["enable_qr_verification"] is not None:
+        enable_qr = report_info["enable_qr_verification"]
+
+    if raw_code_type:
+        code_type = str(raw_code_type).upper()
+    else:
+        code_type = "QR_CODE" if enable_qr else "BARCODE"
+
+    barcode_id = report_info.get("report_id_display") or "ULR-32673"
+    center_cell_elements = []
+
+    if code_type in ["BARCODE", "BOTH"]:
+        try:
+            bc_flowable = code128.Code128(barcode_id, barHeight=18, barWidth=0.8)
+        except Exception:
+            bc_flowable = Paragraph(f"<b>*{barcode_id}*</b>", ParagraphStyle("BcAlt", alignment=1, fontSize=10))
+        center_cell_elements.append(bc_flowable)
+
+    if code_type in ["QR_CODE", "QR", "BOTH"] and enable_qr and qr_url:
+        try:
+            qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=3, border=1)
+            qr.add_data(qr_url)
+            qr.make(fit=True)
+            qr_img = qr.make_image(fill_color="black", back_color="white")
+            qr_buffer = io.BytesIO()
+            qr_img.save(qr_buffer, format="PNG")
+            qr_buffer.seek(0)
+            qr_flowable = Image(qr_buffer, width=0.48 * inch, height=0.48 * inch)
+            center_cell_elements.append(qr_flowable)
+            center_cell_elements.append(Paragraph("Scan QR to Verify Authenticity Online", ParagraphStyle("QrCaption", parent=styles["Normal"], fontSize=6, leading=7.5, alignment=1, textColor=muted_text)))
+        except Exception:
+            pass
+
+    center_cell_elements.append(
+        Paragraph(f"{barcode_id} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {rep_date}", ParagraphStyle("BcText", parent=styles["Normal"], fontSize=7, leading=9, alignment=1, textColor=dark_text))
     )
-    sig_sub_table.setStyle(
+
+    # Left column: Checked by & Printed by
+    printed_by_str = report_info.get("printed_by") or "Reception"
+    left_cell_elements = [
+        Paragraph("<b>Checked by</b>", ParagraphStyle("CheckedBy", parent=styles["Normal"], fontSize=8, leading=10, textColor=dark_text)),
+        Spacer(1, 18),
+        Paragraph(f"<b>Printed By :</b> &nbsp;{printed_by_str}", ParagraphStyle("PrintedBy", parent=styles["Normal"], fontSize=7.5, leading=9.5, textColor=dark_text)),
+    ]
+
+    # Upper footer block (3 columns)
+    upper_footer_table = Table(
+        [
+            [
+                left_cell_elements,
+                center_cell_elements,
+                sig_cell_elements,
+            ]
+        ],
+        colWidths=[150, 185, 188],
+    )
+    upper_footer_table.setStyle(
         TableStyle(
             [
-                ("ALIGN", (0, 0), (-1, -1), "RIGHT"),
                 ("VALIGN", (0, 0), (-1, -1), "BOTTOM"),
+                ("ALIGN", (1, 0), (1, 0), "CENTER"),
+                ("ALIGN", (2, 0), (2, 0), "RIGHT"),
                 ("TOPPADDING", (0, 0), (-1, -1), 0),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
                 ("LEFTPADDING", (0, 0), (-1, -1), 0),
                 ("RIGHTPADDING", (0, 0), (-1, -1), 0),
             ]
         )
     )
 
-    if enable_qr:
-        # Generate QR Code image in memory
-        qr = qrcode.QRCode(
-            version=1,
-            error_correction=qrcode.constants.ERROR_CORRECT_M,
-            box_size=4,
-            border=1,
-        )
-        qr.add_data(qr_url)
-        qr.make(fit=True)
-        qr_img = qr.make_image(fill_color="black", back_color="white")
-
-        qr_buffer = io.BytesIO()
-        qr_img.save(qr_buffer, format="PNG")
-        qr_buffer.seek(0)
-        qr_flowable = Image(qr_buffer, width=1.05 * inch, height=1.05 * inch)
-
-        if show_qr_side_text:
-            hmac_short = f"{hmac_digest[:16]}...{hmac_digest[-8:]}" if hmac_digest else "N/A"
-            footer_text = (
-                f"<b>Scan QR to Verify Authenticity Online</b><br/>"
-                f"<font color='#64748B'>Portal: {qr_url}</font><br/>"
-                f"<font color='#64748B'>HMAC Digest: {hmac_short}</font><br/>"
-                f"<i>This medical report is tamper-proof signed and electronically validated.</i>"
-            )
-            footer_table = Table(
-                [
-                    [
-                        qr_flowable,
-                        Paragraph(footer_text, subtitle_style),
-                        sig_sub_table,
-                    ]
-                ],
-                colWidths=[85, 250, 185],
-            )
-        else:
-            # QR code with ONLY "Scan QR to Verify Authenticity Online" below the QR code
-            qr_caption_style = ParagraphStyle(
-                "QRCaptionBelow",
-                parent=styles["Normal"],
-                alignment=1,  # Center aligned under QR code
-                fontName="Helvetica-Bold",
-                fontSize=7,
-                leading=8.5,
-                textColor=colors.HexColor("#334155"),
-            )
-            qr_sub_table = Table(
-                [
-                    [qr_flowable],
-                    [Spacer(1, 2)],
-                    [Paragraph("Scan QR to Verify Authenticity Online", qr_caption_style)],
-                ],
-                colWidths=[145],
-            )
-            qr_sub_table.setStyle(
-                TableStyle(
-                    [
-                        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                        ("LEFTPADDING", (0, 0), (-1, -1), 0),
-                        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-                        ("TOPPADDING", (0, 0), (-1, -1), 0),
-                        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
-                    ]
-                )
-            )
-            footer_table = Table(
-                [
-                    [
-                        qr_sub_table,
-                        Paragraph("", subtitle_style),
-                        sig_sub_table,
-                    ]
-                ],
-                colWidths=[145, 190, 185],
-            )
-    else:
-        # QR Code disabled completely
-        footer_table = Table(
-            [
-                [
-                    Paragraph("<i>This medical report is tamper-proof signed and electronically validated.</i>", subtitle_style),
-                    sig_sub_table,
-                ]
-            ],
-            colWidths=[335, 185],
-        )
-    footer_styles = [
-        ("VALIGN", (0, 0), (-1, -1), "BOTTOM"),
-        ("TOPPADDING", (0, 0), (-1, -1), 4),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-    ]
-    if not is_letterhead and not has_letterhead_bg:
-        footer_styles.append(("LINEABOVE", (0, 0), (-1, 0), 1, brand_color))
-    footer_table.setStyle(TableStyle(footer_styles))
-
-    story.append(KeepTogether(footer_table))
+    story.append(KeepTogether([upper_footer_table]))
 
     # Build PDF with background if letterhead image configured
     def draw_letterhead_bg(canvas_obj, doc_obj):
@@ -1344,28 +1477,159 @@ class NumberedCanvas(canvas.Canvas):
         super().save()
 
     def draw_page_number(self, page_count):
-        self.saveState()
-        self.setFont("Helvetica", 8)
-        self.setFillColor(colors.HexColor("#64748B"))
-        # Only draw generic running headers/footers if NOT on letterhead background or pre-printed letterhead
-        if not getattr(self, "is_letterhead", False) and not getattr(self, "has_letterhead_bg", False):
-            # Running top header on pages 2+
-            if self._pageNumber > 1:
-                self.setStrokeColor(colors.HexColor("#CBD5E1"))
-                self.setLineWidth(0.5)
-                self.line(36, A4[1] - 30, A4[0] - 36, A4[1] - 30)
-                self.drawString(36, A4[1] - 24, "TrustMyLab Consolidated Diagnostic Report")
-                self.drawRightString(A4[0] - 36, A4[1] - 24, "Confidential Medical Record")
+        # Clean page numbering only if document exceeds 1 page
+        if page_count > 1:
+            self.saveState()
+            self.setFont("Helvetica", 7.5)
+            self.setFillColor(colors.HexColor("#64748B"))
+            page_text = f"Page {self._pageNumber} of {page_count}"
+            self.drawRightString(A4[0] - 36, 12, page_text)
+            self.restoreState()
 
-            # Running bottom footer
-            self.setStrokeColor(colors.HexColor("#CBD5E1"))
-            self.setLineWidth(0.5)
-            self.line(36, 30, A4[0] - 36, 30)
-            self.drawString(36, 18, "TrustMyLab — Validated Electronic Health Record — Strictly Confidential")
 
-        page_text = f"Page {self._pageNumber} of {page_count}"
-        self.drawRightString(A4[0] - 36, 18, page_text)
-        self.restoreState()
+def infer_group_name(category_name: str = "", test_name: str = "", test_code: str = "") -> str:
+    """Infers Department / Group header name matching standard pathology catalog."""
+    cat_upper = (category_name or "").upper()
+    name_upper = (test_name or "").upper()
+    code_upper = (test_code or "").upper()
+
+    if any(k in cat_upper or k in name_upper or k in code_upper for k in ["HEMATOLOGY", "HAEMATOLOGY", "CBC", "HEM", "BLOOD GROUP", "BLD-GRP", "ESR", "PBS", "COAGULATION", "PT-INR"]):
+        return "HAEMATOLOGY"
+    if any(k in cat_upper or k in name_upper or k in code_upper for k in ["THYROID", "HORMON", "TUMOUR", "T3", "T4", "TSH", "PSA", "FERTILITY", "AMH", "PROLACTIN"]):
+        return "HORMONAL AND TUMOUR MARKER"
+    if any(k in cat_upper or k in name_upper or k in code_upper for k in ["SEROLOGY", "IMMUNOLOGY", "WIDAL", "VIRAL", "HIV", "HBSAG", "HCV", "VDRL", "DENGUE", "MALARIA", "COVID"]):
+        return "IMMUNOLOGY AND SEROLOGY"
+    if any(k in cat_upper or k in name_upper or k in code_upper for k in ["BIOCHEMISTRY", "BIO", "DIABETES", "DIA", "LFT", "LIVER", "KFT", "KIDNEY", "LIPID", "GLUCOSE", "SUGAR", "RBS", "FBS", "PPBS", "HBA1C", "ELECTROLYTE", "CALCIUM", "URIC"]):
+        return "BIOCHEMISTRY"
+    if any(k in cat_upper or k in name_upper for k in ["RADIOLOGY", "IMAGING", "XRAY", "X-RAY", "USG", "ULTRASOUND"]):
+        return "RADIOLOGY & IMAGING"
+    if any(k in cat_upper or k in name_upper for k in ["CARDIOLOGY", "ECG", "ECHO", "TMT"]):
+        return "CARDIOLOGY"
+    if any(k in cat_upper or k in name_upper for k in ["URINE", "STOOL", "SEMEN", "CLINICAL PATH"]):
+        return "CLINICAL PATHOLOGY"
+    if any(k in cat_upper or k in name_upper for k in ["MICROBIOLOGY", "CULTURE", "AFB", "KOH"]):
+        return "MICROBIOLOGY"
+    return cat_upper or "BIOCHEMISTRY"
+
+
+def get_standard_interpretation(test_name: str = "", test_code: str = "") -> Optional[str]:
+    """Provides clinically accurate diagnostic interpretation text matching Uttam Diagnostic Center standard."""
+    name_upper = (test_name or "").upper()
+    code_upper = (test_code or "").upper()
+
+    if "CBC" in code_upper or "COMPLETE BLOOD COUNT" in name_upper:
+        return (
+            "Hemoglobin ,total leucocyte count and platelate Count are stable till 72 hrs. "
+            "The cell morphology is well preserved for 24 hrs. However , between 24 to 72 hrs. "
+            "an increase in MCV and HCT is observed (MCV- 5.0 - 7.5 % and HCT - 5.0 - 6.8 % ) "
+            "leading to a decrease in MCHC. A direct smear is recommended for an accurate "
+            "differential WBC count and interpretation of RBC morphology."
+        )
+
+    if "WIDAL" in code_upper or "WIDAL" in name_upper:
+        return (
+            "Thyphoid is a Enteric Fever caused by various species of Salmonella such as S.typhi, S.paratyphi -A and S. paratyphi-B. "
+            "The disease is characterized by sustained high Fever, sever Headache,Nauses, Anorexia and Constipation initially and later Diarrhoea. "
+            "Humans are the only reservoir of the bacteria. The bacteria is usuly transmitted by five ‘F’s: files, food, fingers, faeces, and fomited.\n\n"
+            "Widal test is the most widely accepted ,a century old, serodiagonstic technique used for diagnosis of Typhoid . "
+            "The test uses ‘O’ and ‘H’ antigens of S.typhi and S. paratyphi ‘A’ and ‘B’ to detect the high agglutinin titres of ‘O’ and ‘H’ antibodies in the serum of patients suffering from Enteric Fever.\n\n"
+            "‘O’ is somatic antigen shared by most of the enterics bacteria and thus of lower specificity for the diagnosis . ‘H’ is flagellar antigen specific for Salmonella species. "
+            "Antibodies against ‘O’ disappear quickly , on the other hand ’H’ antibodies persist for a longer period of time, lowering its diagnostic value. "
+            "So , detection of ‘O’ antigen alone or ‘H’ antigen alone is not sufficient to prove Typhoid infection . While , a diagnostic ‘O’ titre and a rising titre of both ‘H’ and ‘O’ agglutinins in to different samples, taken at the interval of 7-10 days assure typhoid infection .\n\n"
+            "RESULTS DEPEND ON:\n"
+            "• Level of agglutinins in normal population.\n"
+            "• Stage of disease.\n"
+            "• Current of past infection.\n"
+            "• Immunization with typhoid vaccine."
+        )
+
+    if "LFT" in code_upper or "LIVER" in name_upper:
+        return (
+            "Bilirubin is a break down product of hemoglobin. Bilirubin formed in the reticulo-endothelial system is transport to the liver bound to a albumin. "
+            "This bilirubin is water insoluble and is know as indirect or unconjugated bilirubin. In the liver, bilirubin is conjugated to glucuronic acid to form direct bilirubin. "
+            "Conjugated bilirubin is excreted via the bilary system into the intestine where it is metabolized by bacteria to urobilinogen & stercobilinogen.\n\n"
+            "Increase:\n"
+            "Total bilirubin is elevated in obstructive condition of the bile duct, hepatitis, cirrhosis, in hemolytic disorders and several inherited enzyme deficiencies.\n"
+            "Indirect bilirubin is elevated by pre-hepatic causes such as hemolytic disorder or liver disease resulting in impaired entry, transport or conjugated within the liver."
+        )
+
+    if "KFT" in code_upper or "KIDNEY" in name_upper:
+        return (
+            "Kidney function evaluates glomerular filtration, tubular reabsorption, and electrolyte balance. "
+            "Elevated blood urea and serum creatinine indicate reduced renal clearance or acute/chronic kidney injury. "
+            "High serum uric acid is associated with gout, renal calculi, or metabolic syndrome. "
+            "Electrolytes (Sodium and Potassium) are vital for neuromuscular conduction and systemic fluid homeostasis."
+        )
+
+    if "LIPID" in code_upper:
+        return (
+            "Lipid profile evaluates cardiovascular risk and lipid metabolism. Desirable levels: Total Cholesterol < 200 mg/dL, "
+            "Triglycerides < 150 mg/dL, HDL Cholesterol > 40 mg/dL (protective/anti-atherogenic), LDL Cholesterol < 100 mg/dL. "
+            "Elevated LDL and non-HDL cholesterol strongly correlate with atherosclerotic coronary artery disease."
+        )
+
+    if "THYROID" in code_upper or "TFT" in code_upper:
+        return (
+            "Note: Guidelines for interpretation of abnormal thyroid function test:-\n"
+            "TSH: High | T4: Normal | T3: Normal => Mild (sub-clinical) Hypothyroidism\n"
+            "TSH: High | T4: Low | T3: Low/Normal => Hypothyroidism\n"
+            "TSH: Low | T4: Normal | T3: Normal => Mild (sub-clinical) Hyperthyroidism\n"
+            "TSH: Low | T4: High/Normal | T3: High/Normal => Hyperthyroidism\n"
+            "TSH: Low | T4: Low/Normal | T3: Low/Normal => Rare pituitary (secondary) Hypothyroidism\n\n"
+            "TSH LEVEL IN INFANTS:\n"
+            "New Born (1 - 4 Days): 1.0 to 39.0 uIU/ml | 2 to 20 weeks: 1.7 to 9.0 uIU/ml | 21 weeks - 20 years: 0.7 to 6.4 uIU/ml\n\n"
+            "Symptoms of hyperthyroidism: Increased heart rate, anxiety, weight loss, tremor, weakness, eye puffiness/dryness.\n"
+            "Symptoms of hypothyroidism: Weight gain, dry skin, constipation, cold intolerance, puffy skin, hair loss, fatigue."
+        )
+
+    if "VDRL" in code_upper or "RPR" in code_upper:
+        return (
+            "This is screening test for syphilis which is useful for following the progression of disease and response to therapy. "
+            "It is advisable to perform battery of tests such as RPR, TPHA & FTA-Abs for diagnosis of syphilis.\n\n"
+            "RPR/VDRL: + | TPHA: - | FTA-Abs: - => False positive - Repeat to exclude Biological false positive\n"
+            "RPR/VDRL: + | TPHA: + | FTA-Abs: + => Untreated or recently treated Infection\n"
+            "RPR/VDRL: - | TPHA: + | FTA-Abs: + => Treated or partially treated at any stage / Untreated latent infection\n"
+            "RPR/VDRL: - | TPHA: +/- | FTA-Abs: +/- => History of treated syphilis\n\n"
+            "The positive response after successful therapy suggests either persistent infection or biological False positives (BFP). "
+            "Biological false positives may occur in patients with autoimmune disorders, pregnancy, tuberculosis, malaria & viral diseases."
+        )
+
+    if any(k in code_upper for k in ["VIRAL", "HIV", "HBSAG", "HCV"]):
+        return (
+            "HIV: A negative result implies no Anti HIV-I/II antibodies detected in the sample (window phase must be considered). Positive results must be confirmed by Western Blot/PCR.\n"
+            "HBsAg: Initial marker in serum during incubation and acute phase of HBV. Persistence beyond 6 months indicates carrier state.\n"
+            "HCV: Indicates exposure or persistent infection with Hepatitis C virus. Recommended to evaluate with HCV-RNA viral load."
+        )
+
+    return None
+
+
+def format_test_title(test_name: str = "", test_code: str = "") -> str:
+    """Formats test title matching the exact pathology headers in Uttam Diagnostic reports."""
+    name_upper = (test_name or "").strip().upper()
+    code_upper = (test_code or "").strip().upper()
+
+    if "CBC" in code_upper or "COMPLETE BLOOD COUNT" in name_upper:
+        return "COMPLETE BLOOD COUNT"
+    if "LFT" in code_upper or "LIVER FUNCTION" in name_upper:
+        return "LIVER FUNCTION TEST -"
+    if "KFT" in code_upper or "KIDNEY FUNCTION" in name_upper:
+        return "KIDNEY FUNCTION TEST:"
+    if "LIPID" in code_upper:
+        return "LIPID PROFILE -"
+    if "THYROID" in code_upper or "TFT" in code_upper:
+        return "THYROID PROFILE"
+    if "RBS" in code_upper or "RANDOM BLOOD SUGAR" in name_upper or "GLUCOSE RANDOM" in name_upper:
+        return "BLOOD SUGAR RANDOM:-"
+    if "WIDAL" in code_upper:
+        return "WIDAL TEST"
+    if "VDRL" in code_upper or "RPR" in code_upper:
+        return "VDRL (RPR), SERUM"
+    if "BLD-GRP" in code_upper or "BLOOD GROUP" in name_upper:
+        return "ABO GROUP (A,B,O) AND Rh FACTOR WITH REVERSE GROUPING"
+    if any(k in code_upper for k in ["HIV", "HBSAG", "HCV", "VIRAL"]):
+        return "VIRAL MARKER:"
+    return name_upper or "DIAGNOSTIC INVESTIGATION"
 
 
 def generate_consolidated_booking_report_pdf(
@@ -1379,7 +1643,14 @@ def generate_consolidated_booking_report_pdf(
     top_margin_mm: Optional[int] = None,
     bottom_margin_mm: Optional[int] = None,
 ) -> str:
-    """Renders a production-grade Consolidated Diagnostic Report PDF containing all reports for a single booking."""
+    """Renders a diagnostic report PDF containing all tests for a booking, matching the exact visual sample:
+    - Identical header and footer formatting
+    - Hierarchical Department Group & Subgroups
+    - Clean unbordered demographics and analyte rows (no boxed grid table format)
+    - Two clean horizontal black dividing lines for column headers
+    - Booking ID displayed under Test Request ID in patient details
+    - Completely removed 'CONSOLIDATED DIAGNOSTIC REPORT' and summary panel index
+    """
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
     letterhead_bg_image = lab_info.get("letterhead_image")
@@ -1393,675 +1664,575 @@ def generate_consolidated_booking_report_pdf(
     is_pdf_letterhead = has_letterhead_bg and is_pdf_file(letterhead_bg_image)
     is_image_letterhead = has_letterhead_bg and not is_pdf_letterhead
 
-    top_margin_pt = (top_margin_mm * 72 / 25.4) if top_margin_mm is not None else (48 * 72 / 25.4 if (is_letterhead or has_letterhead_bg) else 36)
-    bottom_margin_pt = (bottom_margin_mm * 72 / 25.4) if bottom_margin_mm is not None else (28 * 72 / 25.4 if (is_letterhead or has_letterhead_bg) else 42)
+    mm_pt = 72.0 / 25.4
+    if is_letterhead or has_letterhead_bg:
+        top_m = float(top_margin_mm * mm_pt) if top_margin_mm else (48.0 * mm_pt)
+        bottom_m = float(bottom_margin_mm * mm_pt) if bottom_margin_mm else (28.0 * mm_pt)
+    else:
+        top_m = 24.0
+        bottom_m = 24.0
 
     doc = SimpleDocTemplate(
         output_path,
         pagesize=A4,
         leftMargin=36,
         rightMargin=36,
-        topMargin=top_margin_pt,
-        bottomMargin=bottom_margin_pt,
+        topMargin=top_m,
+        bottomMargin=bottom_m,
     )
 
     styles = getSampleStyleSheet()
 
-    # Color Palette
-    brand_color = colors.HexColor("#0D9488")  # Teal 600
-    brand_dark = colors.HexColor("#115E59")   # Teal 800
-    slate_dark = colors.HexColor("#1E293B")   # Slate 800
-    slate_muted = colors.HexColor("#64748B")  # Slate 500
-    slate_light = colors.HexColor("#F8FAFC")  # Slate 50
-    border_color = colors.HexColor("#CBD5E1") # Slate 300
-    grid_color = colors.HexColor("#E2E8F0")   # Slate 200
+    cyan_brand = colors.HexColor("#0099DD")
+    red_accent = colors.HexColor("#CC0000")
+    dark_text = colors.HexColor("#1A1A1A")
+    muted_text = colors.HexColor("#555555")
+    green_emergency = colors.HexColor("#008800")
 
-    title_style = ParagraphStyle(
-        "ConsolidatedLabTitle",
+    hindi_font = "Devanagari" if HAS_DEVANAGARI else "Helvetica"
+    hindi_bold = "Devanagari-Bold" if HAS_DEVANAGARI else "Helvetica-Bold"
+
+    title_main_style = ParagraphStyle(
+        "UttamMainTitleConsol",
         parent=styles["Normal"],
         fontName="Helvetica-Bold",
-        fontSize=17,
-        leading=21,
-        textColor=brand_dark,
+        fontSize=18,
+        leading=20,
+        alignment=1,
+        textColor=cyan_brand,
     )
-    subtitle_style = ParagraphStyle(
-        "ConsolidatedLabSubtitle",
-        parent=styles["Normal"],
-        fontName="Helvetica",
-        fontSize=8.5,
-        leading=11.5,
-        textColor=slate_muted,
-    )
-    meta_label = ParagraphStyle(
-        "ConsolidatedMetaLabel",
+    title_sub_style = ParagraphStyle(
+        "UttamSubTitleConsol",
         parent=styles["Normal"],
         fontName="Helvetica-Bold",
-        fontSize=8,
+        fontSize=13,
+        leading=15,
+        alignment=1,
+        textColor=red_accent,
+    )
+    address_hindi_style = ParagraphStyle(
+        "UttamHindiAddressConsol",
+        parent=styles["Normal"],
+        fontName=hindi_font,
+        fontSize=7.5,
         leading=10,
-        textColor=slate_muted,
+        alignment=1,
+        textColor=red_accent,
     )
-    meta_value = ParagraphStyle(
-        "ConsolidatedMetaValue",
+    reg_phone_style = ParagraphStyle(
+        "UttamRegPhoneConsol",
         parent=styles["Normal"],
         fontName="Helvetica",
-        fontSize=8.5,
-        leading=11,
-        textColor=slate_dark,
-    )
-    panel_title_style = ParagraphStyle(
-        "PanelTitle",
-        parent=styles["Normal"],
-        fontName="Helvetica-Bold",
-        fontSize=11,
-        leading=14,
-        textColor=colors.white,
-    )
-    panel_sub_style = ParagraphStyle(
-        "PanelSub",
-        parent=styles["Normal"],
-        fontName="Helvetica",
-        fontSize=8.5,
-        leading=11,
-        textColor=colors.HexColor("#CCFBF1"),
+        fontSize=8,
+        leading=10.5,
         alignment=2,
+        textColor=dark_text,
     )
-    table_header = ParagraphStyle(
-        "TableHeader",
-        parent=styles["Normal"],
-        fontName="Helvetica-Bold",
-        fontSize=8,
-        leading=10,
-        textColor=colors.white,
-    )
-    table_cell = ParagraphStyle(
-        "TableCell",
+    demo_label_style = ParagraphStyle(
+        "DemoLabelConsol",
         parent=styles["Normal"],
         fontName="Helvetica",
-        fontSize=8,
-        leading=10.5,
-        textColor=slate_dark,
+        fontSize=8.5,
+        leading=12,
+        textColor=dark_text,
     )
-    table_cell_bold = ParagraphStyle(
-        "TableCellBold",
+    col_hdr_style = ParagraphStyle(
+        "ColHeaderConsol",
         parent=styles["Normal"],
         fontName="Helvetica-Bold",
-        fontSize=8,
-        leading=10.5,
-        textColor=slate_dark,
-    )
-    flag_normal = ParagraphStyle(
-        "FlagNormal",
-        parent=styles["Normal"],
-        fontName="Helvetica-Bold",
-        fontSize=8,
-        leading=10,
-        textColor=colors.HexColor("#059669"),
-    )
-    flag_low = ParagraphStyle(
-        "FlagLow",
-        parent=styles["Normal"],
-        fontName="Helvetica-Bold",
-        fontSize=8,
-        leading=10,
-        textColor=colors.HexColor("#D97706"),
-    )
-    flag_high = ParagraphStyle(
-        "FlagHigh",
-        parent=styles["Normal"],
-        fontName="Helvetica-Bold",
-        fontSize=8,
-        leading=10,
-        textColor=colors.HexColor("#E11D48"),
-    )
-    flag_critical = ParagraphStyle(
-        "FlagCritical",
-        parent=styles["Normal"],
-        fontName="Helvetica-Bold",
-        fontSize=8,
-        leading=10,
-        textColor=colors.HexColor("#DC2626"),
-    )
-    notice_text = ParagraphStyle(
-        "NoticeText",
-        parent=styles["Normal"],
-        fontName="Helvetica-Oblique",
         fontSize=8.5,
         leading=11,
-        textColor=slate_muted,
+        textColor=colors.black,
     )
+    group_hdr_style = ParagraphStyle(
+        "GroupHeaderConsol",
+        parent=styles["Normal"],
+        fontName="Helvetica-Bold",
+        fontSize=10.5,
+        leading=13,
+        alignment=1,
+        textColor=colors.black,
+    )
+    test_hdr_style = ParagraphStyle(
+        "TestHeaderConsol",
+        parent=styles["Normal"],
+        fontName="Helvetica-Bold",
+        fontSize=9,
+        leading=12,
+        alignment=0,
+        textColor=colors.black,
+    )
+    subgroup_hdr_style = ParagraphStyle(
+        "SubgroupHeaderConsol",
+        parent=styles["Normal"],
+        fontName="Helvetica-Bold",
+        fontSize=8.5,
+        leading=11,
+        alignment=0,
+        textColor=colors.black,
+    )
+    param_text_style = ParagraphStyle(
+        "ParamTextConsol",
+        parent=styles["Normal"],
+        fontName="Helvetica",
+        fontSize=8.5,
+        leading=11,
+        textColor=dark_text,
+    )
+    param_text_bold = ParagraphStyle(
+        "ParamTextBoldConsol",
+        parent=styles["Normal"],
+        fontName="Helvetica-Bold",
+        fontSize=8.5,
+        leading=11,
+        textColor=dark_text,
+    )
+    interp_style = ParagraphStyle(
+        "InterpretationTextConsol",
+        parent=styles["Normal"],
+        fontName="Helvetica",
+        fontSize=7.5,
+        leading=10,
+        textColor=dark_text,
+    )
+
+    # 1. Top Letterhead Header Builder
+    def build_top_header():
+        raw_name = lab_info.get("name", "UTTAM Diagnostic Center").strip()
+        name_tokens = raw_name.split(None, 1)
+        name_first = name_tokens[0] if name_tokens else "UTTAM"
+        name_rest = name_tokens[1] if len(name_tokens) > 1 else "Diagnostic Center"
+
+        phone_str = lab_info.get("phone", "9918613886, 9519205517")
+        phones = [p.strip() for p in phone_str.replace(";", ",").split(",") if p.strip()]
+        mob_line_1 = phones[0] if len(phones) > 0 else "9918613886"
+        if len(phones) > 1:
+            mob_line_1 += f", {phones[1]}"
+
+        reg_block = (
+            f"<b>Regd.- {lab_info.get('license', 'RMEE2342261')}</b><br/>"
+            f"<font color='#CC0000'><b>Mob. :</b></font> {mob_line_1}"
+        )
+        if len(phones) > 2:
+            reg_block += f"<br/>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{', '.join(phones[2:4])}"
+        if len(phones) > 4:
+            reg_block += f"<br/>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{', '.join(phones[4:6])}"
+
+        hindi_address = (
+            lab_info.get("address_hindi")
+            or "पता-पटेल नगर निकट दीवानी न्यायालय गेट नं0 1 सिविल लाइन, भिनगा (श्रावस्ती)"
+        )
+
+        logo_flowable = None
+        lab_logo_path = lab_info.get("logo_image")
+        if lab_logo_path and os.path.exists(lab_logo_path):
+            try:
+                logo_flowable = Image(lab_logo_path, width=1.1 * inch, height=0.65 * inch)
+            except Exception:
+                logo_flowable = None
+
+        if not logo_flowable:
+            logo_sub = Paragraph(
+                f"<font color='#CC0000' size=14><b>✚</b></font><br/>"
+                f"<b><font size=7 color='#CC0000'>{raw_name}</font></b>",
+                ParagraphStyle("LogoSubC", parent=styles["Normal"], alignment=1, leading=8.5),
+            )
+            logo_cell = logo_sub
+        else:
+            logo_cell = Table(
+                [[logo_flowable], [Paragraph(f"<font size=6.5 color='#CC0000'><b>{raw_name}</b></font>", ParagraphStyle("LgSubC", alignment=1, leading=7.5))]],
+                colWidths=[95]
+            )
+            logo_cell.setStyle(TableStyle([
+                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ("TOPPADDING", (0, 0), (-1, -1), 0),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+            ]))
+
+        header_center = [
+            Paragraph(f"<b>{name_first}</b>", title_main_style),
+            Paragraph(f"<b>{name_rest}</b>", title_sub_style),
+            Spacer(1, 1),
+            Paragraph(hindi_address, address_hindi_style),
+        ]
+
+        top_tbl = Table(
+            [[logo_cell, header_center, Paragraph(reg_block, reg_phone_style)]],
+            colWidths=[105, 265, 153],
+        )
+        top_tbl.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("TOPPADDING", (0, 0), (-1, -1), 0),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+            ("LEFTPADDING", (0, 0), (-1, -1), 0),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ]))
+        return top_tbl
+
+    # 2. Patient Demographics Builder (Clean two columns, booking ID under Test Request ID)
+    patient_name = str(patient_info.get("name") or patient_info.get("full_name") or "N/A")
+    age_str = str(patient_info.get("age") or "N/A")
+    gender_str = str(patient_info.get("gender") or "N/A").upper()
+    referred_by = str(patient_info.get("referred_by") or booking_info.get("referred_by") or "DR. SELF")
+
+    req_id = str(
+        booking_info.get("booking_id_display")
+        or booking_info.get("id_display")
+        or booking_info.get("id")
+        or patient_info.get("booking_id_display")
+        or "UDC-32675"
+    )
+    recv_date = str(
+        booking_info.get("received_date")
+        or booking_info.get("sample_collected_at")
+        or booking_info.get("appointment_date")
+        or booking_info.get("created_at")
+        or "N/A"
+    )
+    rep_date = str(
+        booking_info.get("reporting_date")
+        or booking_info.get("finalized_at")
+        or booking_info.get("appointment_date")
+        or booking_info.get("created_at")
+        or "N/A"
+    )
+
+    demo_left_text = (
+        f"<b>Name Of Patient</b> &nbsp;: &nbsp;{patient_name}<br/>"
+        f"<b>Age / Gender</b> &nbsp;&nbsp;&nbsp;&nbsp;: &nbsp;{age_str} Yrs / {gender_str}<br/>"
+        f"<b>Referred By</b> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: &nbsp;{referred_by}"
+    )
+    demo_right_text = (
+        f"<b>Test Request ID</b> &nbsp;: &nbsp;{req_id}<br/>"
+        f"<b>Received Date</b> &nbsp;&nbsp;&nbsp;: &nbsp;{recv_date}<br/>"
+        f"<b>Reporting Date</b> &nbsp;&nbsp;: &nbsp;{rep_date}"
+    )
+
+    def build_demographics_table():
+        demo_table = Table(
+            [[Paragraph(demo_left_text, demo_label_style), Paragraph(demo_right_text, demo_label_style)]],
+            colWidths=[265, 258],
+        )
+        demo_table.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("TOPPADDING", (0, 0), (-1, -1), 1),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
+            ("LEFTPADDING", (0, 0), (-1, -1), 0),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ]))
+        return demo_table
+
+    # 3. Footer Builder
+    approver_name = (
+        booking_info.get("approved_by_name")
+        or lab_info.get("default_signatory_name")
+        or "Dr.P.K.Rai"
+    )
+    signatory_title = lab_info.get("default_signatory_designation") or "Consultant Pathologist"
+    signatory_degrees = lab_info.get("default_signatory_degrees") or "M.B.B.S., MD(Path)"
+    signatory_reg_no = lab_info.get("default_signatory_reg_no") or ""
+
+    cred_str = signatory_degrees if signatory_degrees else ""
+    if signatory_reg_no:
+        cred_str = f"{cred_str} (Reg: {signatory_reg_no})" if cred_str else f"Reg: {signatory_reg_no}"
+
+    sig_source = (
+        booking_info.get("signature_image")
+        or lab_info.get("signature_image")
+        or lab_info.get("default_signatory_signature_url")
+    )
+    sig_flowable = get_signature_flowable(sig_source, max_width=120, max_height=32)
+
+    sig_cell_elements = []
+    if sig_flowable:
+        sig_cell_elements.append(sig_flowable)
+        sig_cell_elements.append(Spacer(1, 1))
+
+    sig_info_text = f"<b>{approver_name}</b>"
+    if cred_str:
+        sig_info_text += f"<br/>{cred_str}"
+    if signatory_title:
+        sig_info_text += f"<br/>{signatory_title}"
+
+    sig_cell_elements.append(
+        Paragraph(
+            sig_info_text,
+            ParagraphStyle("SigDocInfoC", parent=styles["Normal"], fontSize=8, leading=10, alignment=2, textColor=dark_text),
+        )
+    )
+
+    raw_code_type = booking_info.get("footer_code_type") or lab_info.get("footer_code_type")
+    enable_qr = lab_info.get("enable_qr_verification", True)
+    if raw_code_type:
+        code_type = str(raw_code_type).upper()
+    else:
+        code_type = "QR_CODE" if enable_qr else "BARCODE"
+
+    center_cell_elements = []
+
+    if code_type in ["BARCODE", "BOTH"]:
+        try:
+            bc_flowable = code128.Code128(req_id, barHeight=18, barWidth=0.8)
+        except Exception:
+            bc_flowable = Paragraph(f"<b>*{req_id}*</b>", ParagraphStyle("BcAltC", alignment=1, fontSize=10))
+        center_cell_elements.append(bc_flowable)
+
+    enable_qr = lab_info.get("enable_qr_verification", True)
+    if code_type in ["QR_CODE", "QR", "BOTH"] and enable_qr and qr_url:
+        try:
+            qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=3, border=1)
+            qr.add_data(qr_url)
+            qr.make(fit=True)
+            qr_img = qr.make_image(fill_color="black", back_color="white")
+            qr_buffer = io.BytesIO()
+            qr_img.save(qr_buffer, format="PNG")
+            qr_buffer.seek(0)
+            qr_flowable = Image(qr_buffer, width=0.48 * inch, height=0.48 * inch)
+            center_cell_elements.append(qr_flowable)
+            center_cell_elements.append(Paragraph("Scan QR to Verify Authenticity Online", ParagraphStyle("QrCaptionC", parent=styles["Normal"], fontSize=6, leading=7.5, alignment=1, textColor=muted_text)))
+        except Exception:
+            pass
+
+    center_cell_elements.append(
+        Paragraph(f"{req_id} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {rep_date}", ParagraphStyle("BcTextC", parent=styles["Normal"], fontSize=7, leading=9, alignment=1, textColor=dark_text))
+    )
+
+    printed_by_str = booking_info.get("printed_by") or "Reception"
+    left_cell_elements = [
+        Paragraph("<b>Checked by</b>", ParagraphStyle("CheckedByC", parent=styles["Normal"], fontSize=8, leading=10, textColor=dark_text)),
+        Spacer(1, 18),
+        Paragraph(f"<b>Printed By :</b> &nbsp;{printed_by_str}", ParagraphStyle("PrintedByC", parent=styles["Normal"], fontSize=7.5, leading=9.5, textColor=dark_text)),
+    ]
+
+    upper_footer_table = Table(
+        [[left_cell_elements, center_cell_elements, sig_cell_elements]],
+        colWidths=[150, 185, 188],
+    )
+    upper_footer_table.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "BOTTOM"),
+        ("ALIGN", (1, 0), (1, 0), "CENTER"),
+        ("ALIGN", (2, 0), (2, 0), "RIGHT"),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+    ]))
+
+    complete_footer = [
+        upper_footer_table,
+    ]
 
     story = []
+    effective_reports = reports_data if reports_data else [{
+        "test_name": "Diagnostic Investigation",
+        "test_code": "",
+        "result_values": [],
+    }]
 
-    # 1. Header: Laboratory Banner & Consolidated Document Identification
-    if not is_letterhead and not has_letterhead_bg:
-        lab_text = f"<b>{lab_info.get('name', 'TrustMyLab Diagnostic Services')}</b>"
-        lab_details = (
-            f"{lab_info.get('address', '123 Medical Center Way')}<br/>"
-            f"Phone: {lab_info.get('phone', 'N/A')} | Email: {lab_info.get('email', 'N/A')}<br/>"
-            f"Accreditation / Reg: {lab_info.get('license', 'ISO 15189 / NABL Certified')}"
-        )
-        booking_header_block = (
-            f"<b>CONSOLIDATED DIAGNOSTIC REPORT</b><br/>"
-            f"<font color='#0D9488'><b>BOOKING #{booking_info.get('booking_id_display', '')}</b></font><br/>"
-            f"Order Status: <b>{booking_info.get('status', 'PENDING')}</b><br/>"
-            f"<font color='#64748B'>Date: {booking_info.get('appointment_date', 'N/A')}</font>"
-        )
-        lab_table = Table(
-            [
-                [
-                    Paragraph(lab_text, title_style),
-                    Paragraph(
-                        booking_header_block,
-                        ParagraphStyle("BookingRef", parent=styles["Normal"], alignment=2, fontSize=9, leading=12.5),
-                    ),
-                ],
-                [Paragraph(lab_details, subtitle_style), ""],
-            ],
-            colWidths=[335, 185],
-        )
-        lab_table.setStyle(
-            TableStyle(
-                [
-                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
-                    ("TOPPADDING", (0, 0), (-1, -1), 2),
-                ]
-            )
-        )
-        story.append(lab_table)
-        story.append(Spacer(1, 6))
-        story.append(HRFlowable(width="100%", thickness=2, color=brand_color, spaceAfter=8))
-    else:
-        # Pre-printed letterhead mode: lab header is physically printed on paper.
-        # Add a clean minimal tracking strip.
-        letterhead_ref_table = Table(
-            [
-                [
-                    Paragraph(f"<b>CONSOLIDATED DIAGNOSTIC REPORT</b> | BOOKING #{booking_info.get('booking_id_display', '')} | Order Status: <b>{booking_info.get('status', 'PENDING')}</b>", ParagraphStyle("LetterheadConsolidatedHeader", parent=styles["Normal"], fontSize=8.5, leading=11, textColor=brand_dark)),
-                    Paragraph(f"Date: {booking_info.get('appointment_date', 'N/A')}", ParagraphStyle("LetterheadConsolidatedDate", parent=styles["Normal"], fontSize=8, leading=10, textColor=slate_muted, alignment=2)),
-                ]
-            ],
-            colWidths=[380, 140],
-        )
-        letterhead_ref_table.setStyle(
-            TableStyle(
-                [
-                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                    ("LINEBELOW", (0, 0), (-1, -1), 0.5, border_color),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-                    ("TOPPADDING", (0, 0), (-1, -1), 0),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 0),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-                ]
-            )
-        )
-        story.append(letterhead_ref_table)
+    for rep_idx, rep in enumerate(effective_reports):
+        if rep_idx > 0:
+            story.append(PageBreak())
+
+        # Top Letterhead
+        if not is_letterhead and not has_letterhead_bg:
+            story.append(build_top_header())
+            story.append(HRFlowable(width="100%", thickness=1.5, color=red_accent, spaceBefore=4, spaceAfter=6))
+
+        # Demographics
+        story.append(build_demographics_table())
         story.append(Spacer(1, 4))
 
-    # 2. Patient & Booking Demographics Card
-    patient_data = [
-        [
-            Paragraph("PATIENT NAME:", meta_label),
-            Paragraph(f"<b>{str(patient_info.get('name') or 'N/A')}</b>", meta_value),
-            Paragraph("PATIENT ID:", meta_label),
-            Paragraph(str(patient_info.get("id_display") or "N/A"), meta_value),
-        ],
-        [
-            Paragraph("AGE / GENDER:", meta_label),
-            Paragraph(f"{str(patient_info.get('age') or 'N/A')} Yrs / {str(patient_info.get('gender') or 'N/A')}", meta_value),
-            Paragraph("CONTACT:", meta_label),
-            Paragraph(f"{str(patient_info.get('phone') or 'N/A')}", meta_value),
-        ],
-        [
-            Paragraph("REFERRED BY:", meta_label),
-            Paragraph(str(patient_info.get("referred_by") or "Self / Dr. Consultation"), meta_value),
-            Paragraph("APPOINTMENT:", meta_label),
-            Paragraph(f"{booking_info.get('appointment_date', 'N/A')} {booking_info.get('appointment_time') or ''}".strip(), meta_value),
-        ],
-    ]
-    if booking_info.get("clinical_notes"):
-        patient_data.append([
-            Paragraph("CLINICAL NOTES:", meta_label),
-            Paragraph(str(booking_info.get("clinical_notes")), meta_value),
-            "",
-            "",
-        ])
+        # Test Results Section
+        t_name = rep.get("test_name") or "Diagnostic Test"
+        t_code = rep.get("test_code") or ""
+        test_title = format_test_title(t_name, t_code)
+        grp_name = (
+            rep.get("group_name")
+            or infer_group_name(rep.get("category_name", ""), t_name, t_code)
+        ).upper()
 
-    p_table = Table(patient_data, colWidths=[90, 170, 90, 170])
-    p_table.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, -1), slate_light),
-                ("BOX", (0, 0), (-1, -1), 0.5, border_color),
-                ("INNERGRID", (0, 0), (-1, -1), 0.5, grid_color),
-                ("TOPPADDING", (0, 0), (-1, -1), 3),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-                ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-            ]
-        )
-    )
-    if booking_info.get("clinical_notes"):
-        p_table.setStyle(TableStyle([("SPAN", (1, 3), (3, 3))]))
-
-    story.append(p_table)
-    story.append(Spacer(1, 10))
-
-    # 3. Order Summary Table (Index of all tests in this booking)
-    story.append(Paragraph("<b>DIAGNOSTIC INVESTIGATION PANELS INCLUDED IN THIS ORDER</b>", ParagraphStyle("SummaryHeader", parent=styles["Normal"], fontName="Helvetica-Bold", fontSize=9, textColor=brand_dark)))
-    story.append(Spacer(1, 4))
-
-    summary_rows = [
-        [
-            Paragraph("<b>#</b>", table_header),
-            Paragraph("<b>INVESTIGATION NAME</b>", table_header),
-            Paragraph("<b>SPECIMEN TYPE / BARCODE</b>", table_header),
-            Paragraph("<b>REPORT ID</b>", table_header),
-            Paragraph("<b>STATUS</b>", table_header),
-        ]
-    ]
-
-    for idx, rep in enumerate(reports_data, start=1):
-        st_color = "#059669" if rep.get("status") == "FINAL" else "#D97706" if rep.get("status") == "APPROVED" else "#64748B"
-        summary_rows.append([
-            Paragraph(str(idx), table_cell_bold),
-            Paragraph(f"<b>{rep.get('test_name', 'Diagnostic Test')}</b> ({rep.get('test_code', '')})", table_cell),
-            Paragraph(f"{rep.get('sample_type', 'N/A')} [{rep.get('sample_id_display', 'N/A')}]", table_cell),
-            Paragraph(str(rep.get("report_id_display", "—")), table_cell_bold),
-            Paragraph(f"<font color='{st_color}'><b>{rep.get('status', 'PENDING')}</b></font>", table_cell),
-        ])
-
-    summary_table = Table(summary_rows, colWidths=[20, 205, 155, 80, 60])
-    summary_table.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, 0), slate_dark),
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("TOPPADDING", (0, 0), (-1, -1), 3),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-                ("LEFTPADDING", (0, 0), (-1, -1), 5),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, slate_light]),
-                ("GRID", (0, 0), (-1, -1), 0.5, grid_color),
-            ]
-        )
-    )
-    story.append(summary_table)
-    story.append(Spacer(1, 14))
-
-    # 4. Detailed Sections for each Report
-    for idx, rep in enumerate(reports_data):
-        test_elements = []
-
-        # Test Banner
-        panel_banner = Table(
-            [
-                [
-                    Paragraph(f"<b>{idx + 1}. {rep.get('test_name', 'Investigation')}</b> ({rep.get('test_code', '')})", panel_title_style),
-                    Paragraph(
-                        f"REPORT: <b>{rep.get('report_id_display', '')}</b> | "
-                        f"STATUS: <b>{rep.get('status', 'DRAFT')}</b> | "
-                        f"v{rep.get('version', 1)}.0",
-                        panel_sub_style,
-                    ),
-                ]
-            ],
-            colWidths=[310, 210],
-        )
-        panel_banner.setStyle(
-            TableStyle(
-                [
-                    ("BACKGROUND", (0, 0), (-1, -1), brand_dark),
-                    ("TOPPADDING", (0, 0), (-1, -1), 4),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ]
-            )
-        )
-        test_elements.append(panel_banner)
-
-        # Specimen sub-bar
-        specimen_info_str = (
-            f"<b>Specimen:</b> {rep.get('sample_type', 'N/A')} "
-            f"({rep.get('sample_container', 'Standard Tube')}) &nbsp;&nbsp;|&nbsp;&nbsp; "
-            f"<b>Barcode/ID:</b> {rep.get('sample_id_display', 'N/A')} &nbsp;&nbsp;|&nbsp;&nbsp; "
-            f"<b>Methodology:</b> Automated Diagnostic Analyzer"
-        )
-        specimen_bar = Table(
-            [[Paragraph(specimen_info_str, ParagraphStyle("SpecimenSub", parent=styles["Normal"], fontSize=8, leading=10, textColor=slate_muted))]],
-            colWidths=[520],
-        )
-        specimen_bar.setStyle(
-            TableStyle(
-                [
-                    ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F1F5F9")),
-                    ("TOPPADDING", (0, 0), (-1, -1), 2.5),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 2.5),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                    ("BOX", (0, 0), (-1, -1), 0.5, grid_color),
-                ]
-            )
-        )
-        test_elements.append(specimen_bar)
-        test_elements.append(Spacer(1, 4))
-
-        # Content: Pathology analyte table OR Radiology narrative OR Pending placeholder
-        res_values = rep.get("result_values", [])
+        res_values = rep.get("result_values") or rep.get("results") or rep.get("parameters") or []
         narrative = rep.get("narrative_info", {})
 
         if res_values:
             table_rows = [
                 [
-                    Paragraph("<b>TEST PARAMETER / ANALYTE</b>", table_header),
-                    Paragraph("<b>OBSERVED VALUE</b>", table_header),
-                    Paragraph("<b>UNIT</b>", table_header),
-                    Paragraph("<b>REFERENCE INTERVAL</b>", table_header),
-                    Paragraph("<b>FLAG</b>", table_header),
+                    Paragraph("<b>Test Description</b>", col_hdr_style),
+                    Paragraph("<b>Observe Value</b>", col_hdr_style),
+                    Paragraph("<b>Units</b>", col_hdr_style),
+                    Paragraph("<b>Biological Reference Range</b>", col_hdr_style),
                 ]
             ]
+            t_styles = [
+                ("LINEABOVE", (0, 0), (-1, 0), 1.2, colors.black),
+                ("LINEBELOW", (0, 0), (-1, 0), 1.2, colors.black),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ("TOPPADDING", (0, 0), (-1, -1), 1.5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 1.5),
+            ]
+            r_idx = 1
+
             for v in res_values:
-                flag_str = str(v.get("flag", "NORMAL")).upper()
-                if "CRITICAL" in flag_str:
-                    f_style = flag_critical
-                elif "HIGH" in flag_str:
-                    f_style = flag_high
-                elif "LOW" in flag_str:
-                    f_style = flag_low
+                if v.get("group_name"):
+                    grp_name = str(v["group_name"]).upper()
+                    break
+
+            # Group Heading (Centered, bold)
+            table_rows.append([Paragraph(f"<b>{grp_name}</b>", group_hdr_style), "", "", ""])
+            t_styles.append(("SPAN", (0, r_idx), (3, r_idx)))
+            t_styles.append(("TOPPADDING", (0, r_idx), (3, r_idx), 4))
+            t_styles.append(("BOTTOMPADDING", (0, r_idx), (3, r_idx), 3))
+            r_idx += 1
+
+            # Test Heading (Left-aligned, underlined, bold)
+            table_rows.append([Paragraph(f"<u><b>{test_title}</b></u>", test_hdr_style), "", "", ""])
+            t_styles.append(("SPAN", (0, r_idx), (3, r_idx)))
+            t_styles.append(("TOPPADDING", (0, r_idx), (3, r_idx), 3))
+            t_styles.append(("BOTTOMPADDING", (0, r_idx), (3, r_idx), 2))
+            r_idx += 1
+
+            dir_params = []
+            sg_dict = {}
+            for v in res_values:
+                p_n = v.get("parameter_name") or v.get("name") or ""
+                p_c = v.get("parameter_code") or v.get("code") or ""
+                sg = v.get("subgroup_name") or infer_subgroup(p_n, p_c)
+                if not sg:
+                    dir_params.append(v)
                 else:
-                    f_style = flag_normal
+                    if sg not in sg_dict:
+                        sg_dict[sg] = []
+                    sg_dict[sg].append(v)
 
-                val_display = format_result_value(v.get("numeric_value"), v.get("text_value"))
+            # Direct parameters
+            for v in dir_params:
+                p_name = v.get("parameter_name") or v.get("name") or ""
+                p_val = v.get("value")
+                if p_val is not None and v.get("numeric_value") is None and v.get("text_value") is None:
+                    val_display = str(p_val)
+                else:
+                    val_display = format_result_value(v.get("numeric_value"), v.get("text_value"))
+                p_unit = v.get("unit") or ""
+                p_ref = v.get("reference_range_display") or v.get("reference_range") or ""
+                flag_str = str(v.get("flag", "NORMAL")).upper()
+                is_abn = flag_str in ["HIGH", "LOW", "CRITICAL_HIGH", "CRITICAL_LOW", "ABNORMAL"]
+                f_style = param_text_bold if is_abn else param_text_style
 
-                table_rows.append(
-                    [
-                        Paragraph(f"<b>{v.get('parameter_name', '')}</b>", table_cell_bold),
-                        Paragraph(val_display, table_cell_bold),
-                        Paragraph(v.get("unit") or "—", table_cell),
-                        Paragraph(v.get("reference_range_display") or "—", table_cell),
-                        Paragraph(flag_str.replace("_", " "), f_style),
-                    ]
-                )
+                table_rows.append([
+                    Paragraph(p_name, param_text_style),
+                    Paragraph(val_display, f_style),
+                    Paragraph(p_unit, param_text_style),
+                    Paragraph(p_ref, param_text_style),
+                ])
+                r_idx += 1
 
-            res_table = Table(table_rows, colWidths=[175, 95, 65, 120, 65])
-            res_table.setStyle(
-                TableStyle(
-                    [
-                        ("BACKGROUND", (0, 0), (-1, 0), brand_color),
-                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                        ("TOPPADDING", (0, 0), (-1, -1), 3),
-                        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-                        ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-                        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, slate_light]),
-                        ("GRID", (0, 0), (-1, -1), 0.5, grid_color),
-                    ]
-                )
+            # Subgroup parameters
+            for sg_name, sg_items in sg_dict.items():
+                table_rows.append([Paragraph(f"<u><b>{sg_name}</b></u>", subgroup_hdr_style), "", "", ""])
+                t_styles.append(("SPAN", (0, r_idx), (3, r_idx)))
+                t_styles.append(("TOPPADDING", (0, r_idx), (3, r_idx), 4))
+                t_styles.append(("BOTTOMPADDING", (0, r_idx), (3, r_idx), 2))
+                r_idx += 1
+
+                for v in sg_items:
+                    p_name = v.get("parameter_name") or v.get("name") or ""
+                    p_val = v.get("value")
+                    if p_val is not None and v.get("numeric_value") is None and v.get("text_value") is None:
+                        val_display = str(p_val)
+                    else:
+                        val_display = format_result_value(v.get("numeric_value"), v.get("text_value"))
+                    p_unit = v.get("unit") or ""
+                    p_ref = v.get("reference_range_display") or v.get("reference_range") or ""
+                    flag_str = str(v.get("flag", "NORMAL")).upper()
+                    is_abn = flag_str in ["HIGH", "LOW", "CRITICAL_HIGH", "CRITICAL_LOW", "ABNORMAL"]
+                    f_style = param_text_bold if is_abn else param_text_style
+
+                    table_rows.append([
+                        Paragraph(f"&nbsp;&nbsp;{p_name}", param_text_style),
+                        Paragraph(val_display, f_style),
+                        Paragraph(p_unit, param_text_style),
+                        Paragraph(p_ref, param_text_style),
+                    ])
+                    r_idx += 1
+
+            # Interpretation
+            interp_text = (
+                rep.get("interpretation")
+                or (narrative.get("interpretation") if narrative else None)
+                or (narrative.get("imaging_impression") if narrative else None)
+                or get_standard_interpretation(t_name, t_code)
             )
-            test_elements.append(res_table)
+
+            if interp_text:
+                table_rows.append([Paragraph("<u><b>INTERPRETATION :</b></u>", subgroup_hdr_style), "", "", ""])
+                t_styles.append(("SPAN", (0, r_idx), (3, r_idx)))
+                t_styles.append(("TOPPADDING", (0, r_idx), (3, r_idx), 5))
+                t_styles.append(("BOTTOMPADDING", (0, r_idx), (3, r_idx), 2))
+                r_idx += 1
+
+                table_rows.append([Paragraph(interp_text.replace("\n", "<br/>"), interp_style), "", "", ""])
+                t_styles.append(("SPAN", (0, r_idx), (3, r_idx)))
+                t_styles.append(("TOPPADDING", (0, r_idx), (3, r_idx), 2))
+                t_styles.append(("BOTTOMPADDING", (0, r_idx), (3, r_idx), 4))
+                r_idx += 1
+
+            res_table = Table(table_rows, colWidths=[215, 95, 75, 138], repeatRows=1)
+            res_table.setStyle(TableStyle(t_styles))
+            story.append(res_table)
 
         elif narrative and (narrative.get("clinical_history") or narrative.get("imaging_findings") or narrative.get("imaging_impression")):
             narrative_elements = []
-            is_single_box = bool(narrative.get("imaging_findings")) and not bool(narrative.get("clinical_history")) and not bool(narrative.get("imaging_impression"))
+            narrative_elements.append(Paragraph(f"<b>{grp_name}</b>", group_hdr_style))
+            narrative_elements.append(Spacer(1, 2))
+            narrative_elements.append(Paragraph(f"<u><b>{test_title}</b></u>", test_hdr_style))
+            narrative_elements.append(Spacer(1, 4))
 
-            if is_single_box:
-                narrative_elements.append(Paragraph("<b>RADIOLOGICAL REPORT &amp; FINDINGS:</b>", meta_label))
-                narrative_elements.append(Spacer(1, 3))
-                narrative_elements.append(safe_reportlab_paragraph(narrative["imaging_findings"], meta_value))
+            if narrative.get("clinical_history"):
+                narrative_elements.append(Paragraph("<u><b>CLINICAL HISTORY &amp; INDICATION:</b></u>", subgroup_hdr_style))
+                narrative_elements.append(safe_reportlab_paragraph(narrative["clinical_history"], param_text_style))
                 narrative_elements.append(Spacer(1, 4))
+            if narrative.get("imaging_findings"):
+                narrative_elements.append(Paragraph("<u><b>FINDINGS:</b></u>", subgroup_hdr_style))
+                narrative_elements.append(safe_reportlab_paragraph(narrative["imaging_findings"], param_text_style))
+                narrative_elements.append(Spacer(1, 4))
+            if narrative.get("imaging_impression"):
+                narrative_elements.append(Paragraph("<u><b>IMPRESSION:</b></u>", subgroup_hdr_style))
+                narrative_elements.append(safe_reportlab_paragraph(f"<b>{narrative['imaging_impression']}</b>", param_text_style))
+                narrative_elements.append(Spacer(1, 4))
+            if narrative.get("recommendations"):
+                narrative_elements.append(Paragraph("<u><b>RECOMMENDATIONS:</b></u>", subgroup_hdr_style))
+                narrative_elements.append(safe_reportlab_paragraph(narrative["recommendations"], param_text_style))
 
-                if narrative.get("recommendations"):
-                    narrative_elements.append(Paragraph("<b>RECOMMENDATIONS:</b>", meta_label))
-                    narrative_elements.append(safe_reportlab_paragraph(narrative["recommendations"], meta_value))
-            else:
-                if narrative.get("clinical_history"):
-                    narrative_elements.append(Paragraph("<b>CLINICAL HISTORY &amp; INDICATION:</b>", meta_label))
-                    narrative_elements.append(safe_reportlab_paragraph(narrative["clinical_history"], meta_value))
-                    narrative_elements.append(Spacer(1, 4))
-
-                if narrative.get("imaging_findings"):
-                    narrative_elements.append(Paragraph("<b>FINDINGS:</b>", meta_label))
-                    narrative_elements.append(safe_reportlab_paragraph(narrative["imaging_findings"], meta_value))
-                    narrative_elements.append(Spacer(1, 4))
-
-                if narrative.get("imaging_impression"):
-                    narrative_elements.append(Paragraph("<b>IMPRESSION:</b>", meta_label))
-                    narrative_elements.append(safe_reportlab_paragraph(f"<b>{narrative['imaging_impression']}</b>", meta_value))
-                    narrative_elements.append(Spacer(1, 4))
-
-                if narrative.get("recommendations"):
-                    narrative_elements.append(Paragraph("<b>RECOMMENDATIONS:</b>", meta_label))
-                    narrative_elements.append(safe_reportlab_paragraph(narrative["recommendations"], meta_value))
-
-            narrative_table = Table([[narrative_elements]], colWidths=[520])
-            narrative_table.setStyle(
-                TableStyle(
-                    [
-                        ("BACKGROUND", (0, 0), (-1, -1), slate_light),
-                        ("BOX", (0, 0), (-1, -1), 0.5, border_color),
-                        ("TOPPADDING", (0, 0), (-1, -1), 6),
-                        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-                        ("LEFTPADDING", (0, 0), (-1, -1), 8),
-                        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
-                    ]
-                )
-            )
-            test_elements.append(narrative_table)
+            story.append(KeepTogether(narrative_elements))
 
         else:
             pending_box = Table(
                 [[
                     Paragraph(
-                        "<b>Specimen Registered & Accessioned:</b> Laboratory analytical processing is in progress. "
+                        "<b>Specimen Registered &amp; Accessioned:</b> Laboratory analytical processing is in progress. "
                         "Final results and pathologist sign-off pending.",
-                        notice_text
+                        param_text_style
                     )
                 ]],
                 colWidths=[520],
             )
-            pending_box.setStyle(
-                TableStyle(
-                    [
-                        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#FEF3C7")),
-                        ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#F59E0B")),
-                        ("TOPPADDING", (0, 0), (-1, -1), 5),
-                        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-                        ("LEFTPADDING", (0, 0), (-1, -1), 8),
-                    ]
-                )
-            )
-            test_elements.append(pending_box)
+            pending_box.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#FEF3C7")),
+                ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#F59E0B")),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                ("LEFTPADDING", (0, 0), (-1, -1), 8),
+            ]))
+            story.append(pending_box)
 
-        approver = rep.get("approved_by_name") or "Authorized Medical Signatory"
-        final_date = rep.get("finalized_at") or "Pending final review"
-        sign_bar = Table(
-            [[
-                Paragraph(f"<i>Panel Signatory: {approver} &nbsp;|&nbsp; Reviewed: {final_date}</i>", subtitle_style)
-            ]],
-            colWidths=[520],
-        )
-        sign_bar.setStyle(
-            TableStyle(
-                [
-                    ("TOPPADDING", (0, 0), (-1, -1), 2),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 4),
-                ]
-            )
-        )
-        test_elements.append(sign_bar)
-        test_elements.append(Spacer(1, 10))
+        story.append(Spacer(1, 12))
+        story.append(KeepTogether(complete_footer))
 
-        story.append(KeepTogether(test_elements))
-
-    story.append(Spacer(1, 10))
-
-    # 5. Master Footer: QR Code, Digital Validation Notice, and Chief Pathologist Authentication
-    enable_qr = lab_info.get("enable_qr_verification", True)
-    if "enable_qr_verification" in booking_info and booking_info["enable_qr_verification"] is not None:
-        enable_qr = booking_info["enable_qr_verification"]
-
-    show_qr_side_text = lab_info.get("show_qr_side_text", True)
-    if "show_qr_side_text" in booking_info and booking_info["show_qr_side_text"] is not None:
-        show_qr_side_text = booking_info["show_qr_side_text"]
-
-    chief_sig_source = (
-        lab_info.get("signature_image")
-        or lab_info.get("default_signatory_signature_url")
-        or booking_info.get("signature_image")
-    )
-    chief_sig_flowable = get_signature_flowable(chief_sig_source, max_width=140, max_height=38)
-
-    chief_name = lab_info.get("default_signatory_name") or "Chief Laboratory Officer & Pathologist"
-    chief_desig = lab_info.get("default_signatory_designation") or "Consultant Laboratory Medicine"
-    chief_degrees = lab_info.get("default_signatory_degrees") or ""
-    chief_reg = lab_info.get("default_signatory_reg_no") or ""
-
-    chief_cred_parts = [chief_desig]
-    if chief_degrees:
-        chief_cred_parts.append(chief_degrees)
-    if chief_reg:
-        chief_cred_parts.append(f"Reg: {chief_reg}")
-    chief_cred_str = " | ".join(chief_cred_parts)
-
-    chief_cell_elements = [
-        Paragraph(
-            "<b>Digitally Authenticated By:</b>",
-            ParagraphStyle("ConsolidatedSigAuth", parent=styles["Normal"], fontSize=7.5, leading=9.5, alignment=2, textColor=colors.HexColor("#475569")),
-        )
-    ]
-    if chief_sig_flowable:
-        chief_cell_elements.append(Spacer(1, 2))
-        chief_cell_elements.append(chief_sig_flowable)
-        chief_cell_elements.append(Spacer(1, 2))
-
-    chief_text = (
-        f"<b>{chief_name}</b><br/>"
-        f"<font color='#64748B'>{chief_cred_str}</font><br/>"
-        f"<font color='#94A3B8'>Validated: {booking_info.get('appointment_date', 'N/A')}</font>"
-    )
-    chief_cell_elements.append(
-        Paragraph(
-            chief_text,
-            ParagraphStyle("ConsolidatedDocInfo", parent=styles["Normal"], fontSize=8, leading=10.5, alignment=2, textColor=slate_dark),
-        )
-    )
-
-    chief_sub_table = Table(
-        [[elem] for elem in chief_cell_elements],
-        colWidths=[185],
-    )
-    chief_sub_table.setStyle(
-        TableStyle(
-            [
-                ("ALIGN", (0, 0), (-1, -1), "RIGHT"),
-                ("VALIGN", (0, 0), (-1, -1), "BOTTOM"),
-                ("TOPPADDING", (0, 0), (-1, -1), 0),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
-                ("LEFTPADDING", (0, 0), (-1, -1), 0),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-            ]
-        )
-    )
-
-    if enable_qr:
-        qr = qrcode.QRCode(
-            version=1,
-            error_correction=qrcode.constants.ERROR_CORRECT_M,
-            box_size=4,
-            border=1,
-        )
-        qr.add_data(qr_url)
-        qr.make(fit=True)
-        qr_img = qr.make_image(fill_color="black", back_color="white")
-
-        qr_buffer = io.BytesIO()
-        qr_img.save(qr_buffer, format="PNG")
-        qr_buffer.seek(0)
-        qr_flowable = Image(qr_buffer, width=1.05 * inch, height=1.05 * inch)
-
-        if show_qr_side_text:
-            footer_text = (
-                f"<b>Scan QR to Verify All Booking Reports Online</b><br/>"
-                f"<font color='#0D9488'>Portal: {qr_url}</font><br/>"
-                f"<font color='#64748B'>Booking Reference: #{booking_info.get('booking_id_display', '')}</font><br/>"
-                f"<i>This consolidated document is electronically certified by {lab_info.get('name', 'TrustMyLab')}.</i>"
-            )
-            footer_table = Table(
-                [
-                    [
-                        qr_flowable,
-                        Paragraph(footer_text, subtitle_style),
-                        chief_sub_table,
-                    ]
-                ],
-                colWidths=[80, 255, 185],
-            )
-        else:
-            # QR code with ONLY "Scan QR to Verify All Booking Reports Online" below the QR code
-            qr_caption_style = ParagraphStyle(
-                "ConsolidatedQRCaptionBelow",
-                parent=styles["Normal"],
-                alignment=1,  # Center aligned under QR code
-                fontName="Helvetica-Bold",
-                fontSize=7,
-                leading=8.5,
-                textColor=colors.HexColor("#334155"),
-            )
-            qr_sub_table = Table(
-                [
-                    [qr_flowable],
-                    [Spacer(1, 2)],
-                    [Paragraph("Scan QR to Verify Authenticity Online", qr_caption_style)],
-                ],
-                colWidths=[145],
-            )
-            qr_sub_table.setStyle(
-                TableStyle(
-                    [
-                        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                        ("LEFTPADDING", (0, 0), (-1, -1), 0),
-                        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-                        ("TOPPADDING", (0, 0), (-1, -1), 0),
-                        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
-                    ]
-                )
-            )
-            footer_table = Table(
-                [
-                    [
-                        qr_sub_table,
-                        Paragraph("", subtitle_style),
-                        chief_sub_table,
-                    ]
-                ],
-                colWidths=[145, 190, 185],
-            )
-    else:
-        # QR Code disabled completely
-        footer_table = Table(
-            [
-                [
-                    Paragraph(f"<i>This consolidated document is electronically certified by {lab_info.get('name', 'TrustMyLab')}.</i>", subtitle_style),
-                    chief_sub_table,
-                ]
-            ],
-            colWidths=[335, 185],
-        )
-    footer_styles = [
-        ("VALIGN", (0, 0), (-1, -1), "BOTTOM"),
-        ("TOPPADDING", (0, 0), (-1, -1), 4),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-    ]
-    if not is_letterhead and not has_letterhead_bg:
-        footer_styles.append(("LINEABOVE", (0, 0), (-1, 0), 1, brand_color))
-    footer_table.setStyle(TableStyle(footer_styles))
-
-    story.append(KeepTogether(footer_table))
-
-    # Build PDF with background if letterhead image configured
     def draw_consolidated_letterhead_bg(canvas_obj, doc_obj):
         if is_image_letterhead and letterhead_bg_image and os.path.exists(letterhead_bg_image):
             try:
@@ -2085,7 +2256,6 @@ def generate_consolidated_booking_report_pdf(
         c.has_letterhead_bg = has_letterhead_bg
         return c
 
-    # Build PDF with NumberedCanvas for professional "Page X of Y"
     doc.build(
         story,
         onFirstPage=draw_consolidated_letterhead_bg,
@@ -2093,7 +2263,6 @@ def generate_consolidated_booking_report_pdf(
         canvasmaker=make_canvas,
     )
 
-    # If the letterhead is a vector PDF, stamp the letterhead page underneath using pypdf
     if is_pdf_letterhead and letterhead_bg_image and os.path.exists(letterhead_bg_image):
         apply_pdf_letterhead_overlay(output_path, letterhead_bg_image, output_path)
 

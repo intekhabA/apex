@@ -55,6 +55,7 @@ export interface ReportDetail {
   imaging_findings?: string | null;
   imaging_impression?: string | null;
   recommendations?: string | null;
+  interpretation?: string | null;
   approved_by_name?: string | null;
   approved_at?: string | null;
   finalized_at?: string | null;

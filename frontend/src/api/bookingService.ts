@@ -48,6 +48,7 @@ export const bookingService = {
       letterhead?: boolean;
       top_margin_mm?: number;
       bottom_margin_mm?: number;
+      footer_code_type?: string;
     }
   ): Promise<Blob> {
     const params = new URLSearchParams();
@@ -59,6 +60,9 @@ export const bookingService = {
     }
     if (options?.bottom_margin_mm !== undefined) {
       params.append('bottom_margin_mm', String(options.bottom_margin_mm));
+    }
+    if (options?.footer_code_type) {
+      params.append('footer_code_type', options.footer_code_type);
     }
     const query = params.toString() ? `?${params.toString()}` : '';
     const res = await apiClient.get(`/bookings/${bookingId}/reports/pdf${query}`, {
@@ -74,6 +78,7 @@ export const bookingService = {
       letterhead?: boolean;
       top_margin_mm?: number;
       bottom_margin_mm?: number;
+      footer_code_type?: string;
     }
   ): Promise<void> {
     const blob = await this.getBookingAllReportsBlob(bookingId, options);
@@ -93,6 +98,7 @@ export const bookingService = {
       letterhead?: boolean;
       top_margin_mm?: number;
       bottom_margin_mm?: number;
+      footer_code_type?: string;
     }
   ): Promise<void> {
     const blob = await this.getBookingAllReportsBlob(bookingId, options);

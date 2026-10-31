@@ -489,6 +489,7 @@ async def create_test(
         turnaround_hours=payload.turnaround_hours,
         default_price=payload.default_price,
         is_active=payload.is_active,
+        interpretation=payload.interpretation,
     )
     db.add(test)
     await db.flush()
@@ -506,6 +507,8 @@ async def create_test(
                 decimal_precision=p_data.decimal_precision,
                 display_order=p_data.display_order or p_idx,
                 options_json=p_data.options_json,
+                group_name=p_data.group_name,
+                subgroup_name=p_data.subgroup_name,
             )
             db.add(param)
             await db.flush()
@@ -808,6 +811,8 @@ async def add_parameter_to_test(
         decimal_precision=payload.decimal_precision,
         display_order=payload.display_order,
         options_json=payload.options_json,
+        group_name=payload.group_name,
+        subgroup_name=payload.subgroup_name,
     )
     db.add(param)
     await db.flush()

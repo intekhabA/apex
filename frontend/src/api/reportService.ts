@@ -63,6 +63,7 @@ export const reportService = {
       letterhead?: boolean;
       top_margin_mm?: number;
       bottom_margin_mm?: number;
+      footer_code_type?: string;
     }
   ): Promise<void> {
     const blob = await this.getReportPdfBlob(reportId, options);
@@ -84,6 +85,7 @@ export const reportService = {
       letterhead?: boolean;
       top_margin_mm?: number;
       bottom_margin_mm?: number;
+      footer_code_type?: string;
     }
   ): Promise<Blob> {
     const params = new URLSearchParams();
@@ -102,6 +104,9 @@ export const reportService = {
     if (options?.bottom_margin_mm !== undefined) {
       params.append('bottom_margin_mm', String(options.bottom_margin_mm));
     }
+    if (options?.footer_code_type) {
+      params.append('footer_code_type', options.footer_code_type);
+    }
     const query = params.toString() ? `?${params.toString()}` : '';
     const res = await apiClient.get(`/reports/${reportId}/download${query}`, {
       responseType: 'blob',
@@ -117,6 +122,7 @@ export const reportService = {
       bottom_margin_mm?: number;
       show_header_status?: boolean;
       show_qr_side_text?: boolean;
+      footer_code_type?: string;
     }
   ): Promise<void> {
     const blob = await this.getReportPdfBlob(reportId, options);

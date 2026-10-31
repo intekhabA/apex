@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, Button, Alert, Badge, toast, confirmDialog } from '@/components/ui';
 import { reportService } from '@/api/reportService';
-import { ReportDetail, ResultFlag } from '@/types';
+import { ReportDetail } from '@/types';
 import {
   Download,
   FileCheck2,
@@ -16,6 +16,79 @@ import {
 import { ReportAmendModal } from './ReportAmendModal';
 import { PrintReportModal } from './PrintReportModal';
 import { formatResultValue } from '@/utils/formatters';
+
+function inferSubgroup(paramName: string, paramCode: string = ''): string | null {
+  const nameUpper = (paramName || '').toUpperCase();
+  const codeUpper = (paramCode || '').toUpperCase();
+
+  if (
+    codeUpper === 'HB' ||
+    codeUpper === 'WBC' ||
+    nameUpper.includes('HEMOGLOBIN') ||
+    nameUpper.includes('HAEMOGLOBIN') ||
+    nameUpper.includes('TOTAL LEUCOCYTE') ||
+    nameUpper.includes('TOTAL LEUKOCYTE')
+  ) {
+    return null;
+  }
+  if (
+    ['NEUTROPHIL', 'LYMPHOCYTE', 'MONOCYTE', 'EOSINOPHIL', 'BASOPHIL', 'BAND CELL', 'POLYMORPH'].some((k) =>
+      nameUpper.includes(k)
+    ) ||
+    ['NEUT', 'LYMPH', 'MONO', 'EOS', 'BASO'].includes(codeUpper)
+  ) {
+    return 'DIFFERENTIAL COUNT :';
+  }
+  if (
+    ['RBC COUNT', 'RBCS COUNT', 'PACKED CELL VOLUME', 'PCV', 'MCV', 'MCH', 'MCHC', 'RDW'].some((k) =>
+      nameUpper.includes(k)
+    ) ||
+    ['RBC', 'HCT', 'MCV', 'MCH', 'MCHC', 'RDW_CV', 'RDW_SD', 'RDW'].includes(codeUpper)
+  ) {
+    return 'RBCs Indices';
+  }
+  if (
+    ['PLATELET', 'MPV', 'PDW', 'PCT'].some((k) => nameUpper.includes(k)) ||
+    ['PLT', 'MPV', 'PDW', 'PCT'].includes(codeUpper)
+  ) {
+    return 'Platelet Indices';
+  }
+  return null;
+}
+
+function getDefaultInterpretation(testCode?: string, testName?: string): string | null {
+  const code = (testCode || '').toUpperCase();
+  const name = (testName || '').toUpperCase();
+
+  if (code === 'CBC' || name.includes('COMPLETE BLOOD COUNT')) {
+    return 'Hemoglobin/platelet/leucocyte count and platelets count are stable till 24 hrs. The cell morphology is well preserved for 48 hrs. However, haematocrit & MCV variation is observed (MCV -3.5 - 7.5% and HCT - 0.4 - 4.0% leading to a decrease in MCHC). A fresh smear is recommended for an accurate differential WBC count and interpretation of RBC morphology.';
+  }
+  if (code.includes('LFT') || name.includes('LIVER FUNCTION')) {
+    return 'Bilirubin is a break down product of hemoglobin. Bilirubin formed in the reticulo-endothelial system is transport to the liver bound to a albumin. This bilirubin is water insoluble and is know as indirect or unconjugated bilirubin. In the liver, bilirubin is conjugated to glucuronic acid to form direct bilirubin. Conjugated bilirubin is excreted via the bilary system into the intestine where it is metabolized by bacteria to urobilinogen & stercobilinogen.\n\nIncrease:\nTotal bilirubin is elevated in obstructive condition of the bile duct, hepatitis, cirrhosis, in hemolytic disorders and several inherited enzyme deficiencies. Indirect bilirubin is elevated by pre-hepatic causes such as hemolytic disorder or liver disease resulting in impaired entry, transport or conjugated within the liver.';
+  }
+  if (code.includes('KFT') || name.includes('KIDNEY FUNCTION') || name.includes('RENAL FUNCTION')) {
+    return 'Urea is the major end product of protein nitrogen metabolism. It is synthesized by the urea cycle in the liver from ammonia. Creatinine is the catabolic product of creatinine phosphate in muscle. Elevated blood urea and creatinine levels are sensitive indicators of impaired renal function, prerenal azotemia, or urinary tract obstruction.';
+  }
+  if (code.includes('LIPID')) {
+    return 'Lipid profile evaluation is vital for assessing cardiovascular disease (CVD) and atherosclerosis risks. Elevated levels of Total Cholesterol, Triglycerides, and LDL-C are correlated with increased risk of coronary artery disease, whereas elevated HDL-C confers cardioprotective benefits.';
+  }
+  if (code.includes('THYROID') || code.includes('TFT')) {
+    return 'Thyroid stimulating hormone (TSH) is secreted by the anterior pituitary gland and controls the synthesis and release of T3 and T4 from the thyroid gland. Measurement of T3, T4, and TSH is essential in diagnosing hyperthyroidism, primary hypothyroidism, and subclinical thyroid dysfunctions.';
+  }
+  if (code.includes('WIDAL')) {
+    return 'The Widal test detects agglutinating antibodies against Salmonella enterica serotypes Typhi and Paratyphi (O and H antigens). A titre of 1:80 or greater for O antigen and 1:160 or greater for H antigen is clinically suggestive of enteric fever, depending upon endemic baseline levels and clinical correlation.';
+  }
+  if (code.includes('VDRL') || code.includes('RPR')) {
+    return 'VDRL (Venereal Disease Research Laboratory) test is a non-treponemal flocculation test used for screening syphilis. Reactive specimens should be titered and confirmed with specific treponemal tests (e.g. TPHA / FTA-ABS) and correlated clinically.';
+  }
+  if (code.includes('RBS') || name.includes('RANDOM BLOOD SUGAR') || name.includes('GLUCOSE RANDOM')) {
+    return 'Blood glucose measurement is essential in diagnosing and monitoring diabetes mellitus, prediabetes, and hypoglycemia. Random blood sugar >= 200 mg/dL accompanied by classic symptoms (polyuria, polydipsia, weight loss) is diagnostic for diabetes.';
+  }
+  if (['HIV', 'HBSAG', 'HCV', 'VIRAL'].some((k) => code.includes(k) || name.includes(k))) {
+    return 'Screening for transfusion-transmissible viral infections. Non-reactive results indicate absence of detectable antibodies/antigens at the time of testing. A reactive result requires repeat testing and confirmation by standard supplementary assays.';
+  }
+  return null;
+}
 
 export interface ReportDetailsModalProps {
   isOpen: boolean;
@@ -131,21 +204,6 @@ export const ReportDetailsModal: React.FC<ReportDetailsModalProps> = ({
     }
   };
 
-  const getBadgeVariant = (flag: ResultFlag): 'normal' | 'low' | 'high' | 'critical' => {
-    switch (flag) {
-      case 'CRITICAL_LOW':
-      case 'CRITICAL_HIGH':
-        return 'critical';
-      case 'LOW':
-        return 'low';
-      case 'HIGH':
-        return 'high';
-      case 'NORMAL':
-      default:
-        return 'normal';
-    }
-  };
-
   return (
     <>
       <Modal
@@ -198,51 +256,145 @@ export const ReportDetailsModal: React.FC<ReportDetailsModalProps> = ({
                   </div>
                 </div>
 
-                {/* Pathology Analytes Table */}
-                {report.result_values.length > 0 && (
-                  <div className="space-y-2">
-                    <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                      Pathology Panel Findings
-                    </h3>
-                    <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                      <table className="w-full text-left text-sm text-slate-700">
-                        <thead className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                          <tr>
-                            <th className="px-4 py-2.5">Analyte</th>
-                            <th className="px-4 py-2.5">Observed Value</th>
-                            <th className="px-3 py-2.5">Unit</th>
-                            <th className="px-4 py-2.5">Biological Range</th>
-                            <th className="px-3 py-2.5 text-center">Status Flag</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {report.result_values.map((v) => (
-                            <tr key={v.parameter_id} className="hover:bg-slate-50/70">
-                              <td className="px-4 py-2.5 font-medium text-slate-900">
-                                <div>{v.parameter_name}</div>
-                                <div className="text-xs font-mono text-slate-400">{v.parameter_code}</div>
-                              </td>
-                              <td className="px-4 py-2.5 font-semibold text-slate-900">
-                                {formatResultValue(v.numeric_value, v.text_value)}
-                              </td>
-                              <td className="px-3 py-2.5 text-xs text-slate-500 font-mono">
-                                {v.unit || '—'}
-                              </td>
-                              <td className="px-4 py-2.5 text-xs text-slate-600 font-mono">
-                                {v.reference_range_display || '—'}
-                              </td>
-                              <td className="px-3 py-2.5 text-center">
-                                <Badge variant={getBadgeVariant(v.flag)} dot>
-                                  {v.flag.replace('_', ' ')}
-                                </Badge>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                {/* Pathology Analytes Report View (Uttam Diagnostic Center format: Group, Subgroup, clean unbordered columns) */}
+                {report.result_values.length > 0 && (() => {
+                  const groupName = (report.result_values.find((v) => v.group_name)?.group_name || 'HAEMATOLOGY').toUpperCase();
+                  const testTitle = (report.test_name || 'COMPLETE BLOOD COUNT').toUpperCase();
+
+                  const directParams: typeof report.result_values = [];
+                  const subgroupMap: Record<string, typeof report.result_values> = {};
+
+                  for (const v of report.result_values) {
+                    const sg = v.subgroup_name || inferSubgroup(v.parameter_name, v.parameter_code);
+                    if (!sg) {
+                      directParams.push(v);
+                    } else {
+                      if (!subgroupMap[sg]) subgroupMap[sg] = [];
+                      subgroupMap[sg].push(v);
+                    }
+                  }
+
+                  const interpText = report.interpretation || getDefaultInterpretation(report.test_code, testTitle);
+
+                  return (
+                    <div className="space-y-3 bg-white p-4 rounded-xl border border-slate-200 text-xs font-sans shadow-sm">
+                      {/* Demographics Strip */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pb-2 text-slate-800 text-[11px] leading-relaxed">
+                        <div>
+                          <div>
+                            <span className="font-bold">Name Of Patient</span> &nbsp;: &nbsp;{report.patient_name}
+                          </div>
+                          <div>
+                            <span className="font-bold">Age / Gender</span> &nbsp;&nbsp;&nbsp;&nbsp;: &nbsp;{report.patient_age_years} Yrs / {report.patient_gender}
+                          </div>
+                          <div>
+                            <span className="font-bold">Referred By</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: &nbsp;
+                            {(report as any).booking?.referred_by || (report as any).referred_by || 'DR. SELF'}
+                          </div>
+                        </div>
+                        <div>
+                          <div>
+                            <span className="font-bold">Test Request ID</span> &nbsp;: &nbsp;
+                            {(report as any).booking_id_display || (report as any).booking?.booking_id_display || report.report_id_display}
+                          </div>
+                          <div>
+                            <span className="font-bold">Received Date</span> &nbsp;&nbsp;&nbsp;: &nbsp;
+                            {report.created_at
+                              ? new Date(report.created_at).toLocaleDateString('en-GB', {
+                                  day: '2-digit',
+                                  month: 'short',
+                                  year: 'numeric',
+                                })
+                              : 'N/A'}
+                          </div>
+                          <div>
+                            <span className="font-bold">Reporting Date</span> &nbsp;&nbsp;: &nbsp;
+                            {report.finalized_at
+                              ? new Date(report.finalized_at).toLocaleDateString('en-GB', {
+                                  day: '2-digit',
+                                  month: 'short',
+                                  year: 'numeric',
+                                })
+                              : 'N/A'}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Column Header with 2 black lines */}
+                      <div className="border-t-2 border-b-2 border-slate-900 py-1.5 grid grid-cols-12 font-bold text-slate-900 text-xs">
+                        <div className="col-span-5">Test Description</div>
+                        <div className="col-span-2 text-center">Observe Value</div>
+                        <div className="col-span-2 text-center">Units</div>
+                        <div className="col-span-3 text-right">Biological Reference Range</div>
+                      </div>
+
+                      {/* Centered Group Name */}
+                      <div className="text-center font-bold text-slate-900 tracking-wider text-xs pt-1 pb-0.5">
+                        {groupName}
+                      </div>
+
+                      {/* Left Underlined Test Title */}
+                      <div className="font-bold text-slate-900 underline text-xs pb-1">
+                        {testTitle}
+                      </div>
+
+                      {/* Direct Parameters */}
+                      {directParams.map((v) => {
+                        const valStr = formatResultValue(v.numeric_value, v.text_value);
+                        const isAbnormal = ['HIGH', 'LOW', 'CRITICAL_HIGH', 'CRITICAL_LOW', 'ABNORMAL'].includes(v.flag);
+                        return (
+                          <div key={v.parameter_id} className="grid grid-cols-12 py-0.5 text-xs text-slate-800">
+                            <div className="col-span-5">{v.parameter_name}</div>
+                            <div className={`col-span-2 text-center ${isAbnormal ? 'font-bold text-rose-600' : ''}`}>
+                              {valStr}
+                            </div>
+                            <div className="col-span-2 text-center text-slate-600">{v.unit || '—'}</div>
+                            <div className="col-span-3 text-right text-slate-600 font-mono text-[11px]">
+                              {v.reference_range_display || '—'}
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {/* Subgroups */}
+                      {Object.entries(subgroupMap).map(([sgTitle, params]) => (
+                        <div key={sgTitle} className="pt-2">
+                          <div className="font-bold text-slate-900 underline text-xs pb-1">
+                            {sgTitle}
+                          </div>
+                          {params.map((v) => {
+                            const valStr = formatResultValue(v.numeric_value, v.text_value);
+                            const isAbnormal = ['HIGH', 'LOW', 'CRITICAL_HIGH', 'CRITICAL_LOW', 'ABNORMAL'].includes(v.flag);
+                            return (
+                              <div key={v.parameter_id} className="grid grid-cols-12 py-0.5 text-xs text-slate-800">
+                                <div className="col-span-5 pl-3">{v.parameter_name}</div>
+                                <div className={`col-span-2 text-center ${isAbnormal ? 'font-bold text-rose-600' : ''}`}>
+                                  {valStr}
+                                </div>
+                                <div className="col-span-2 text-center text-slate-600">{v.unit || '—'}</div>
+                                <div className="col-span-3 text-right text-slate-600 font-mono text-[11px]">
+                                  {v.reference_range_display || '—'}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ))}
+
+                      {/* Interpretation */}
+                      {interpText && (
+                        <div className="pt-3 border-t border-slate-100">
+                          <div className="font-bold text-slate-900 underline text-xs pb-1">
+                            INTERPRETATION :
+                          </div>
+                          <p className="text-[11px] text-slate-700 leading-relaxed whitespace-pre-line">
+                            {interpText}
+                          </p>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {/* Radiology Narrative Section */}
                 {(report.imaging_findings || report.clinical_history || report.imaging_impression) && (

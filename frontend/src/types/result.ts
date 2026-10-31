@@ -39,6 +39,8 @@ export interface ResultValueResponse {
   reference_range_display?: string | null;
   flag: ResultFlag;
   technician_comment?: string | null;
+  group_name?: string | null;
+  subgroup_name?: string | null;
 }
 
 export interface ResultSheetResponse {

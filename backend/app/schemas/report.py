@@ -63,6 +63,7 @@ class ReportDetailResponse(BaseModel):
     imaging_findings: Optional[str] = None
     imaging_impression: Optional[str] = None
     recommendations: Optional[str] = None
+    interpretation: Optional[str] = None
     approved_by_name: Optional[str] = None
     approved_at: Optional[datetime] = None
     finalized_at: Optional[datetime] = None

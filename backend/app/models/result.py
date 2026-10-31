@@ -26,6 +26,8 @@ class TestResultValue(Base, UUIDMixin, TimestampMixin):
     reference_range_display = Column(String(100), nullable=True)
     flag = Column(SQLEnum(ResultFlagEnum), default=ResultFlagEnum.NORMAL, nullable=False)
     technician_comment = Column(Text, nullable=True)
+    group_name = Column(String(150), nullable=True)
+    subgroup_name = Column(String(150), nullable=True)
 
     __table_args__ = (
         UniqueConstraint("report_id", "parameter_id", name="uq_report_param_val"),

@@ -995,6 +995,18 @@ async def seed_all_tests():
                 await session.flush()
                 tests_added += 1
 
+                grp = {
+                    "HEM": "HAEMATOLOGY",
+                    "BIO": "BIOCHEMISTRY",
+                    "DIA": "BIOCHEMISTRY",
+                    "HOR": "HORMONAL AND TUMOUR MARKER",
+                    "SER": "IMMUNOLOGY AND SEROLOGY",
+                    "URN": "CLINICAL PATHOLOGY",
+                    "MIC": "MICROBIOLOGY",
+                    "RAD": "RADIOLOGY & IMAGING",
+                    "CAR": "CARDIOLOGY",
+                }.get(cat_code, "BIOCHEMISTRY")
+
                 for p_order, (p_code, p_name, p_unit, p_prec, p_val_type, ranges) in enumerate(params, start=1):
                     param = TestParameter(
                         test_id=test.id,
@@ -1005,6 +1017,7 @@ async def seed_all_tests():
                         result_type=p_val_type,
                         decimal_precision=p_prec,
                         display_order=p_order,
+                        group_name=grp,
                     )
                     session.add(param)
                     await session.flush()

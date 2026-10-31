@@ -237,24 +237,24 @@ async def seed_database():
         session.add(test_cbc)
         await session.flush()
 
-        # CBC Parameters & Reference Ranges
+        # CBC Parameters & Reference Ranges (with Group and Subgroup hierarchy as per standard pathology reporting)
         cbc_params = [
-            ("HB", "Hemoglobin", "g/dL", [("MALE", 13.0, 17.0, "13.0 - 17.0"), ("FEMALE", 12.0, 15.0, "12.0 - 15.0")]),
-            ("RBC", "RBC Count", "mil/uL", [(None, 4.5, 5.9, "4.5 - 5.9")]),
-            ("WBC", "Total Leukocyte Count (TLC)", "cells/mcL", [(None, 4000.0, 11000.0, "4000 - 11000")]),
-            ("PLT", "Platelet Count", "lakhs/mcL", [(None, 1.5, 4.5, "1.5 - 4.5")]),
-            ("HCT", "Hematocrit (PCV)", "%", [("MALE", 40.0, 50.0, "40.0 - 50.0"), ("FEMALE", 36.0, 46.0, "36.0 - 46.0")]),
-            ("MCV", "Mean Corpuscular Volume (MCV)", "fL", [(None, 80.0, 100.0, "80.0 - 100.0")]),
-            ("MCH", "Mean Corpuscular Hemoglobin (MCH)", "pg", [(None, 27.0, 32.0, "27.0 - 32.0")]),
-            ("MCHC", "Mean Corpuscular Hb Conc (MCHC)", "g/dL", [(None, 32.0, 36.0, "32.0 - 36.0")]),
-            ("NEUT", "Neutrophils", "%", [(None, 40.0, 75.0, "40 - 75")]),
-            ("LYMPH", "Lymphocytes", "%", [(None, 20.0, 45.0, "20 - 45")]),
-            ("EOS", "Eosinophils", "%", [(None, 1.0, 6.0, "1 - 6")]),
-            ("MONO", "Monocytes", "%", [(None, 2.0, 8.0, "2 - 8")]),
-            ("BASO", "Basophils", "%", [(None, 0.0, 1.0, "0 - 1")]),
+            ("HB", "Hemoglobin", "g/dL", [("MALE", 13.0, 17.0, "13.0 - 17.0"), ("FEMALE", 12.0, 15.0, "12.0 - 15.0")], None),
+            ("WBC", "Total Leukocyte Count (TLC)", "cells/mcL", [(None, 4000.0, 11000.0, "4000 - 11000")], None),
+            ("NEUT", "Neutrophils", "%", [(None, 40.0, 75.0, "40 - 75")], "DIFFERENTIAL COUNT :"),
+            ("LYMPH", "Lymphocytes", "%", [(None, 20.0, 45.0, "20 - 45")], "DIFFERENTIAL COUNT :"),
+            ("MONO", "Monocytes", "%", [(None, 2.0, 8.0, "2 - 8")], "DIFFERENTIAL COUNT :"),
+            ("EOS", "Eosinophils", "%", [(None, 1.0, 6.0, "1 - 6")], "DIFFERENTIAL COUNT :"),
+            ("BASO", "Basophils", "%", [(None, 0.0, 1.0, "0 - 1")], "DIFFERENTIAL COUNT :"),
+            ("RBC", "RBC Count", "mil/uL", [(None, 4.5, 5.9, "4.5 - 5.9")], "RBCs Indices"),
+            ("HCT", "Hematocrit (PCV)", "%", [("MALE", 40.0, 50.0, "40.0 - 50.0"), ("FEMALE", 36.0, 46.0, "36.0 - 46.0")], "RBCs Indices"),
+            ("MCV", "Mean Corpuscular Volume (MCV)", "fL", [(None, 80.0, 100.0, "80.0 - 100.0")], "RBCs Indices"),
+            ("MCH", "Mean Corpuscular Hemoglobin (MCH)", "pg", [(None, 27.0, 32.0, "27.0 - 32.0")], "RBCs Indices"),
+            ("MCHC", "Mean Corpuscular Hb Conc (MCHC)", "g/dL", [(None, 32.0, 36.0, "32.0 - 36.0")], "RBCs Indices"),
+            ("PLT", "Platelet Count", "lakhs/mcL", [(None, 1.5, 4.5, "1.5 - 4.5")], "Platelet Indices"),
         ]
 
-        for order, (p_code, p_name, p_unit, ranges) in enumerate(cbc_params, start=1):
+        for order, (p_code, p_name, p_unit, ranges, p_subgroup) in enumerate(cbc_params, start=1):
             param = TestParameter(
                 test_id=test_cbc.id,
                 code=p_code,
@@ -264,6 +264,8 @@ async def seed_database():
                 result_type=ResultValueTypeEnum.NUMBER,
                 decimal_precision=2 if p_code not in ["WBC", "NEUT", "LYMPH", "EOS", "MONO", "BASO"] else 0,
                 display_order=order,
+                group_name="HAEMATOLOGY",
+                subgroup_name=p_subgroup,
             )
             session.add(param)
             await session.flush()
@@ -290,6 +292,7 @@ async def seed_database():
             turnaround_hours=24,
             default_price=Decimal("750.00"),
             is_active=True,
+            interpretation="Bilirubin is a break down product of hemoglobin. Bilirubin formed in the reticulo-endothelial system is transport to the liver bound to a albumin. This bilirubin is water insoluble and is know as indirect or unconjugated bilirubin. In the liver, bilirubin is conjugated to glucuronic acid to form direct bilirubin. Conjugated bilirubin is excreted via the bilary system into the intestine where it is metabolized by bacteria to urobilinogen & stercobilinogen.\n\nIncrease:\nTotal bilirubin is elevated in obstructive condition of the bile duct, hepatitis, cirrhosis, in hemolytic disorders and several inherited enzyme deficiencies.\nIndirect bilirubin is elevated by pre-hepatic causes such as hemolytic disorder or liver disease resulting in impaired entry, transport or conjugated within the liver.",
         )
         session.add(test_lft)
         await session.flush()
@@ -317,6 +320,7 @@ async def seed_database():
                 result_type=ResultValueTypeEnum.NUMBER,
                 decimal_precision=1 if p_code in ["TBIL", "DBIL", "IBIL", "TP", "ALB", "GLOB", "AGR"] else 0,
                 display_order=order,
+                group_name="BIOCHEMISTRY",
             )
             session.add(param)
             await session.flush()
@@ -343,6 +347,7 @@ async def seed_database():
             turnaround_hours=24,
             default_price=Decimal("700.00"),
             is_active=True,
+            interpretation="Kidney function evaluates glomerular filtration, tubular reabsorption, and electrolyte balance. Elevated blood urea and serum creatinine indicate reduced renal clearance or acute/chronic kidney injury. High serum uric acid is associated with gout, renal calculi, or metabolic syndrome. Electrolytes (Sodium and Potassium) are vital for neuromuscular conduction and systemic fluid homeostasis.",
         )
         session.add(test_kft)
         await session.flush()
@@ -366,6 +371,7 @@ async def seed_database():
                 result_type=ResultValueTypeEnum.NUMBER,
                 decimal_precision=2 if p_code == "CREAT" else (1 if p_code in ["URIC", "SOD", "POT", "CHL"] else 0),
                 display_order=order,
+                group_name="BIOCHEMISTRY",
             )
             session.add(param)
             await session.flush()
@@ -392,6 +398,7 @@ async def seed_database():
             turnaround_hours=24,
             default_price=Decimal("650.00"),
             is_active=True,
+            interpretation="Lipid profile evaluates cardiovascular risk and lipid metabolism. Desirable levels: Total Cholesterol < 200 mg/dL, Triglycerides < 150 mg/dL, HDL Cholesterol > 40 mg/dL (protective/anti-atherogenic), LDL Cholesterol < 100 mg/dL. Elevated LDL and non-HDL cholesterol strongly correlate with atherosclerotic coronary artery disease.",
         )
         session.add(test_lipid)
         await session.flush()
@@ -416,6 +423,7 @@ async def seed_database():
                 result_type=ResultValueTypeEnum.NUMBER,
                 decimal_precision=1 if p_code in ["CHOL_HDL", "LDL_HDL", "VLDL"] else 0,
                 display_order=order,
+                group_name="BIOCHEMISTRY",
             )
             session.add(param)
             await session.flush()
@@ -442,6 +450,7 @@ async def seed_database():
             turnaround_hours=24,
             default_price=Decimal("600.00"),
             is_active=True,
+            interpretation="Note: Guidelines for interpretation of abnormal thyroid function test:-\n=====================================================================\nTSH: High | T4: Normal | T3: Normal => Mild (sub-clinical) Hypothyroidism\nTSH: High | T4: Low | T3: Low/Normal => Hypothyroidism\nTSH: Low | T4: Normal | T3: Normal => Mild (sub-clinical) Hyperthyroidism\nTSH: Low | T4: High/Normal | T3: High/Normal => Hyperthyroidism\nTSH: Low | T4: Low/Normal | T3: Low/Normal => Rare pituitary (secondary) Hypothyroidism\n=====================================================================\nTSH LEVEL IN INFANTS:\nNew Born ( 1 - 4 Days ) - 1.0 to 39.0 uIU/ml\n2 to 20 weeks - 1.7 to 9.0 uIU/ml\n21 weeks - 20 years - 0.7 to 6.4 uIU/ml\n=====================================================================\nSymptoms of hyperthyroidism: Increased heart rate, anxiety, weight loss, tremor, weakness.\nSymptoms of hypothyroidism: Weight gain, dry skin, constipation, cold intolerance, fatigue.",
         )
         session.add(test_tft)
         await session.flush()
@@ -462,6 +471,7 @@ async def seed_database():
                 result_type=ResultValueTypeEnum.NUMBER,
                 decimal_precision=2,
                 display_order=order,
+                group_name="HORMONAL AND TUMOUR MARKER",
             )
             session.add(param)
             await session.flush()

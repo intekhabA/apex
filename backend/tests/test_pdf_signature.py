@@ -320,7 +320,7 @@ def test_generate_consolidated_booking_report_pdf_letterhead_mode(tmp_path):
     res = subprocess.run(["pdftotext", out_pdf, "-"], capture_output=True, text=True)
     pdf_text = res.stdout
     assert "Booking Letterhead Patient" in pdf_text
-    assert "Thyroid Profile" in pdf_text
+    assert "THYROID PROFILE" in pdf_text.upper()
     assert "TSH" in pdf_text
     assert "Should Not Appear In Consolidated Letterhead Top" not in pdf_text
 

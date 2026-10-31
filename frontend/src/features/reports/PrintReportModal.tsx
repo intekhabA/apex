@@ -21,6 +21,7 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
   testName,
 }) => {
   const [printMode, setPrintMode] = useState<'LETTERHEAD' | 'PLAIN'>('PLAIN');
+  const [codeType, setCodeType] = useState<'BARCODE' | 'QR_CODE' | 'BOTH' | 'NONE'>('BARCODE');
   const [topMarginMm, setTopMarginMm] = useState<number>(48);
   const [bottomMarginMm, setBottomMarginMm] = useState<number>(28);
   const [showAdvancedMargins, setShowAdvancedMargins] = useState<boolean>(false);
@@ -37,6 +38,7 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
         letterhead: isLetterhead,
         top_margin_mm: isLetterhead ? topMarginMm : undefined,
         bottom_margin_mm: isLetterhead ? bottomMarginMm : undefined,
+        footer_code_type: codeType,
       });
       toast.success('Print job dispatched to printer.');
       onClose();
@@ -60,6 +62,7 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
         letterhead: isLetterhead,
         top_margin_mm: isLetterhead ? topMarginMm : undefined,
         bottom_margin_mm: isLetterhead ? bottomMarginMm : undefined,
+        footer_code_type: codeType,
       });
       const blobUrl = URL.createObjectURL(blob);
       const newTab = window.open(blobUrl, '_blank');
@@ -102,6 +105,34 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
             )}
           </div>
         )}
+
+        {/* Verification Code Selection */}
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2">
+          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+            Footer Code:
+          </label>
+          <div className="grid grid-cols-4 gap-2">
+            {[
+              { id: 'BARCODE', label: 'Barcode' },
+              { id: 'QR_CODE', label: 'QR Code' },
+              { id: 'BOTH', label: 'Both' },
+              { id: 'NONE', label: 'None' },
+            ].map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setCodeType(opt.id as any)}
+                className={`py-1.5 px-2 rounded-lg text-xs font-semibold border transition-all text-center ${
+                  codeType === opt.id
+                    ? 'bg-teal-600 text-white border-teal-600 shadow-sm'
+                    : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
 
         {/* Paper / Printing Mode Selection */}
         <div className="space-y-3">

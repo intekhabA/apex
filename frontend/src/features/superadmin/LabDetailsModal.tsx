@@ -20,6 +20,7 @@ export const LabDetailsModal: React.FC<LabDetailsModalProps> = ({ labId, isOpen,
   const [topMarginMm, setTopMarginMm] = useState<number>(48);
   const [bottomMarginMm, setBottomMarginMm] = useState<number>(28);
   const [useLetterheadBg, setUseLetterheadBg] = useState<boolean>(true);
+  const [footerCodeType, setFooterCodeType] = useState<'BARCODE' | 'QR_CODE' | 'BOTH' | 'NONE'>('BARCODE');
   const [isUploadingLetterhead, setIsUploadingLetterhead] = useState<boolean>(false);
 
   const { data: lab, isLoading } = useQuery({
@@ -38,6 +39,7 @@ export const LabDetailsModal: React.FC<LabDetailsModalProps> = ({ labId, isOpen,
     if (lab?.settings) {
       setHeaderStatus(lab.settings.show_report_header_status ?? true);
       setQrEnabled(lab.settings.enable_qr_verification ?? true);
+      setFooterCodeType(lab.settings.footer_code_type ?? 'BARCODE');
       setQrSideText(lab.settings.show_qr_side_text ?? true);
       setTopMarginMm(lab.settings.letterhead_top_margin_mm ?? 48);
       setBottomMarginMm(lab.settings.letterhead_bottom_margin_mm ?? 28);
@@ -63,6 +65,7 @@ export const LabDetailsModal: React.FC<LabDetailsModalProps> = ({ labId, isOpen,
     updateSettingsMutation.mutate({
       show_report_header_status: headerStatus,
       enable_qr_verification: qrEnabled,
+      footer_code_type: footerCodeType,
       show_qr_side_text: qrSideText,
       letterhead_top_margin_mm: topMarginMm,
       letterhead_bottom_margin_mm: bottomMarginMm,
@@ -228,6 +231,34 @@ export const LabDetailsModal: React.FC<LabDetailsModalProps> = ({ labId, isOpen,
                     <p className="text-[11px] text-slate-500">
                       When enabled, displays <code>REPORT #..., STATUS: FINAL, Version: v1.0</code> on the top right. Uncheck to omit this block.
                     </p>
+                  </div>
+                </div>
+
+                {/* Footer Code Selection */}
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                  <label className="text-xs font-bold text-slate-800 block">
+                    Report Footer Verification &amp; Tracking Code
+                  </label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {[
+                      { id: 'BARCODE', label: 'Barcode Only' },
+                      { id: 'QR_CODE', label: 'QR Code Only' },
+                      { id: 'BOTH', label: 'Both' },
+                      { id: 'NONE', label: 'None' },
+                    ].map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => setFooterCodeType(opt.id as any)}
+                        className={`py-1.5 px-2 rounded-lg text-xs font-semibold border transition-all text-center ${
+                          footerCodeType === opt.id
+                            ? 'bg-brand-600 text-white border-brand-600 shadow-sm'
+                            : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
                   </div>
                 </div>
 

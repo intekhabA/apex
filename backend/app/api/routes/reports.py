@@ -66,7 +66,8 @@ async def list_reports(
         .options(
             selectinload(Report.booking),
             selectinload(Report.patient),
-            selectinload(Report.test),
+            selectinload(Report.test).selectinload(Test.category),
+            selectinload(Report.test).selectinload(Test.parameters),
         )
     )
     count_query = select(func.count(Report.id))
@@ -167,7 +168,8 @@ async def verify_report_public(
         select(Report)
         .options(
             selectinload(Report.patient),
-            selectinload(Report.test),
+            selectinload(Report.test).selectinload(Test.category),
+            selectinload(Report.test).selectinload(Test.parameters),
         )
         .where(Report.verification_token == token)
     )
@@ -234,7 +236,8 @@ async def get_report_detail(
         .options(
             selectinload(Report.booking),
             selectinload(Report.patient),
-            selectinload(Report.test),
+            selectinload(Report.test).selectinload(Test.category),
+            selectinload(Report.test).selectinload(Test.parameters),
             selectinload(Report.result_values),
             selectinload(Report.attachments),
             selectinload(Report.versions),
@@ -353,7 +356,8 @@ async def approve_report(
         .options(
             selectinload(Report.booking),
             selectinload(Report.patient),
-            selectinload(Report.test),
+            selectinload(Report.test).selectinload(Test.category),
+            selectinload(Report.test).selectinload(Test.parameters),
             selectinload(Report.result_values),
             selectinload(Report.attachments),
             selectinload(Report.versions),
@@ -391,6 +395,7 @@ async def render_and_persist_report_pdf(
     is_letterhead: bool = False,
     top_margin_mm: Optional[int] = None,
     bottom_margin_mm: Optional[int] = None,
+    footer_code_type: Optional[str] = None,
 ) -> str:
     lab_settings = lab.settings
 
@@ -450,6 +455,10 @@ async def render_and_persist_report_pdf(
         if eff_bottom_margin is None and getattr(lab_settings, "letterhead_bottom_margin_mm", None):
             eff_bottom_margin = lab_settings.letterhead_bottom_margin_mm
 
+    eff_code_type = footer_code_type
+    if not eff_code_type and lab_settings:
+        eff_code_type = getattr(lab_settings, "footer_code_type", "BARCODE") or "BARCODE"
+
     lab_info = {
         "name": lab.name,
         "address": f"{lab.address_street or ''}, {lab.city or ''} {lab.state or ''}",
@@ -457,6 +466,7 @@ async def render_and_persist_report_pdf(
         "email": lab.email or "N/A",
         "license": lab.registration_number or "Accredited Medical Laboratory",
         "enable_qr_verification": enable_qr,
+        "footer_code_type": eff_code_type or "BARCODE",
         "show_report_header_status": show_header_status,
         "show_qr_side_text": show_qr_side_text,
         "primary_color_hex": lab_settings.primary_color_hex if lab_settings else "#0284c7",
@@ -471,16 +481,37 @@ async def render_and_persist_report_pdf(
         "booking_id_display": (report.booking.booking_id_display if report.booking else "") or "N/A",
         "referred_by": (report.booking.referring_doctor if (report.booking and report.booking.referring_doctor) else "") or "Self / Dr. Consultation",
     }
+    cat_name = ""
+    if report.test and "category" in report.test.__dict__ and report.test.category:
+        cat_name = report.test.category.name
+    elif report.test and hasattr(report.test, "category_name"):
+        cat_name = getattr(report.test, "category_name") or ""
+
     test_info = {
         "name": report.test.name if report.test else "Diagnostic Test",
         "code": report.test.code if report.test else "",
+        "category_name": cat_name,
+        "interpretation": getattr(report.test, "interpretation", None),
     }
+
+    received_dt = None
+    if "sample" in report.__dict__ and report.sample and getattr(report.sample, "collected_at", None):
+        received_dt = report.sample.collected_at
+    elif "booking" in report.__dict__ and report.booking and getattr(report.booking, "created_at", None):
+        received_dt = report.booking.created_at
+    elif getattr(report, "created_at", None):
+        received_dt = report.created_at
+
+    reporting_dt = report.finalized_at or getattr(report, "updated_at", None) or received_dt
+
     report_info_dict = {
         "report_id_display": report.report_id_display,
         "status": report.status.value,
         "version": report.current_version,
         "date": report.finalized_at.strftime("%d-%b-%Y %I:%M %p") if report.finalized_at else "N/A",
         "finalized_at": report.finalized_at.strftime("%d-%b-%Y %I:%M %p") if report.finalized_at else "N/A",
+        "received_date": received_dt.strftime("%d-%b-%Y") if received_dt else "N/A",
+        "reporting_date": reporting_dt.strftime("%d-%b-%Y") if reporting_dt else "N/A",
         "approved_by_name": approved_by_name,
         "signatory_title": signatory_title,
         "signatory_degrees": signatory_degrees,
@@ -489,15 +520,24 @@ async def render_and_persist_report_pdf(
         "show_header_status": show_header_status,
         "show_qr_side_text": show_qr_side_text,
         "enable_qr_verification": enable_qr,
+        "interpretation": getattr(report, "interpretation", None),
+        "printed_by": "Reception",
     }
+    param_lookup = {}
+    if report.test and "parameters" in report.test.__dict__ and report.test.parameters:
+        param_lookup = {p.id: p for p in report.test.parameters}
+
     result_vals_dict = [
         {
             "parameter_name": v.parameter_name,
+            "parameter_code": v.parameter_code,
             "numeric_value": v.numeric_value,
             "text_value": v.text_value,
             "unit": v.unit,
             "reference_range_display": v.reference_range_display,
             "flag": v.flag.value,
+            "group_name": getattr(v, "group_name", None) or (getattr(param_lookup.get(v.parameter_id), "group_name", None) if param_lookup.get(v.parameter_id) else None),
+            "subgroup_name": getattr(v, "subgroup_name", None) or (getattr(param_lookup.get(v.parameter_id), "subgroup_name", None) if param_lookup.get(v.parameter_id) else None),
         }
         for v in (report.result_values or [])
     ]
@@ -539,7 +579,8 @@ async def finalize_report(
         .options(
             selectinload(Report.booking),
             selectinload(Report.patient),
-            selectinload(Report.test),
+            selectinload(Report.test).selectinload(Test.category),
+            selectinload(Report.test).selectinload(Test.parameters),
             selectinload(Report.result_values),
             selectinload(Report.attachments),
             selectinload(Report.versions),
@@ -591,28 +632,31 @@ async def finalize_report(
     rel_pdf_path = await render_and_persist_report_pdf(report, lab, db)
     report.pdf_file_url = f"/api/reports/{report.id}/download"
 
+    patient_email = report.patient.email if report.patient else None
+    patient_phone = report.patient.phone if report.patient else None
+    patient_full_name = report.patient.full_name if report.patient else "Patient"
+    test_name_val = report.test.name if report.test else "Diagnostic Test"
+
     await db.commit()
-    await db.refresh(report)
 
     # Phase 11: Notification Dispatch Event
-    if report.patient and (report.patient.email or report.patient.phone):
-        recipient = report.patient.email or report.patient.phone
-        recipient_name = report.patient.full_name
+    if patient_email or patient_phone:
+        recipient = patient_email or patient_phone
         verification_link = f"/verify/{report.verification_token}"
         await NotificationService.dispatch_event(
             db=db,
             lab_id=str(report.lab_id),
             event_type=NotificationEventType.REPORT_FINALIZED,
             recipient=recipient,
-            recipient_name=recipient_name,
+            recipient_name=patient_full_name,
             template_params={
-                "patient_name": recipient_name,
-                "test_name": report.test.name if report.test else "Diagnostic Test",
+                "patient_name": patient_full_name,
+                "test_name": test_name_val,
                 "report_id_display": report.report_id_display,
                 "lab_name": lab.name,
                 "verification_url": verification_link,
             },
-            channel=NotificationChannel.EMAIL if report.patient.email else NotificationChannel.SMS,
+            channel=NotificationChannel.EMAIL if patient_email else NotificationChannel.SMS,
         )
 
     return await get_report_detail(report_id=report_id, db=db, current_user=current_user)
@@ -626,6 +670,7 @@ async def download_report_pdf(
     letterhead: Optional[bool] = Query(False, description="Format for pre-printed A4 letterhead (suppress digital header/footer and reserve margins)"),
     top_margin_mm: Optional[int] = Query(None, description="Custom top margin in mm for letterhead"),
     bottom_margin_mm: Optional[int] = Query(None, description="Custom bottom margin in mm for letterhead"),
+    footer_code_type: Optional[str] = Query(None, description="Footer code display: BARCODE, QR_CODE, BOTH, NONE"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_lab_staff),
 ):
@@ -637,7 +682,8 @@ async def download_report_pdf(
         .options(
             selectinload(Report.booking),
             selectinload(Report.patient),
-            selectinload(Report.test),
+            selectinload(Report.test).selectinload(Test.category),
+            selectinload(Report.test).selectinload(Test.parameters),
             selectinload(Report.result_values),
         )
         .where(Report.id == report_id)
@@ -677,6 +723,7 @@ async def download_report_pdf(
                 is_letterhead=bool(letterhead),
                 top_margin_mm=eff_top,
                 bottom_margin_mm=eff_bottom,
+                footer_code_type=footer_code_type,
             )
 
     if not await storage_service.file_exists(rel_pdf_path):
@@ -706,7 +753,8 @@ async def amend_report(
         .options(
             selectinload(Report.booking),
             selectinload(Report.patient),
-            selectinload(Report.test),
+            selectinload(Report.test).selectinload(Test.category),
+            selectinload(Report.test).selectinload(Test.parameters),
             selectinload(Report.result_values),
             selectinload(Report.attachments),
             selectinload(Report.versions),

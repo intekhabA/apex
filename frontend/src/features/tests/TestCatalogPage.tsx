@@ -514,6 +514,11 @@ export const TestCatalogPage: React.FC = () => {
                             <strong>Patient Instructions:</strong> {test.preparation_instructions}
                           </div>
                         )}
+                        {test.interpretation && (
+                          <div className="mb-3 text-xs bg-slate-50 text-slate-800 p-2.5 rounded-lg border border-slate-200">
+                            <strong className="text-slate-900">Clinical Interpretation:</strong> {test.interpretation}
+                          </div>
+                        )}
 
                         <div className="flex items-center justify-between mb-2">
                           <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
@@ -542,6 +547,7 @@ export const TestCatalogPage: React.FC = () => {
                                 <tr>
                                   <th className="px-3 py-2 text-left">Code</th>
                                   <th className="px-3 py-2 text-left">Parameter Name</th>
+                                  <th className="px-3 py-2 text-left">Group / Subgroup</th>
                                   <th className="px-3 py-2 text-left">Unit</th>
                                   <th className="px-3 py-2 text-left">Type</th>
                                   <th className="px-3 py-2 text-left">Biological Reference Interval</th>
@@ -556,6 +562,22 @@ export const TestCatalogPage: React.FC = () => {
                                     </td>
                                     <td className="px-3 py-2 font-semibold text-slate-900">
                                       {param.name}
+                                    </td>
+                                    <td className="px-3 py-2 text-slate-600">
+                                      <div className="flex flex-col gap-0.5">
+                                        {param.group_name && (
+                                          <span className="text-[10px] font-bold text-slate-700 uppercase">
+                                            {param.group_name}
+                                          </span>
+                                        )}
+                                        {param.subgroup_name ? (
+                                          <span className="inline-block px-1.5 py-0.5 text-[10px] font-medium bg-indigo-50 text-indigo-700 rounded border border-indigo-100 w-fit">
+                                            {param.subgroup_name}
+                                          </span>
+                                        ) : (
+                                          <span className="text-[10px] text-slate-400">—</span>
+                                        )}
+                                      </div>
                                     </td>
                                     <td className="px-3 py-2 text-slate-600">{param.unit || '—'}</td>
                                     <td className="px-3 py-2 text-slate-500">{param.result_type}</td>

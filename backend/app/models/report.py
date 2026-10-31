@@ -34,6 +34,7 @@ class Report(Base, UUIDMixin, TimestampMixin):
     imaging_findings = Column(Text, nullable=True)
     imaging_impression = Column(Text, nullable=True)
     recommendations = Column(Text, nullable=True)
+    interpretation = Column(Text, nullable=True)
 
     approved_by = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     approved_at = Column(DateTime(timezone=True), nullable=True)

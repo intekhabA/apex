@@ -29,6 +29,8 @@ class ResultValueResponse(BaseModel):
     reference_range_display: Optional[str] = None
     flag: ResultFlagEnum
     technician_comment: Optional[str] = None
+    group_name: Optional[str] = None
+    subgroup_name: Optional[str] = None
 
     @field_serializer("numeric_value")
     def serialize_numeric_value(self, v: Optional[Decimal], _info):
