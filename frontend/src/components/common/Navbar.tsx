@@ -1,11 +1,20 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Activity, LogOut, User, Building2, ChevronDown } from 'lucide-react';
+import {
+  Activity,
+  LogOut,
+  User,
+  Building2,
+  ChevronDown,
+  Menu,
+} from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { useUIStore } from '@/store/uiStore';
 import { Badge } from '@/components/ui';
 
 export const Navbar: React.FC = () => {
   const { user, logout } = useAuth();
+  const { toggleSidebarMobile } = useUIStore();
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
   const getRoleBadgeVariant = (role?: string) => {
@@ -33,13 +42,23 @@ export const Navbar: React.FC = () => {
     <header className="sticky top-0 z-30 bg-white border-b border-slate-200">
       <div className="px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         {/* Left: Brand & Lab Context */}
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-3 sm:gap-5">
+          {/* Mobile Sidebar Toggle */}
+          <button
+            onClick={toggleSidebarMobile}
+            title="Open navigation menu"
+            className="md:hidden flex items-center justify-center w-9 h-9 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors focus:outline-none"
+            aria-label="Open navigation menu"
+          >
+            <Menu className="w-5 h-5 text-slate-600" />
+          </button>
+
           <Link to="/dashboard" className="flex items-center gap-2.5 group">
             <div className="w-10 h-10 rounded-xl bg-brand-600 flex items-center justify-center text-white shadow-md shadow-brand-500/20 group-hover:bg-brand-700 transition-colors">
               <Activity className="w-6 h-6" />
             </div>
             <div>
-              <span className="font-extrabold text-lg text-slate-900 tracking-tight flex items-center gap-1.5">
+              <span className="font-extrabold text-lg text-slate-900 tracking-tight">
                 TrustMy<span className="text-brand-600">Lab</span>
               </span>
               <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold block -mt-1">
