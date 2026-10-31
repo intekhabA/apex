@@ -47,12 +47,10 @@ export const DoctorCommissionRatesModal: React.FC<Props> = ({
   };
 
   const handlePercentageChange = (testId: string, val: string) => {
-    const num = parseFloat(val);
-    const validNum = isNaN(num) ? 0 : Math.min(100, Math.max(0, num));
     setTests((prev) =>
       prev.map((t) =>
         t.test_id === testId
-          ? { ...t, commission_percentage: validNum, is_custom: true }
+          ? { ...t, commission_percentage: val as any, is_custom: true }
           : t
       )
     );
@@ -87,10 +85,14 @@ export const DoctorCommissionRatesModal: React.FC<Props> = ({
     setSaving(true);
     setError(null);
     try {
-      const payload = tests.map((t) => ({
-        test_id: t.test_id,
-        commission_percentage: Number(t.commission_percentage),
-      }));
+      const payload = tests.map((t) => {
+        const parsed = parseFloat(String(t.commission_percentage));
+        const validNum = isNaN(parsed) ? 0 : Math.min(100, Math.max(0, parsed));
+        return {
+          test_id: t.test_id,
+          commission_percentage: validNum,
+        };
+      });
       await doctorService.saveDoctorTestCommissions(doctor.id, payload);
       toast.success(`Test commission rates saved successfully for ${doctor.name}.`);
       setSuccessMsg(`Test commission rates saved successfully for ${doctor.name}.`);

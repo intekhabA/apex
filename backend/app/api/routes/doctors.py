@@ -244,10 +244,15 @@ async def get_doctor_test_commissions(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No active laboratory.")
 
     # Verify doctor
-    doc_res = await db.execute(select(Doctor).where(Doctor.id == doctor_id, Doctor.lab_id == current_user.lab_id))
+    doc_query = select(Doctor).where(Doctor.id == doctor_id)
+    if current_user.lab_id:
+        doc_query = doc_query.where(Doctor.lab_id == current_user.lab_id)
+    doc_res = await db.execute(doc_query)
     doctor = doc_res.scalar_one_or_none()
     if not doctor:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Doctor not found.")
+
+    target_lab_id = current_user.lab_id or doctor.lab_id
 
     # Fetch all active tests
     tests_res = await db.execute(
@@ -262,7 +267,7 @@ async def get_doctor_test_commissions(
     ov_res = await db.execute(
         select(DoctorTestCommission).where(
             DoctorTestCommission.doctor_id == doctor_id,
-            DoctorTestCommission.lab_id == current_user.lab_id,
+            DoctorTestCommission.lab_id == target_lab_id,
         )
     )
     overrides_map = {str(ov.test_id): ov.commission_percentage for ov in ov_res.scalars().all()}
@@ -307,31 +312,46 @@ async def update_doctor_test_commissions(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No active laboratory.")
 
     # Verify doctor
-    doc_res = await db.execute(select(Doctor).where(Doctor.id == doctor_id, Doctor.lab_id == current_user.lab_id))
+    doc_query = select(Doctor).where(Doctor.id == doctor_id)
+    if current_user.lab_id:
+        doc_query = doc_query.where(Doctor.lab_id == current_user.lab_id)
+    doc_res = await db.execute(doc_query)
     doctor = doc_res.scalar_one_or_none()
     if not doctor:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Doctor not found.")
 
-    # Remove existing overrides and insert new ones
-    existing_ov = await db.execute(
+    target_lab_id = current_user.lab_id or doctor.lab_id
+
+    # Fetch existing overrides
+    existing_ov_res = await db.execute(
         select(DoctorTestCommission).where(
             DoctorTestCommission.doctor_id == doctor_id,
-            DoctorTestCommission.lab_id == current_user.lab_id,
+            DoctorTestCommission.lab_id == target_lab_id,
         )
     )
-    for ov in existing_ov.scalars().all():
-        await db.delete(ov)
+    existing_ov_map = {str(ov.test_id): ov for ov in existing_ov_res.scalars().all()}
 
-    # Insert updated overrides
+    # Upsert or update in-place to avoid unique constraint collisions
+    incoming_test_ids = set()
     for item in payload.commissions:
         if item.commission_percentage is not None:
-            new_ov = DoctorTestCommission(
-                lab_id=current_user.lab_id,
-                doctor_id=doctor_id,
-                test_id=item.test_id,
-                commission_percentage=item.commission_percentage,
-            )
-            db.add(new_ov)
+            t_id = str(item.test_id)
+            incoming_test_ids.add(t_id)
+            if t_id in existing_ov_map:
+                existing_ov_map[t_id].commission_percentage = item.commission_percentage
+            else:
+                new_ov = DoctorTestCommission(
+                    lab_id=target_lab_id,
+                    doctor_id=doctor_id,
+                    test_id=item.test_id,
+                    commission_percentage=item.commission_percentage,
+                )
+                db.add(new_ov)
+
+    # Delete any existing overrides that were removed from the payload
+    for t_id, ov in existing_ov_map.items():
+        if t_id not in incoming_test_ids:
+            await db.delete(ov)
 
     await db.commit()
 
