@@ -38,8 +38,8 @@ export const LoginPage: React.FC = () => {
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      email: 'admin@demolab.com',
-      password: 'LabAdmin@2026!',
+      email: '',
+      password: '',
     },
   });
 
@@ -161,7 +161,7 @@ export const LoginPage: React.FC = () => {
           <Input
             label="Work Email Address"
             type="email"
-            placeholder="doctor@demolab.com"
+            placeholder="name@organization.com"
             leftIcon={<Mail className="w-4 h-4" />}
             error={errors.email?.message}
             {...register('email')}
