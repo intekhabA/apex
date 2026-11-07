@@ -257,6 +257,16 @@ async def submit_contact_query(
     }
 
     # 5. Dispatch Notification Email to Administrator / Service Desk
+    smtp_config = {
+        "smtp_host": contact_cfg.smtp_host,
+        "smtp_port": contact_cfg.smtp_port,
+        "smtp_user": contact_cfg.smtp_user,
+        "smtp_password": contact_cfg.smtp_password,
+        "smtp_from_email": contact_cfg.smtp_from_email,
+        "smtp_from_name": contact_cfg.smtp_from_name,
+        "smtp_use_tls": contact_cfg.smtp_use_tls,
+    }
+
     admin_subject = EmailService.render_template(
         contact_cfg.notification_subject_template or DEFAULT_NOTIFICATION_SUBJECT,
         template_params,
@@ -265,12 +275,13 @@ async def submit_contact_query(
         contact_cfg.notification_body_template or DEFAULT_NOTIFICATION_BODY,
         template_params,
     )
-    recipient = contact_cfg.recipient_email or "admin@example.com"
+    recipient = contact_cfg.recipient_email or "alam347709@gmail.com"
     await EmailService.send_email(
         to_email=recipient,
         subject=admin_subject,
         body_text=admin_body,
         reply_to=query.email,
+        smtp_config=smtp_config,
     )
 
     # 6. Dispatch Auto-Reply to Inquiring User (if enabled)
@@ -288,6 +299,7 @@ async def submit_contact_query(
             subject=user_subject,
             body_text=user_body,
             reply_to=recipient,
+            smtp_config=smtp_config,
         )
 
     # 7. Audit log
@@ -328,8 +340,10 @@ async def get_contact_settings_endpoint(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_super_admin),
 ):
-    """Retrieve editable contact email recipient, public contact details, and template configuration."""
+    """Retrieve editable contact email recipient, public contact details, SMTP settings, and templates."""
     cfg = await get_or_create_contact_settings(db)
+    is_smtp_configured = bool(cfg.smtp_user and cfg.smtp_password) or bool(getattr(app_settings, "SMTP_USER", "") and getattr(app_settings, "SMTP_PASSWORD", ""))
+
     return APIResponse(
         success=True,
         message="Contact settings and email templates retrieved.",
@@ -340,6 +354,14 @@ async def get_contact_settings_endpoint(
             contact_phone=cfg.contact_phone or "+91 94150 05517",
             office_address=cfg.office_address,
             working_hours=cfg.working_hours,
+            smtp_host=cfg.smtp_host or getattr(app_settings, "SMTP_HOST", "smtp.gmail.com"),
+            smtp_port=cfg.smtp_port or getattr(app_settings, "SMTP_PORT", 587),
+            smtp_user=cfg.smtp_user or getattr(app_settings, "SMTP_USER", ""),
+            smtp_password=cfg.smtp_password or "",
+            smtp_from_email=cfg.smtp_from_email or getattr(app_settings, "SMTP_FROM_EMAIL", "noreply@diagnolab.com"),
+            smtp_from_name=cfg.smtp_from_name or getattr(app_settings, "SMTP_FROM_NAME", "TrustMyLab Notifications"),
+            smtp_use_tls=cfg.smtp_use_tls if cfg.smtp_use_tls is not None else getattr(app_settings, "SMTP_USE_TLS", True),
+            is_smtp_configured=is_smtp_configured,
             notification_subject_template=cfg.notification_subject_template,
             notification_body_template=cfg.notification_body_template,
             auto_reply_enabled=cfg.auto_reply_enabled,
@@ -355,7 +377,7 @@ async def update_contact_settings_endpoint(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_super_admin),
 ):
-    """Update contact recipient email, public support details, and editable templates."""
+    """Update contact recipient email, public support details, SMTP settings, and templates."""
     cfg = await get_or_create_contact_settings(db)
 
     update_dict = payload.model_dump(exclude_unset=True)
@@ -374,12 +396,14 @@ async def update_contact_settings_endpoint(
         user_id=str(current_user.id),
         user_email=current_user.email,
         user_role=current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role),
-        after_state=update_dict,
+        after_state={k: v for k, v in update_dict.items() if k != "smtp_password"},
     )
+
+    is_smtp_configured = bool(cfg.smtp_user and cfg.smtp_password) or bool(getattr(app_settings, "SMTP_USER", "") and getattr(app_settings, "SMTP_PASSWORD", ""))
 
     return APIResponse(
         success=True,
-        message="Contact email settings and templates updated successfully.",
+        message="Contact settings and email templates updated successfully.",
         data=ContactSettingsResponse(
             id=str(cfg.id),
             recipient_email=cfg.recipient_email,
@@ -387,6 +411,14 @@ async def update_contact_settings_endpoint(
             contact_phone=cfg.contact_phone or "+91 94150 05517",
             office_address=cfg.office_address,
             working_hours=cfg.working_hours,
+            smtp_host=cfg.smtp_host or getattr(app_settings, "SMTP_HOST", "smtp.gmail.com"),
+            smtp_port=cfg.smtp_port or getattr(app_settings, "SMTP_PORT", 587),
+            smtp_user=cfg.smtp_user or getattr(app_settings, "SMTP_USER", ""),
+            smtp_password=cfg.smtp_password or "",
+            smtp_from_email=cfg.smtp_from_email or getattr(app_settings, "SMTP_FROM_EMAIL", "noreply@diagnolab.com"),
+            smtp_from_name=cfg.smtp_from_name or getattr(app_settings, "SMTP_FROM_NAME", "TrustMyLab Notifications"),
+            smtp_use_tls=cfg.smtp_use_tls if cfg.smtp_use_tls is not None else getattr(app_settings, "SMTP_USE_TLS", True),
+            is_smtp_configured=is_smtp_configured,
             notification_subject_template=cfg.notification_subject_template,
             notification_body_template=cfg.notification_body_template,
             auto_reply_enabled=cfg.auto_reply_enabled,
@@ -414,6 +446,8 @@ async def reset_contact_templates(
     await db.commit()
     await db.refresh(cfg)
 
+    is_smtp_configured = bool(cfg.smtp_user and cfg.smtp_password) or bool(getattr(app_settings, "SMTP_USER", "") and getattr(app_settings, "SMTP_PASSWORD", ""))
+
     return APIResponse(
         success=True,
         message="Contact email templates reset to default sample templates.",
@@ -424,6 +458,14 @@ async def reset_contact_templates(
             contact_phone=cfg.contact_phone,
             office_address=cfg.office_address,
             working_hours=cfg.working_hours,
+            smtp_host=cfg.smtp_host or getattr(app_settings, "SMTP_HOST", "smtp.gmail.com"),
+            smtp_port=cfg.smtp_port or getattr(app_settings, "SMTP_PORT", 587),
+            smtp_user=cfg.smtp_user or getattr(app_settings, "SMTP_USER", ""),
+            smtp_password=cfg.smtp_password or "",
+            smtp_from_email=cfg.smtp_from_email or getattr(app_settings, "SMTP_FROM_EMAIL", "noreply@diagnolab.com"),
+            smtp_from_name=cfg.smtp_from_name or getattr(app_settings, "SMTP_FROM_NAME", "TrustMyLab Notifications"),
+            smtp_use_tls=cfg.smtp_use_tls if cfg.smtp_use_tls is not None else getattr(app_settings, "SMTP_USE_TLS", True),
+            is_smtp_configured=is_smtp_configured,
             notification_subject_template=cfg.notification_subject_template,
             notification_body_template=cfg.notification_body_template,
             auto_reply_enabled=cfg.auto_reply_enabled,
@@ -454,17 +496,35 @@ async def send_test_contact_email(
     subject = EmailService.render_template(cfg.notification_subject_template, sample_params)
     body = EmailService.render_template(cfg.notification_body_template, sample_params)
 
-    sent = await EmailService.send_email(
+    smtp_config = {
+        "smtp_host": cfg.smtp_host,
+        "smtp_port": cfg.smtp_port,
+        "smtp_user": cfg.smtp_user,
+        "smtp_password": cfg.smtp_password,
+        "smtp_from_email": cfg.smtp_from_email,
+        "smtp_from_name": cfg.smtp_from_name,
+        "smtp_use_tls": cfg.smtp_use_tls,
+    }
+
+    sent, error_msg = await EmailService.send_email(
         to_email=cfg.recipient_email,
         subject=f"[TEST] {subject}",
         body_text=body,
+        smtp_config=smtp_config,
     )
 
-    return APIResponse(
-        success=True,
-        message=f"Test inquiry email sent to {cfg.recipient_email}." if sent else f"Test email logged. (SMTP server reachable / checked: {sent})",
-        data={"recipient": cfg.recipient_email, "dispatched": sent},
-    )
+    if sent:
+        return APIResponse(
+            success=True,
+            message=f"Test inquiry email sent successfully to {cfg.recipient_email}!",
+            data={"recipient": cfg.recipient_email, "dispatched": True, "error": None},
+        )
+    else:
+        return APIResponse(
+            success=False,
+            message=f"Failed to deliver email: {error_msg}. Please configure your SMTP Host, Port, Username, and Password.",
+            data={"recipient": cfg.recipient_email, "dispatched": False, "error": error_msg},
+        )
 
 
 # -------------------------------------------------------------------------

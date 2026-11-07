@@ -68,6 +68,15 @@ class ContactSettingsResponse(BaseModel):
     contact_phone: str
     office_address: Optional[str] = None
     working_hours: Optional[str] = None
+    # SMTP Configuration
+    smtp_host: Optional[str] = None
+    smtp_port: Optional[int] = 587
+    smtp_user: Optional[str] = None
+    smtp_password: Optional[str] = None
+    smtp_from_email: Optional[str] = None
+    smtp_from_name: Optional[str] = "TrustMyLab Notifications"
+    smtp_use_tls: Optional[bool] = True
+    is_smtp_configured: bool = False
     notification_subject_template: str
     notification_body_template: str
     auto_reply_enabled: bool
@@ -94,6 +103,13 @@ class ContactSettingsUpdate(BaseModel):
     contact_phone: Optional[str] = None
     office_address: Optional[str] = None
     working_hours: Optional[str] = None
+    smtp_host: Optional[str] = None
+    smtp_port: Optional[int] = None
+    smtp_user: Optional[str] = None
+    smtp_password: Optional[str] = None
+    smtp_from_email: Optional[str] = None
+    smtp_from_name: Optional[str] = None
+    smtp_use_tls: Optional[bool] = None
     notification_subject_template: Optional[str] = None
     notification_body_template: Optional[str] = None
     auto_reply_enabled: Optional[bool] = None

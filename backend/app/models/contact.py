@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, Boolean, DateTime
+from sqlalchemy import Column, String, Text, Boolean, DateTime, Integer
 from app.core.database import Base, UUIDMixin, TimestampMixin
 from datetime import datetime, timezone
 
@@ -29,6 +29,16 @@ class ContactSettings(Base, UUIDMixin, TimestampMixin):
     contact_phone = Column(String(50), default="+91 94150 05517", nullable=False)
     office_address = Column(String(255), default="Cyber City, Block A, Gurugram, India", nullable=True)
     working_hours = Column(String(100), default="Monday – Saturday: 8:00 AM – 8:00 PM IST", nullable=True)
+
+    # Outbound SMTP Server Settings (optional override over environment variables)
+    smtp_host = Column(String(255), nullable=True)
+    smtp_port = Column(Integer, default=587, nullable=True)
+    smtp_user = Column(String(255), nullable=True)
+    smtp_password = Column(String(255), nullable=True)
+    smtp_from_email = Column(String(255), nullable=True)
+    smtp_from_name = Column(String(100), default="TrustMyLab Notifications", nullable=True)
+    smtp_use_tls = Column(Boolean, default=True, nullable=True)
+
     notification_subject_template = Column(
         String(255),
         default="New Service Inquiry: {subject} — From {user_name}",

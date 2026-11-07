@@ -13,6 +13,9 @@ import {
   Eye,
   Phone,
   Building2,
+  Server,
+  CheckCircle2,
+  AlertCircle,
 } from 'lucide-react';
 import { contactApi } from '@/api/contactService';
 import { ContactQuery } from '@/types/contact';
@@ -43,6 +46,16 @@ export const ContactManagementPage: React.FC = () => {
   const [autoReplyEnabled, setAutoReplyEnabled] = useState(true);
   const [autoReplySubject, setAutoReplySubject] = useState('');
   const [autoReplyBody, setAutoReplyBody] = useState('');
+
+  // SMTP Server Settings
+  const [smtpHost, setSmtpHost] = useState('smtp.gmail.com');
+  const [smtpPort, setSmtpPort] = useState(587);
+  const [smtpUser, setSmtpUser] = useState('');
+  const [smtpPassword, setSmtpPassword] = useState('');
+  const [smtpFromEmail, setSmtpFromEmail] = useState('');
+  const [smtpFromName, setSmtpFromName] = useState('TrustMyLab Notifications');
+  const [smtpUseTls, setSmtpUseTls] = useState(true);
+  const [isSmtpConfigured, setIsSmtpConfigured] = useState(false);
 
   // 1. Fetch Queries
   const {
@@ -79,6 +92,15 @@ export const ContactManagementPage: React.FC = () => {
       setAutoReplyEnabled(settingsData.auto_reply_enabled ?? true);
       setAutoReplySubject(settingsData.auto_reply_subject_template || '');
       setAutoReplyBody(settingsData.auto_reply_body_template || '');
+
+      setSmtpHost(settingsData.smtp_host || 'smtp.gmail.com');
+      setSmtpPort(settingsData.smtp_port || 587);
+      setSmtpUser(settingsData.smtp_user || '');
+      setSmtpPassword(settingsData.smtp_password || '');
+      setSmtpFromEmail(settingsData.smtp_from_email || settingsData.recipient_email || 'noreply@diagnolab.com');
+      setSmtpFromName(settingsData.smtp_from_name || 'TrustMyLab Notifications');
+      setSmtpUseTls(settingsData.smtp_use_tls ?? true);
+      setIsSmtpConfigured(Boolean(settingsData.is_smtp_configured));
     }
   }, [settingsData]);
 
@@ -91,6 +113,13 @@ export const ContactManagementPage: React.FC = () => {
         contact_phone: contactPhone,
         office_address: officeAddress,
         working_hours: workingHours,
+        smtp_host: smtpHost,
+        smtp_port: Number(smtpPort),
+        smtp_user: smtpUser,
+        smtp_password: smtpPassword,
+        smtp_from_email: smtpFromEmail,
+        smtp_from_name: smtpFromName,
+        smtp_use_tls: smtpUseTls,
         notification_subject_template: notifSubject,
         notification_body_template: notifBody,
         auto_reply_enabled: autoReplyEnabled,
@@ -99,6 +128,7 @@ export const ContactManagementPage: React.FC = () => {
       }),
     onSuccess: (updated) => {
       queryClient.setQueryData(['contactSettings'], updated);
+      setIsSmtpConfigured(Boolean(updated.is_smtp_configured));
       toast.success('Contact settings & email templates updated successfully!');
     },
     onError: (err: any) => {
@@ -121,11 +151,15 @@ export const ContactManagementPage: React.FC = () => {
   // Test Email Mutation
   const testEmailMutation = useMutation({
     mutationFn: () => contactApi.sendTestEmail(),
-    onSuccess: (res) => {
-      toast.success(`Test email dispatched to ${res.recipient}!`);
+    onSuccess: (res: any) => {
+      if (res?.dispatched) {
+        toast.success(`Test email dispatched successfully to ${res.recipient}!`);
+      } else {
+        toast.error(`SMTP delivery failed: ${res?.error || 'Authentication required'}. Check your SMTP credentials below.`);
+      }
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.message || 'Test email failed');
+      toast.error(err?.response?.data?.message || err?.message || 'Test email failed');
     },
   });
 
@@ -627,6 +661,147 @@ export const ContactManagementPage: React.FC = () => {
                 Currently configured to deliver user queries directly to{' '}
                 <span className="font-semibold text-brand-700 font-mono">{recipientEmail}</span>.
               </p>
+            </div>
+          </Card>
+
+          {/* Outbound SMTP Server Settings Card */}
+          <Card className="p-6 bg-white border border-slate-200 rounded-2xl shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b pb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                    <Server className="w-4 h-4 text-brand-600" /> Outbound SMTP Mail Server Settings
+                  </h3>
+                  {isSmtpConfigured ? (
+                    <Badge variant="final" className="text-[10px] gap-1">
+                      <CheckCircle2 className="w-3 h-3" /> Credentials Configured
+                    </Badge>
+                  ) : (
+                    <Badge variant="high" className="text-[10px] gap-1">
+                      <AlertCircle className="w-3 h-3" /> Setup Required
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Configure your SMTP credentials to send real emails to Gmail or external recipients.
+                </p>
+              </div>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => testEmailMutation.mutate()}
+                disabled={testEmailMutation.isPending}
+                className="text-xs gap-1.5"
+              >
+                <Send className={`w-3.5 h-3.5 ${testEmailMutation.isPending ? 'animate-spin' : ''}`} />
+                Test Mail Server
+              </Button>
+            </div>
+
+            {!isSmtpConfigured && (
+              <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 space-y-1">
+                <p className="font-semibold flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                  SMTP Authentication is required to dispatch emails to {recipientEmail}.
+                </p>
+                <p className="text-amber-700">
+                  For Gmail, use Host <code className="bg-amber-100 px-1 py-0.5 rounded font-mono">smtp.gmail.com</code>, Port <code className="bg-amber-100 px-1 py-0.5 rounded font-mono">587</code>, your Gmail address as username, and a 16-character <strong>Google App Password</strong> (from <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer" className="underline font-medium hover:text-amber-900">myaccount.google.com/apppasswords</a>).
+                </p>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  SMTP Host *
+                </label>
+                <Input
+                  type="text"
+                  value={smtpHost}
+                  onChange={(e) => setSmtpHost(e.target.value)}
+                  placeholder="smtp.gmail.com"
+                  className="font-mono text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  SMTP Port *
+                </label>
+                <Input
+                  type="number"
+                  value={smtpPort}
+                  onChange={(e) => setSmtpPort(Number(e.target.value))}
+                  placeholder="587"
+                  className="font-mono text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Sender From Email *
+                </label>
+                <Input
+                  type="email"
+                  value={smtpFromEmail}
+                  onChange={(e) => setSmtpFromEmail(e.target.value)}
+                  placeholder="alam347709@gmail.com"
+                  className="font-mono text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  SMTP Username / Email *
+                </label>
+                <Input
+                  type="text"
+                  value={smtpUser}
+                  onChange={(e) => setSmtpUser(e.target.value)}
+                  placeholder="alam347709@gmail.com"
+                  className="font-mono text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                  <span>SMTP Password / App Password *</span>
+                </label>
+                <Input
+                  type="password"
+                  value={smtpPassword}
+                  onChange={(e) => setSmtpPassword(e.target.value)}
+                  placeholder="••••••••••••••••"
+                  className="font-mono text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Sender Display Name
+                </label>
+                <Input
+                  type="text"
+                  value={smtpFromName}
+                  onChange={(e) => setSmtpFromName(e.target.value)}
+                  placeholder="TrustMyLab Notifications"
+                  className="text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 pt-1">
+              <input
+                id="smtp_use_tls"
+                type="checkbox"
+                checked={smtpUseTls}
+                onChange={(e) => setSmtpUseTls(e.target.checked)}
+                className="w-4 h-4 text-brand-600 rounded border-slate-300 focus:ring-brand-500"
+              />
+              <label htmlFor="smtp_use_tls" className="text-xs font-medium text-slate-700 cursor-pointer">
+                Enable STARTTLS Encryption (recommended for port 587)
+              </label>
             </div>
           </Card>
 

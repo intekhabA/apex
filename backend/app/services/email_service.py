@@ -3,10 +3,7 @@ import logging
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from typing import Dict, Any, Optional
-from datetime import datetime
-import zoneinfo
-
+from typing import Dict, Any, Optional, Tuple
 from app.core.config import settings
 
 logger = logging.getLogger("diagnolab.email")
@@ -24,15 +21,31 @@ class EmailService:
         return result
 
     @staticmethod
-    def _send_sync(to_email: str, subject: str, body_text: str, reply_to: Optional[str] = None) -> bool:
+    def _send_sync(
+        to_email: str,
+        subject: str,
+        body_text: str,
+        reply_to: Optional[str] = None,
+        smtp_config: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[bool, str]:
         """Synchronous SMTP mail delivery worker intended for execution in a thread pool."""
-        if not settings.SMTP_HOST:
-            logger.warning("SMTP host is not configured; skipping email dispatch to %s", to_email)
-            return False
+        cfg = smtp_config or {}
+        smtp_host = cfg.get("smtp_host") or getattr(settings, "SMTP_HOST", "")
+        smtp_port = int(cfg.get("smtp_port") or getattr(settings, "SMTP_PORT", 587))
+        smtp_user = cfg.get("smtp_user") if cfg.get("smtp_user") is not None else getattr(settings, "SMTP_USER", "")
+        smtp_password = cfg.get("smtp_password") if cfg.get("smtp_password") is not None else getattr(settings, "SMTP_PASSWORD", "")
+        from_email = cfg.get("smtp_from_email") or getattr(settings, "SMTP_FROM_EMAIL", "noreply@diagnolab.com")
+        from_name = cfg.get("smtp_from_name") or getattr(settings, "SMTP_FROM_NAME", "TrustMyLab Notifications")
+        use_tls = cfg.get("smtp_use_tls") if "smtp_use_tls" in cfg and cfg.get("smtp_use_tls") is not None else getattr(settings, "SMTP_USE_TLS", True)
+
+        if not smtp_host:
+            msg = "SMTP host is not configured; skipping email dispatch"
+            logger.warning("%s to %s", msg, to_email)
+            return False, msg
 
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
-        msg["From"] = f"{settings.SMTP_FROM_NAME} <{settings.SMTP_FROM_EMAIL}>"
+        msg["From"] = f"{from_name} <{from_email}>"
         msg["To"] = to_email
         if reply_to:
             msg["Reply-To"] = reply_to
@@ -41,7 +54,7 @@ class EmailService:
         part_text = MIMEText(body_text, "plain", "utf-8")
         msg.attach(part_text)
 
-        # HTML formatted payload with clean formatting
+        # HTML formatted payload
         html_formatted = (
             "<div style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif; "
             "line-height: 1.6; color: #1e293b; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 8px;'>"
@@ -60,32 +73,32 @@ class EmailService:
         msg.attach(part_html)
 
         try:
-            port = int(settings.SMTP_PORT or 587)
-            if port == 465:
+            if smtp_port == 465:
                 # SSL
-                with smtplib.SMTP_SSL(settings.SMTP_HOST, port, timeout=10) as server:
-                    if settings.SMTP_USER and settings.SMTP_PASSWORD:
-                        server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+                with smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=12) as server:
+                    if smtp_user and smtp_password:
+                        server.login(smtp_user, smtp_password)
                     server.send_message(msg)
             else:
                 # STARTTLS or plain
-                with smtplib.SMTP(settings.SMTP_HOST, port, timeout=10) as server:
+                with smtplib.SMTP(smtp_host, smtp_port, timeout=12) as server:
                     server.ehlo()
-                    if getattr(settings, "SMTP_USE_TLS", True):
+                    if use_tls:
                         try:
                             server.starttls()
                             server.ehlo()
                         except Exception as tls_err:
                             logger.debug("STARTTLS not supported or skipped: %s", tls_err)
-                    if settings.SMTP_USER and settings.SMTP_PASSWORD:
-                        server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+                    if smtp_user and smtp_password:
+                        server.login(smtp_user, smtp_password)
                     server.send_message(msg)
 
             logger.info("Email dispatched successfully to %s: %s", to_email, subject)
-            return True
+            return True, "Email dispatched successfully"
         except Exception as e:
-            logger.warning("SMTP email dispatch to %s failed (non-fatal): %s", to_email, e)
-            return False
+            err_msg = f"{type(e).__name__}: {str(e)}"
+            logger.warning("SMTP email dispatch to %s failed (non-fatal): %s", to_email, err_msg)
+            return False, err_msg
 
     @classmethod
     async def send_email(
@@ -94,7 +107,8 @@ class EmailService:
         subject: str,
         body_text: str,
         reply_to: Optional[str] = None,
-    ) -> bool:
+        smtp_config: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[bool, str]:
         """Asynchronously dispatches an email using background thread pool."""
         try:
             return await asyncio.to_thread(
@@ -103,7 +117,8 @@ class EmailService:
                 subject=subject,
                 body_text=body_text,
                 reply_to=reply_to,
+                smtp_config=smtp_config,
             )
         except Exception as e:
-            logger.error("Error in async email dispatch: %s", e)
-            return False
+            logger.exception("Failed to dispatch email in thread pool: %s", e)
+            return False, str(e)

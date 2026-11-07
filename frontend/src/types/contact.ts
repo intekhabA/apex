@@ -44,6 +44,14 @@ export interface ContactSettings {
   contact_phone: string;
   office_address?: string | null;
   working_hours?: string | null;
+  smtp_host?: string | null;
+  smtp_port?: number | null;
+  smtp_user?: string | null;
+  smtp_password?: string | null;
+  smtp_from_email?: string | null;
+  smtp_from_name?: string | null;
+  smtp_use_tls?: boolean | null;
+  is_smtp_configured?: boolean;
   notification_subject_template: string;
   notification_body_template: string;
   auto_reply_enabled: boolean;
@@ -58,6 +66,13 @@ export interface ContactSettingsUpdatePayload {
   contact_phone?: string;
   office_address?: string;
   working_hours?: string;
+  smtp_host?: string;
+  smtp_port?: number;
+  smtp_user?: string;
+  smtp_password?: string;
+  smtp_from_email?: string;
+  smtp_from_name?: string;
+  smtp_use_tls?: boolean;
   notification_subject_template?: string;
   notification_body_template?: string;
   auto_reply_enabled?: boolean;
