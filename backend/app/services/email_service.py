@@ -30,13 +30,29 @@ class EmailService:
     ) -> Tuple[bool, str]:
         """Synchronous SMTP mail delivery worker intended for execution in a thread pool."""
         cfg = smtp_config or {}
-        smtp_host = cfg.get("smtp_host") or getattr(settings, "SMTP_HOST", "")
+        smtp_host = (cfg.get("smtp_host") or getattr(settings, "SMTP_HOST", "") or "").strip()
         smtp_port = int(cfg.get("smtp_port") or getattr(settings, "SMTP_PORT", 587))
-        smtp_user = cfg.get("smtp_user") if cfg.get("smtp_user") is not None else getattr(settings, "SMTP_USER", "")
-        smtp_password = cfg.get("smtp_password") if cfg.get("smtp_password") is not None else getattr(settings, "SMTP_PASSWORD", "")
-        from_email = cfg.get("smtp_from_email") or getattr(settings, "SMTP_FROM_EMAIL", "noreply@diagnolab.com")
+        smtp_user = (cfg.get("smtp_user") if cfg.get("smtp_user") is not None else getattr(settings, "SMTP_USER", "") or "").strip()
+        raw_password = cfg.get("smtp_password") if cfg.get("smtp_password") is not None else getattr(settings, "SMTP_PASSWORD", "")
+        # Sanitize password: remove internal spaces (standard for 16-character Google App Passwords) & whitespace
+        smtp_password = (raw_password or "").replace(" ", "").strip()
+        from_email = (cfg.get("smtp_from_email") or getattr(settings, "SMTP_FROM_EMAIL", "") or "").strip()
         from_name = cfg.get("smtp_from_name") or getattr(settings, "SMTP_FROM_NAME", "TrustMyLab Notifications")
         use_tls = cfg.get("smtp_use_tls") if "smtp_use_tls" in cfg and cfg.get("smtp_use_tls") is not None else getattr(settings, "SMTP_USE_TLS", True)
+
+        # Smart Auto-Detection for Google Gmail SMTP
+        is_gmail = bool(smtp_user and ("@gmail.com" in smtp_user.lower() or "@googlemail.com" in smtp_user.lower()))
+        if is_gmail:
+            if not smtp_host or "mailtrap" in smtp_host.lower() or "localhost" in smtp_host.lower():
+                smtp_host = "smtp.gmail.com"
+                smtp_port = 587
+                use_tls = True
+            # Gmail requires authenticated user as sender to prevent anti-spoofing rejection
+            if not from_email or "diagnolab.com" in from_email.lower():
+                from_email = smtp_user
+
+        if not from_email:
+            from_email = smtp_user or "noreply@trustmylab.in"
 
         if not smtp_host:
             msg = "SMTP host is not configured; skipping email dispatch"
@@ -95,6 +111,14 @@ class EmailService:
 
             logger.info("Email dispatched successfully to %s: %s", to_email, subject)
             return True, "Email dispatched successfully"
+        except smtplib.SMTPAuthenticationError as auth_err:
+            hint = "Authentication failed (535). For Gmail, you must use a 16-character Google App Password (myaccount.google.com/apppasswords), not your regular Gmail password."
+            logger.warning("SMTP Authentication Error for %s: %s (%s)", to_email, auth_err, hint)
+            return False, f"SMTPAuthenticationError: {auth_err}. {hint}"
+        except smtplib.SMTPServerDisconnected as disc_err:
+            hint = "Server disconnected unexpectedly. Check if host/port match your provider (e.g., smtp.gmail.com:587)."
+            logger.warning("SMTP Disconnected for %s: %s (%s)", to_email, disc_err, hint)
+            return False, f"SMTPServerDisconnected: {disc_err}. {hint}"
         except Exception as e:
             err_msg = f"{type(e).__name__}: {str(e)}"
             logger.warning("SMTP email dispatch to %s failed (non-fatal): %s", to_email, err_msg)

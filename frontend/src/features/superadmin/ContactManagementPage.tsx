@@ -93,31 +93,65 @@ export const ContactManagementPage: React.FC = () => {
       setAutoReplySubject(settingsData.auto_reply_subject_template || '');
       setAutoReplyBody(settingsData.auto_reply_body_template || '');
 
-      setSmtpHost(settingsData.smtp_host || 'smtp.gmail.com');
+      const rawHost = settingsData.smtp_host || '';
+      const safeHost = (!rawHost || rawHost === 'smtp.mailtrap.io') ? 'smtp.gmail.com' : rawHost;
+      setSmtpHost(safeHost);
       setSmtpPort(settingsData.smtp_port || 587);
       setSmtpUser(settingsData.smtp_user || '');
       setSmtpPassword(settingsData.smtp_password || '');
-      setSmtpFromEmail(settingsData.smtp_from_email || settingsData.recipient_email || 'noreply@diagnolab.com');
+      const safeFrom = (settingsData.smtp_from_email && !settingsData.smtp_from_email.includes('diagnolab.com'))
+        ? settingsData.smtp_from_email
+        : (settingsData.smtp_user || settingsData.recipient_email || 'alam347709@gmail.com');
+      setSmtpFromEmail(safeFrom);
       setSmtpFromName(settingsData.smtp_from_name || 'TrustMyLab Notifications');
       setSmtpUseTls(settingsData.smtp_use_tls ?? true);
       setIsSmtpConfigured(Boolean(settingsData.is_smtp_configured));
     }
   }, [settingsData]);
 
+  const applyGmailPreset = () => {
+    setSmtpHost('smtp.gmail.com');
+    setSmtpPort(587);
+    setSmtpUseTls(true);
+    if (smtpUser && (!smtpFromEmail || smtpFromEmail.includes('diagnolab.com'))) {
+      setSmtpFromEmail(smtpUser);
+    }
+    toast.success('Applied Gmail defaults (smtp.gmail.com, Port 587, STARTTLS).');
+  };
+
+  const handleSmtpUserChange = (val: string) => {
+    setSmtpUser(val);
+    const lower = val.toLowerCase();
+    if (lower.includes('@gmail.com') || lower.includes('@googlemail.com')) {
+      if (!smtpHost || smtpHost === 'smtp.mailtrap.io') {
+        setSmtpHost('smtp.gmail.com');
+        setSmtpPort(587);
+      }
+      if (!smtpFromEmail || smtpFromEmail.includes('diagnolab.com')) {
+        setSmtpFromEmail(val);
+      }
+    }
+  };
+
   // Update Settings Mutation
   const saveSettingsMutation = useMutation({
-    mutationFn: () =>
-      contactApi.updateSettings({
+    mutationFn: () => {
+      const cleanPassword = smtpPassword.replace(/\s+/g, '');
+      const isGmail = smtpUser.toLowerCase().includes('@gmail.com') || smtpUser.toLowerCase().includes('@googlemail.com');
+      const finalHost = (isGmail && (!smtpHost || smtpHost === 'smtp.mailtrap.io')) ? 'smtp.gmail.com' : smtpHost;
+      const finalFrom = (isGmail && (!smtpFromEmail || smtpFromEmail.includes('diagnolab.com'))) ? smtpUser : smtpFromEmail;
+
+      return contactApi.updateSettings({
         recipient_email: recipientEmail,
         support_email: supportEmail,
         contact_phone: contactPhone,
         office_address: officeAddress,
         working_hours: workingHours,
-        smtp_host: smtpHost,
+        smtp_host: finalHost,
         smtp_port: Number(smtpPort),
         smtp_user: smtpUser,
-        smtp_password: smtpPassword,
-        smtp_from_email: smtpFromEmail,
+        smtp_password: cleanPassword,
+        smtp_from_email: finalFrom,
         smtp_from_name: smtpFromName,
         smtp_use_tls: smtpUseTls,
         notification_subject_template: notifSubject,
@@ -125,7 +159,8 @@ export const ContactManagementPage: React.FC = () => {
         auto_reply_enabled: autoReplyEnabled,
         auto_reply_subject_template: autoReplySubject,
         auto_reply_body_template: autoReplyBody,
-      }),
+      });
+    },
     onSuccess: (updated) => {
       queryClient.setQueryData(['contactSettings'], updated);
       setIsSmtpConfigured(Boolean(updated.is_smtp_configured));
@@ -687,17 +722,40 @@ export const ContactManagementPage: React.FC = () => {
                 </p>
               </div>
 
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => testEmailMutation.mutate()}
-                disabled={testEmailMutation.isPending}
-                className="text-xs gap-1.5"
-              >
-                <Send className={`w-3.5 h-3.5 ${testEmailMutation.isPending ? 'animate-spin' : ''}`} />
-                Test Mail Server
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={applyGmailPreset}
+                  className="text-xs gap-1.5 border-brand-200 text-brand-700 hover:bg-brand-50"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5 text-brand-600" />
+                  Preset Gmail (smtp.gmail.com)
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => testEmailMutation.mutate()}
+                  disabled={testEmailMutation.isPending}
+                  className="text-xs gap-1.5"
+                >
+                  <Send className={`w-3.5 h-3.5 ${testEmailMutation.isPending ? 'animate-spin' : ''}`} />
+                  Test Mail Server
+                </Button>
+              </div>
             </div>
+
+            {smtpUser && (smtpUser.toLowerCase().includes('@gmail.com') || smtpUser.toLowerCase().includes('@googlemail.com')) && (
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900 space-y-0.5">
+                <p className="font-semibold flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                  Google Workspace / Gmail Account Active
+                </p>
+                <p className="text-blue-700">
+                  Using Google SMTP (<code className="bg-blue-100/80 px-1 py-0.5 rounded font-mono">smtp.gmail.com:587</code>). Use a 16-character <strong>Google App Password</strong> (from <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer" className="underline font-semibold hover:text-blue-950">myaccount.google.com/apppasswords</a>). Any spaces in your copied App Password will be stripped automatically.
+                </p>
+              </div>
+            )}
 
             {!isSmtpConfigured && (
               <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 space-y-1">
@@ -758,7 +816,7 @@ export const ContactManagementPage: React.FC = () => {
                 <Input
                   type="text"
                   value={smtpUser}
-                  onChange={(e) => setSmtpUser(e.target.value)}
+                  onChange={(e) => handleSmtpUserChange(e.target.value)}
                   placeholder="alam347709@gmail.com"
                   className="font-mono text-sm"
                 />

@@ -1,4 +1,7 @@
-# Environments
+# Local test/sample assets
+bill.jpeg
+*.pem
+
 .env
 .env.local
 .env.*.local

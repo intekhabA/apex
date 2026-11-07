@@ -344,6 +344,19 @@ async def get_contact_settings_endpoint(
     cfg = await get_or_create_contact_settings(db)
     is_smtp_configured = bool(cfg.smtp_user and cfg.smtp_password) or bool(getattr(app_settings, "SMTP_USER", "") and getattr(app_settings, "SMTP_PASSWORD", ""))
 
+    resolved_host = cfg.smtp_host or getattr(app_settings, "SMTP_HOST", "smtp.gmail.com")
+    resolved_port = cfg.smtp_port or getattr(app_settings, "SMTP_PORT", 587)
+    resolved_user = cfg.smtp_user or getattr(app_settings, "SMTP_USER", "")
+    resolved_from = cfg.smtp_from_email or getattr(app_settings, "SMTP_FROM_EMAIL", "noreply@diagnolab.com")
+
+    # If user has a Gmail address, ensure host and from_email are pre-aligned for Gmail
+    if resolved_user and ("@gmail.com" in resolved_user.lower() or "@googlemail.com" in resolved_user.lower()):
+        if not resolved_host or "mailtrap" in resolved_host.lower():
+            resolved_host = "smtp.gmail.com"
+            resolved_port = 587
+        if not resolved_from or "diagnolab.com" in resolved_from.lower():
+            resolved_from = resolved_user
+
     return APIResponse(
         success=True,
         message="Contact settings and email templates retrieved.",
@@ -354,11 +367,11 @@ async def get_contact_settings_endpoint(
             contact_phone=cfg.contact_phone or "+91 94150 05517",
             office_address=cfg.office_address,
             working_hours=cfg.working_hours,
-            smtp_host=cfg.smtp_host or getattr(app_settings, "SMTP_HOST", "smtp.gmail.com"),
-            smtp_port=cfg.smtp_port or getattr(app_settings, "SMTP_PORT", 587),
-            smtp_user=cfg.smtp_user or getattr(app_settings, "SMTP_USER", ""),
+            smtp_host=resolved_host,
+            smtp_port=resolved_port,
+            smtp_user=resolved_user,
             smtp_password=cfg.smtp_password or "",
-            smtp_from_email=cfg.smtp_from_email or getattr(app_settings, "SMTP_FROM_EMAIL", "noreply@diagnolab.com"),
+            smtp_from_email=resolved_from,
             smtp_from_name=cfg.smtp_from_name or getattr(app_settings, "SMTP_FROM_NAME", "TrustMyLab Notifications"),
             smtp_use_tls=cfg.smtp_use_tls if cfg.smtp_use_tls is not None else getattr(app_settings, "SMTP_USE_TLS", True),
             is_smtp_configured=is_smtp_configured,
@@ -381,6 +394,23 @@ async def update_contact_settings_endpoint(
     cfg = await get_or_create_contact_settings(db)
 
     update_dict = payload.model_dump(exclude_unset=True)
+
+    # Sanitize password: remove spaces from Google App Passwords
+    if "smtp_password" in update_dict and update_dict["smtp_password"]:
+        update_dict["smtp_password"] = update_dict["smtp_password"].replace(" ", "").strip()
+
+    # Smart auto-detection for Gmail configurations
+    target_user = (update_dict.get("smtp_user") or cfg.smtp_user or "").strip()
+    if target_user and ("@gmail.com" in target_user.lower() or "@googlemail.com" in target_user.lower()):
+        current_host = (update_dict.get("smtp_host") or cfg.smtp_host or "").strip()
+        if not current_host or "mailtrap" in current_host.lower():
+            update_dict["smtp_host"] = "smtp.gmail.com"
+            update_dict["smtp_port"] = 587
+            update_dict["smtp_use_tls"] = True
+        current_from = (update_dict.get("smtp_from_email") or cfg.smtp_from_email or "").strip()
+        if not current_from or "diagnolab.com" in current_from.lower():
+            update_dict["smtp_from_email"] = target_user
+
     for field, val in update_dict.items():
         if val is not None:
             setattr(cfg, field, val)
