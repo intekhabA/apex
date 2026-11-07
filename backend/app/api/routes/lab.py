@@ -336,6 +336,74 @@ async def delete_lab_letterhead(
     )
 
 
+@router.post("/logo", response_model=APIResponse[LaboratoryResponse])
+async def upload_lab_logo(
+    file: UploadFile = File(...),
+    current_user: User = Depends(require_lab_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Upload laboratory logo image."""
+    if not current_user.lab_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No active laboratory.")
+    lab_res = await db.execute(select(Laboratory).where(Laboratory.id == current_user.lab_id))
+    lab = lab_res.scalar_one_or_none()
+    if not lab:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Laboratory not found.")
+
+    contents = await file.read()
+    if len(contents) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Logo image must be under 5 MB.")
+
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext not in [".png", ".jpg", ".jpeg", ".webp", ".svg"]:
+        ext = ".png"
+
+    rel_path = f"logos/labs/{current_user.lab_id}/logo{ext}"
+    stored_path = await storage_service.save_file_bytes(
+        file_bytes=contents,
+        rel_path=rel_path,
+        content_type=file.content_type or "image/png",
+    )
+    lab.logo_url = stored_path
+    await db.commit()
+    await db.refresh(lab)
+
+    return APIResponse(
+        success=True,
+        message="Laboratory logo uploaded successfully.",
+        data=LaboratoryResponse.model_validate(lab),
+    )
+
+
+@router.delete("/logo", response_model=APIResponse[LaboratoryResponse])
+async def delete_lab_logo(
+    current_user: User = Depends(require_lab_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Remove laboratory logo image."""
+    if not current_user.lab_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No active laboratory.")
+    lab_res = await db.execute(select(Laboratory).where(Laboratory.id == current_user.lab_id))
+    lab = lab_res.scalar_one_or_none()
+    if not lab:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Laboratory not found.")
+
+    if lab.logo_url:
+        try:
+            await storage_service.delete_file(lab.logo_url)
+        except Exception:
+            pass
+        lab.logo_url = None
+        await db.commit()
+        await db.refresh(lab)
+
+    return APIResponse(
+        success=True,
+        message="Laboratory logo removed successfully.",
+        data=LaboratoryResponse.model_validate(lab),
+    )
+
+
 
 @router.get("/users", response_model=APIResponse[List[UserResponse]])
 async def list_lab_staff(
@@ -491,6 +559,28 @@ async def update_lab_staff_member(
         )
 
     update_data = payload.model_dump(exclude_unset=True)
+
+    # Handle email update with collision check
+    if "email" in update_data and update_data["email"]:
+        new_email = str(update_data["email"]).lower().strip()
+        if new_email != user.email.lower():
+            existing_email = await db.execute(
+                select(User).where(User.email == new_email, User.id != user_id, User.deleted_at.is_(None))
+            )
+            if existing_email.scalar_one_or_none():
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"Email address '{new_email}' is already registered to another user.",
+                )
+            user.email = new_email
+        del update_data["email"]
+
+    # Handle password update
+    if "password" in update_data:
+        pwd = update_data.pop("password")
+        if pwd and len(str(pwd).strip()) >= 8:
+            user.hashed_password = get_password_hash(str(pwd).strip())
+
     for field, val in update_data.items():
         setattr(user, field, val)
 

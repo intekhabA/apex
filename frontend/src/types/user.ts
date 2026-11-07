@@ -3,6 +3,7 @@ import { UserRole } from './auth';
 export interface UserResponse {
   id: string;
   lab_id?: string | null;
+  lab_logo_url?: string | null;
   email: string;
   first_name: string;
   last_name: string;
@@ -34,12 +35,14 @@ export interface UserCreatePayload {
 }
 
 export interface UserUpdatePayload {
+  email?: string;
+  password?: string;
   first_name?: string;
   last_name?: string;
-  phone?: string;
+  phone?: string | null;
   role?: UserRole;
-  medical_license_number?: string;
-  qualifications?: string;
+  medical_license_number?: string | null;
+  qualifications?: string | null;
   is_active?: boolean;
   permissions?: string[];
 }

@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from typing import Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from fastapi import HTTPException, status
 
 from app.models.user import User
@@ -36,10 +37,14 @@ class AuthService:
         await db.commit()
         await db.refresh(user)
 
-        # Lookup laboratory name if tenant user
+        # Lookup laboratory name & timezone if tenant user
         lab_name = None
+        lab_logo_url = None
+        lab_timezone = "Asia/Kolkata"
         if user.lab_id:
-            lab_res = await db.execute(select(Laboratory).where(Laboratory.id == user.lab_id))
+            lab_res = await db.execute(
+                select(Laboratory).options(selectinload(Laboratory.settings)).where(Laboratory.id == user.lab_id)
+            )
             lab = lab_res.scalar_one_or_none()
             if lab:
                 if not lab.is_active:
@@ -48,6 +53,11 @@ class AuthService:
                         detail="Your laboratory account is currently suspended. Please contact platform support.",
                     )
                 lab_name = lab.name
+                if lab.settings and getattr(lab.settings, "timezone", None):
+                    lab_timezone = lab.settings.timezone
+                if lab.logo_url:
+                    clean = lab.logo_url.replace("./storage/", "").replace("storage/", "")
+                    lab_logo_url = f"/storage/{clean}" if not clean.startswith("http") else clean
 
         # Create JWT payload
         token_payload = {
@@ -75,6 +85,8 @@ class AuthService:
             signature_image_url=user.signature_image_url,
             lab_id=str(user.lab_id) if user.lab_id else None,
             lab_name=lab_name,
+            lab_logo_url=lab_logo_url,
+            timezone=lab_timezone,
             is_active=user.is_active,
             permissions=user.permissions,
         )

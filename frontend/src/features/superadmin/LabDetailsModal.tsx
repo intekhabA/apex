@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Building2, MapPin, Users, Settings, CheckCircle2, XCircle, FileText, Upload, Trash2, Image as ImageIcon } from 'lucide-react';
+import { Building2, MapPin, Users, Settings, CheckCircle2, XCircle, FileText, Upload, Trash2, Image as ImageIcon, Globe } from 'lucide-react';
 import { Modal, Badge, Button, LoadingSpinner, toast, confirmDialog } from '@/components/ui';
 import { adminApi } from '@/api/adminService';
 import { LaboratorySettingsUpdatePayload } from '@/types';
@@ -21,7 +21,9 @@ export const LabDetailsModal: React.FC<LabDetailsModalProps> = ({ labId, isOpen,
   const [bottomMarginMm, setBottomMarginMm] = useState<number>(28);
   const [useLetterheadBg, setUseLetterheadBg] = useState<boolean>(true);
   const [footerCodeType, setFooterCodeType] = useState<'BARCODE' | 'QR_CODE' | 'BOTH' | 'NONE'>('BARCODE');
+  const [timezone, setTimezone] = useState<string>('Asia/Kolkata');
   const [isUploadingLetterhead, setIsUploadingLetterhead] = useState<boolean>(false);
+  const [isUploadingLogo, setIsUploadingLogo] = useState<boolean>(false);
 
   const { data: lab, isLoading } = useQuery({
     queryKey: ['adminLabDetail', labId],
@@ -44,6 +46,7 @@ export const LabDetailsModal: React.FC<LabDetailsModalProps> = ({ labId, isOpen,
       setTopMarginMm(lab.settings.letterhead_top_margin_mm ?? 48);
       setBottomMarginMm(lab.settings.letterhead_bottom_margin_mm ?? 28);
       setUseLetterheadBg(lab.settings.use_letterhead_background ?? true);
+      setTimezone(lab.settings.timezone || 'Asia/Kolkata');
     }
   }, [lab?.settings]);
 
@@ -53,7 +56,7 @@ export const LabDetailsModal: React.FC<LabDetailsModalProps> = ({ labId, isOpen,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['adminLabDetail', labId] });
       queryClient.invalidateQueries({ queryKey: ['adminLaboratories'] });
-      toast.success(`Report specifications for '${lab?.name}' updated successfully.`);
+      toast.success(`Settings and specifications for '${lab?.name}' updated successfully.`);
     },
     onError: (err: any) => {
       toast.error(err?.response?.data?.message || err?.message || 'Failed to update report settings.');
@@ -70,6 +73,7 @@ export const LabDetailsModal: React.FC<LabDetailsModalProps> = ({ labId, isOpen,
       letterhead_top_margin_mm: topMarginMm,
       letterhead_bottom_margin_mm: bottomMarginMm,
       use_letterhead_background: useLetterheadBg,
+      timezone: timezone || 'Asia/Kolkata',
     });
   };
 
@@ -111,6 +115,47 @@ export const LabDetailsModal: React.FC<LabDetailsModalProps> = ({ labId, isOpen,
       toast.error(err?.response?.data?.message || err?.message || 'Failed to remove letterhead image.');
     } finally {
       setIsUploadingLetterhead(false);
+    }
+  };
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !labId) return;
+    setIsUploadingLogo(true);
+    try {
+      await adminApi.uploadLaboratoryLogo(labId, file);
+      queryClient.invalidateQueries({ queryKey: ['adminLabDetail', labId] });
+      queryClient.invalidateQueries({ queryKey: ['adminLaboratories'] });
+      toast.success(`Official logo uploaded for '${lab?.name}'.`);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || err?.message || 'Failed to upload logo.');
+    } finally {
+      setIsUploadingLogo(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleLogoDelete = async () => {
+    if (!labId) return;
+    const confirmed = await confirmDialog({
+      title: 'Remove Laboratory Logo?',
+      message: `Are you sure you want to remove the logo for ${lab?.name}? The laboratory login and reports will revert to the default branding.`,
+      confirmText: 'Yes, Remove Logo',
+      cancelText: 'Cancel',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
+
+    setIsUploadingLogo(true);
+    try {
+      await adminApi.deleteLaboratoryLogo(labId);
+      queryClient.invalidateQueries({ queryKey: ['adminLabDetail', labId] });
+      queryClient.invalidateQueries({ queryKey: ['adminLaboratories'] });
+      toast.success(`Logo removed for '${lab?.name}'.`);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || err?.message || 'Failed to remove logo.');
+    } finally {
+      setIsUploadingLogo(false);
     }
   };
 
@@ -170,6 +215,99 @@ export const LabDetailsModal: React.FC<LabDetailsModalProps> = ({ labId, isOpen,
             </div>
           </div>
 
+          {/* Laboratory Brand Logo */}
+          <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-3 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="font-bold text-xs uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                  <ImageIcon className="w-3.5 h-3.5 text-brand-600" /> Laboratory Brand Logo
+                </h4>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Display this laboratory&apos;s custom brand logo on the lab login screen and tenant workspaces.
+                </p>
+              </div>
+            </div>
+
+            {lab.logo_url ? (
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-14 h-14 rounded-lg border border-slate-300 bg-white p-1.5 flex items-center justify-center shrink-0 shadow-sm overflow-hidden">
+                    <img
+                      src={`/storage/${lab.logo_url.replace(/^(\.\/)?storage\//, '')}`}
+                      alt={lab.name}
+                      className="max-h-full max-w-full object-contain"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-slate-800 block">
+                      Active Brand Logo
+                    </span>
+                    <span className="text-[11px] text-emerald-700 font-medium flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Active on Lab Login &amp; Workspace
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <label className="cursor-pointer">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 shadow-sm">
+                      <Upload className="w-3 h-3 text-slate-500" />
+                      {isUploadingLogo ? 'Uploading...' : 'Replace Logo'}
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                      className="hidden"
+                      disabled={isUploadingLogo}
+                      onChange={handleLogoUpload}
+                    />
+                  </label>
+
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleLogoDelete}
+                    disabled={isUploadingLogo}
+                    className="text-xs text-rose-600 border-rose-200 hover:bg-rose-50 h-7 px-2"
+                    title="Remove Logo"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="p-3 bg-slate-50 border border-dashed border-slate-300 rounded-xl flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center shrink-0">
+                    <ImageIcon className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-slate-700 block">
+                      No Custom Logo Uploaded
+                    </span>
+                    <span className="text-[11px] text-slate-500">
+                      Upload an official logo (PNG, JPG, SVG) for this laboratory to display during login.
+                    </span>
+                  </div>
+                </div>
+
+                <label className="cursor-pointer shrink-0">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-brand-600 rounded-lg hover:bg-brand-700 shadow-sm">
+                    <Upload className="w-3.5 h-3.5" />
+                    {isUploadingLogo ? 'Uploading...' : 'Upload Brand Logo'}
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                    className="hidden"
+                    disabled={isUploadingLogo}
+                    onChange={handleLogoUpload}
+                  />
+                </label>
+              </div>
+            )}
+          </div>
+
           {/* Settings & Signatory */}
           {lab.settings && (
             <div className="p-4 rounded-xl border border-slate-100 bg-white space-y-2">
@@ -188,6 +326,10 @@ export const LabDetailsModal: React.FC<LabDetailsModalProps> = ({ labId, isOpen,
                 <div>
                   <span className="font-semibold text-slate-700">Currency:</span>{' '}
                   {lab.settings.currency_symbol} ({lab.settings.currency_code})
+                </div>
+                <div>
+                  <span className="font-semibold text-slate-700">Timezone:</span>{' '}
+                  {lab.settings.timezone || 'Asia/Kolkata (IST)'}
                 </div>
                 <div>
                   <span className="font-semibold text-slate-700">Tax Rate:</span>{' '}
@@ -211,11 +353,41 @@ export const LabDetailsModal: React.FC<LabDetailsModalProps> = ({ labId, isOpen,
                   onClick={handleSaveReportSettings}
                   className="text-xs h-7 px-3"
                 >
-                  Save Report Options
+                  Save Configuration
                 </Button>
               </div>
 
               <div className="space-y-3 pt-1">
+                {/* Laboratory Timezone */}
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
+                  <label htmlFor="modal_timezone" className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <Globe className="w-3.5 h-3.5 text-brand-600" />
+                    Laboratory Operating Timezone (Default: India Standard Time)
+                  </label>
+                  <p className="text-[11px] text-slate-500">
+                    All medical report timestamps, specimen collection logs, billing receipts, and clinical records for this laboratory will be computed and formatted in this timezone.
+                  </p>
+                  <select
+                    id="modal_timezone"
+                    value={timezone}
+                    onChange={(e) => setTimezone(e.target.value)}
+                    className="w-full text-xs py-2 px-3 bg-white border border-slate-300 rounded-lg text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer shadow-xs"
+                  >
+                    <option value="Asia/Kolkata">Asia/Kolkata — India Standard Time (IST, UTC+05:30) [Default: India]</option>
+                    <option value="Asia/Dubai">Asia/Dubai — Gulf Standard Time (GST, UTC+04:00)</option>
+                    <option value="Asia/Riyadh">Asia/Riyadh — Arabia Standard Time (AST, UTC+03:00)</option>
+                    <option value="Asia/Singapore">Asia/Singapore — Singapore / Malaysia (SGT, UTC+08:00)</option>
+                    <option value="Asia/Dhaka">Asia/Dhaka — Bangladesh Standard Time (BST, UTC+06:00)</option>
+                    <option value="Asia/Kathmandu">Asia/Kathmandu — Nepal Time (NPT, UTC+05:45)</option>
+                    <option value="Europe/London">Europe/London — United Kingdom (GMT / BST, UTC+00:00)</option>
+                    <option value="Europe/Paris">Europe/Paris — Central Europe (CET / CEST, UTC+01:00)</option>
+                    <option value="America/New_York">America/New_York — US Eastern Time (ET, UTC-05:00)</option>
+                    <option value="America/Chicago">America/Chicago — US Central Time (CT, UTC-06:00)</option>
+                    <option value="America/Los_Angeles">America/Los_Angeles — US Pacific Time (PT, UTC-08:00)</option>
+                    <option value="UTC">UTC — Universal Coordinated Time (UTC+00:00)</option>
+                  </select>
+                </div>
+
                 <div className="flex items-start gap-2.5">
                   <input
                     type="checkbox"

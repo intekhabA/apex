@@ -35,6 +35,28 @@ export const labApi = {
     return res.data.data;
   },
 
+  uploadLogo: async (file: File): Promise<Laboratory> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await apiClient.post<APIResponse<Laboratory>>(
+      '/lab/logo',
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    );
+    if (!res.data.success || !res.data.data) {
+      throw new Error(res.data.message || 'Failed to upload laboratory logo');
+    }
+    return res.data.data;
+  },
+
+  deleteLogo: async (): Promise<Laboratory> => {
+    const res = await apiClient.delete<APIResponse<Laboratory>>('/lab/logo');
+    if (!res.data.success || !res.data.data) {
+      throw new Error(res.data.message || 'Failed to delete laboratory logo');
+    }
+    return res.data.data;
+  },
+
   getSettings: async (labId?: string): Promise<LaboratorySettings> => {
     const url = labId ? `/lab/settings?lab_id=${labId}` : '/lab/settings';
     const res = await apiClient.get<APIResponse<LaboratorySettings>>(url);

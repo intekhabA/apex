@@ -1,0 +1,35 @@
+# TrustMyLab — Comprehensive Platform Documentation & Clinical Architecture
+> https://trustmylab.in
+
+## 1. Overview
+TrustMyLab is an enterprise-grade multi-tenant diagnostic laboratory information management system (LIMS) engineered for clinical pathology laboratories, imaging centers, and diagnostic franchises across India, GCC, and global markets.
+
+## 2. Technical Architecture & Security Standards
+- **Data Isolation**: Strict multi-tenant row-level and ORM filtering guaranteeing zero cross-tenant leakage between competing diagnostic centers.
+- **Security Compliance**: HIPAA and ISO 15189 compliance standards. TLS 1.3 in-transit encryption and AES-256 rest encryption.
+- **Cryptographic Reports**: Every finalized PDF report includes an HMAC SHA-256 tamper-proof cryptographic digest and digital signature.
+- **Verification Portal**: Independent public verification endpoint (`/verify/:token`) allowing patients and healthcare providers to verify authenticity online.
+
+## 3. Pathology & Radiology Modules
+- **Phlebotomy Worklist**: Real-time sample collection tracking, barcode tracking, draw timestamps, and rejection handling.
+- **Results Entry & Auto-Calculation**: Automated reference flag evaluations for Complete Blood Count (CBC), Liver Function Tests (LFT), Kidney Function Tests (KFT), Urine Analysis, and specialized hormone panels.
+- **Medical Imaging & Templates**: Ultrasound (USG), X-Ray, CT, and MRI clinical reporting templates with predefined normal findings and organ-specific presets.
+- **Signatory Credentials**: Multi-signatory workflow allowing primary and secondary pathologists to attach verified digital signatures and medical council registration numbers.
+
+## 4. Financial & Commercial Management
+- **Doctor Commissions**: Comprehensive tracking of referral incentives by percentage or flat amount per test, with settlement tracking and statement printing.
+- **Invoicing & Receipts**: Instant thermal 80mm/58mm POS receipt generation, GST tax invoice generation, and partial payment management.
+- **Daily Expense Log**: Petty cash and clinic expense management categorized by consumables, staff expenses, reagents, and maintenance.
+
+## 5. Subscription Plans
+- **Starter Plan**: Designed for solo pathology clinics and collection centers (Up to 1,500 tests/month, standard reports, barcode tracking).
+- **Professional Plan**: Designed for growing diagnostic centers (Up to 5,000 tests/month, doctor commissions, WhatsApp dispatch, custom letterheads).
+- **Enterprise Plan**: Designed for diagnostic chains and hospital networks (Unlimited tests, multi-branch routing, custom SLA, dedicated support).
+
+## 6. Frequently Asked Questions (FAQ)
+- **Q: How fast can our laboratory get started with TrustMyLab?**
+  A: You can launch your lab account in less than 5 minutes! Pre-configured test catalogs and built-in PDF report templates allow immediate patient booking.
+- **Q: Is patient health data secure?**
+  A: Yes. All data is isolated at the ORM layer, encrypted with TLS 1.3/AES-256, and reports feature cryptographic HMAC SHA-256 signatures.
+- **Q: Can we customize report templates with our lab logo and doctor signatures?**
+  A: Yes. Upload custom letterhead backgrounds, digital doctor signatures, and brand accent colors.

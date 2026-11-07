@@ -21,8 +21,17 @@ export interface UserProfile {
   signature_image_url?: string | null;
   lab_id?: string | null;
   lab_name?: string | null;
+  lab_logo_url?: string | null;
+  timezone?: string | null;
   is_active: boolean;
   permissions?: string[] | null;
+}
+
+export interface LabBranding {
+  lab_id: string;
+  lab_code: string;
+  lab_name: string;
+  logo_url?: string | null;
 }
 
 export interface TokenResponse {

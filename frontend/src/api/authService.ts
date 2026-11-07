@@ -8,6 +8,7 @@ import {
   UserProfile,
   ChangePasswordPayload,
   MessageResponse,
+  LabBranding,
 } from '@/types';
 
 export const authApi = {
@@ -80,6 +81,21 @@ export const authApi = {
       throw new Error(res.data.message || 'Failed to remove signature');
     }
     return res.data.data;
+  },
+
+  getLabBranding: async (params: {
+    lab_id?: string;
+    lab_code?: string;
+    email?: string;
+  }): Promise<LabBranding | null> => {
+    try {
+      const res = await apiClient.get<APIResponse<LabBranding>>('/auth/lab-branding', {
+        params,
+      });
+      return res.data.data || null;
+    } catch {
+      return null;
+    }
   },
 };
 

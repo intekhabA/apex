@@ -12,6 +12,7 @@ import {
   Percent,
   TestTubes,
   Bell,
+  Scan,
   Shield,
   RotateCcw,
   CheckCircle2,
@@ -35,6 +36,7 @@ const ICON_MAP: Record<string, React.FC<{ className?: string }>> = {
   Percent,
   TestTubes,
   Bell,
+  Scan,
 };
 
 const DEFAULT_MODULES: PermissionModule[] = [
@@ -73,6 +75,12 @@ const DEFAULT_MODULES: PermissionModule[] = [
     name: 'Reports & Clinical Approvals',
     description: 'Review findings, medical sign-offs, doctor digital approvals, and print diagnostic reports.',
     icon: 'FileCheck2',
+  },
+  {
+    key: 'templates',
+    name: 'Report & USG Templates',
+    description: 'Create and manage ultrasound, radiology, and diagnostic report narrative templates.',
+    icon: 'Scan',
   },
   {
     key: 'invoices',

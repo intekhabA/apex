@@ -1,5 +1,6 @@
 import { Booking, Patient } from '@/types';
 import { InvoiceResponse } from '@/types/invoice';
+import { useAuthStore } from '@/store/authStore';
 
 export interface ReceiptItem {
   name: string;
@@ -326,9 +327,15 @@ export function printReceiptOnly(data: ReceiptPrintData): void {
 }
 
 export function formatIndianDateTime(val?: string | Date | null): string {
+  let tz = 'Asia/Kolkata';
+  try {
+    tz = useAuthStore.getState().user?.timezone || 'Asia/Kolkata';
+  } catch {
+    tz = 'Asia/Kolkata';
+  }
   if (!val) {
     return new Date().toLocaleString('en-IN', {
-      timeZone: 'Asia/Kolkata',
+      timeZone: tz,
       day: '2-digit',
       month: 'short',
       year: 'numeric',
@@ -342,7 +349,7 @@ export function formatIndianDateTime(val?: string | Date | null): string {
   const d = new Date(normalized);
   if (isNaN(d.getTime())) return String(val);
   return d.toLocaleString('en-IN', {
-    timeZone: 'Asia/Kolkata',
+    timeZone: tz,
     day: '2-digit',
     month: 'short',
     year: 'numeric',

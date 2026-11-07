@@ -3,9 +3,13 @@ import { Activity, ShieldCheck, Database, FileCheck2, Cpu } from 'lucide-react';
 
 export interface AuthLayoutProps {
   children: React.ReactNode;
+  labBranding?: {
+    lab_name?: string;
+    logo_url?: string | null;
+  } | null;
 }
 
-export const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
+export const AuthLayout: React.FC<AuthLayoutProps> = ({ children, labBranding }) => {
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-slate-50">
       {/* Left Clinical Brand Banner */}
@@ -17,15 +21,29 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
         {/* Brand Header */}
         <div className="relative z-10">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white shadow-lg">
-              <Activity className="w-6 h-6 text-brand-300" />
-            </div>
+            {labBranding?.logo_url ? (
+              <div className="w-12 h-12 rounded-xl bg-white p-1.5 border border-white/20 flex items-center justify-center text-white shadow-lg overflow-hidden shrink-0">
+                <img
+                  src={`/storage/${labBranding.logo_url.replace(/^(\.\/)?storage\//, '')}`}
+                  alt={labBranding.lab_name || 'Laboratory'}
+                  className="max-h-full max-w-full object-contain"
+                />
+              </div>
+            ) : (
+              <div className="w-11 h-11 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white shadow-lg">
+                <Activity className="w-6 h-6 text-brand-300" />
+              </div>
+            )}
             <div>
               <span className="text-2xl font-black tracking-tight text-white">
-                TrustMy<span className="text-brand-400">Lab</span>
+                {labBranding?.lab_name ? (
+                  labBranding.lab_name
+                ) : (
+                  <>TrustMy<span className="text-brand-400">Lab</span></>
+                )}
               </span>
               <p className="text-xs text-brand-200 uppercase tracking-widest font-semibold">
-                Multi-Tenant LIMS Platform
+                {labBranding?.lab_name ? 'Authorized Clinical Workstation' : 'Multi-Tenant LIMS Platform'}
               </p>
             </div>
           </div>

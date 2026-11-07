@@ -54,24 +54,42 @@ export const Navbar: React.FC = () => {
           </button>
 
           <Link to="/dashboard" className="flex items-center gap-2.5 group">
-            <div className="w-10 h-10 rounded-xl bg-brand-600 flex items-center justify-center text-white shadow-md shadow-brand-500/20 group-hover:bg-brand-700 transition-colors">
-              <Activity className="w-6 h-6" />
-            </div>
+            {user?.lab_logo_url ? (
+              <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 p-1 flex items-center justify-center shadow-xs overflow-hidden shrink-0 group-hover:border-brand-400 transition-colors">
+                <img
+                  src={`/storage/${user.lab_logo_url.replace(/^(\.\/)?storage\//, '')}`}
+                  alt={user.lab_name || 'Laboratory Logo'}
+                  className="max-h-full max-w-full object-contain"
+                />
+              </div>
+            ) : (
+              <div className="w-10 h-10 rounded-xl bg-brand-600 flex items-center justify-center text-white shadow-md shadow-brand-500/20 group-hover:bg-brand-700 transition-colors">
+                <Activity className="w-6 h-6" />
+              </div>
+            )}
             <div>
-              <span className="font-extrabold text-lg text-slate-900 tracking-tight">
-                TrustMy<span className="text-brand-600">Lab</span>
+              <span className="font-extrabold text-lg text-slate-900 tracking-tight leading-none block">
+                {user?.lab_name ? user.lab_name : <>TrustMy<span className="text-brand-600">Lab</span></>}
               </span>
-              <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold block -mt-1">
-                LIMS Enterprise
+              <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold block mt-0.5">
+                {user?.lab_name ? 'Certified Diagnostic Center' : 'LIMS Enterprise'}
               </span>
             </div>
           </Link>
 
           {/* Tenant Indicator */}
-          <div className="hidden md:flex items-center gap-2 pl-6 border-l border-slate-200 text-sm">
-            <Building2 className="w-4 h-4 text-slate-400" />
-            <span className="text-slate-500 font-medium">Workspace:</span>
-            <span className="font-semibold text-slate-800">
+          <div className="hidden md:flex items-center gap-2 pl-5 border-l border-slate-200 text-sm">
+            {user?.lab_logo_url ? (
+              <img
+                src={`/storage/${user.lab_logo_url.replace(/^(\.\/)?storage\//, '')}`}
+                alt=""
+                className="w-5 h-5 rounded object-contain border border-slate-200 shrink-0"
+              />
+            ) : (
+              <Building2 className="w-4 h-4 text-slate-400" />
+            )}
+            <span className="text-slate-500 font-medium text-xs">Workspace:</span>
+            <span className="font-bold text-slate-800 text-xs truncate max-w-[220px]">
               {user?.lab_name || (user?.role === 'SUPER_ADMIN' ? 'Platform Management (All Labs)' : 'Self Service')}
             </span>
           </div>

@@ -3,6 +3,7 @@ import { Card, Input, Badge, Button, Alert, Pagination } from '@/components/ui';
 import { auditService } from '@/api/auditService';
 import { AuditLog } from '@/types/audit';
 import { PaginationMeta } from '@/types';
+import { formatDateTime } from '@/utils/formatters';
 import {
   ShieldCheck,
   Search,
@@ -177,7 +178,7 @@ export const AuditLogPage: React.FC = () => {
               <tbody className="divide-y divide-gray-100">
                 {filteredLogs.map((log) => {
                   const isExpanded = expandedId === log.id;
-                  const dateStr = new Date(log.created_at).toLocaleString();
+                  const dateStr = formatDateTime(log.created_at);
                   return (
                     <React.Fragment key={log.id}>
                       <tr className="hover:bg-gray-50/80 transition-colors">

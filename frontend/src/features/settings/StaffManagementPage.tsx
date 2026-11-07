@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Users, Plus, Search, Power, Mail, FileBadge, Shield } from 'lucide-react';
+import { Users, Plus, Search, Power, Mail, FileBadge, Shield, Pencil } from 'lucide-react';
 import { labApi } from '@/api/labService';
 import { useAuthStore } from '@/store/authStore';
 import { Button, Input, Badge, Card, LoadingSpinner, toast, confirmDialog, Pagination } from '@/components/ui';
 import { AddStaffModal } from './AddStaffModal';
+import { EditStaffModal } from './EditStaffModal';
 import { StaffPermissionsModal } from './StaffPermissionsModal';
 import { UserResponse } from '@/types';
 
@@ -16,6 +17,8 @@ export const StaffManagementPage: React.FC = () => {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [selectedStaffForEdit, setSelectedStaffForEdit] = useState<UserResponse | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedStaffForPerms, setSelectedStaffForPerms] = useState<UserResponse | null>(null);
   const [isPermissionsModalOpen, setIsPermissionsModalOpen] = useState(false);
 
@@ -205,6 +208,20 @@ export const StaffManagementPage: React.FC = () => {
                             variant="secondary"
                             size="sm"
                             onClick={() => {
+                              setSelectedStaffForEdit(u);
+                              setIsEditModalOpen(true);
+                            }}
+                            leftIcon={<Pencil className="w-3.5 h-3.5 text-slate-600" />}
+                            className="text-xs py-1 px-2.5 h-8 font-medium"
+                            title="Edit Staff Member Profile & Credentials"
+                          >
+                            Edit
+                          </Button>
+
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => {
                               setSelectedStaffForPerms(u);
                               setIsPermissionsModalOpen(true);
                             }}
@@ -256,6 +273,16 @@ export const StaffManagementPage: React.FC = () => {
       <AddStaffModal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: ['labStaffList'] })}
+      />
+
+      <EditStaffModal
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setSelectedStaffForEdit(null);
+        }}
+        staffUser={selectedStaffForEdit}
         onSuccess={() => queryClient.invalidateQueries({ queryKey: ['labStaffList'] })}
       />
 

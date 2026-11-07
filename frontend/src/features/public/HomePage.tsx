@@ -17,8 +17,10 @@ import {
   FlaskConical,
   ChevronRight
 } from 'lucide-react';
+import { useSEO } from '@/hooks/useSEO';
 
 export const HomePage: React.FC = () => {
+  useSEO();
   const [openFaq, setOpenFaq] = useState<number | null>(0);
 
   const faqs = [

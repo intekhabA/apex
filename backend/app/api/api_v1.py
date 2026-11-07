@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.routes import auth, admin, lab, tests, patients, bookings, samples, results, imaging, reports, invoices, patient_portal, notifications, audit, doctors, expenses
+from app.api.routes import auth, admin, lab, tests, patients, bookings, samples, results, imaging, reports, invoices, patient_portal, notifications, audit, doctors, expenses, seo
 
 api_router = APIRouter()
 api_router.include_router(auth.router)
@@ -18,4 +18,5 @@ api_router.include_router(notifications.router)
 api_router.include_router(audit.router)
 api_router.include_router(doctors.router)
 api_router.include_router(expenses.router)
+api_router.include_router(seo.router)
 

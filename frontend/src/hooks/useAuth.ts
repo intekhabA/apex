@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
@@ -7,7 +8,7 @@ import { LoginCredentials, ChangePasswordPayload } from '@/types';
 export const useAuth = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { user, isAuthenticated, isLoading, setCredentials, clearCredentials } = useAuthStore();
+  const { user, isAuthenticated, isLoading, setCredentials, clearCredentials, updateUser } = useAuthStore();
 
   const loginMutation = useMutation({
     mutationFn: (credentials: LoginCredentials) => authApi.login(credentials),
@@ -21,9 +22,15 @@ export const useAuth = () => {
   const meQuery = useQuery({
     queryKey: ['currentUser'],
     queryFn: authApi.getMe,
-    enabled: isAuthenticated && !user,
-    staleTime: 5 * 60 * 1000,
+    enabled: isAuthenticated,
+    staleTime: 60 * 1000,
   });
+
+  useEffect(() => {
+    if (meQuery.data) {
+      updateUser(meQuery.data);
+    }
+  }, [meQuery.data, updateUser]);
 
   const changePasswordMutation = useMutation({
     mutationFn: (payload: ChangePasswordPayload) => authApi.changePassword(payload),

@@ -504,14 +504,32 @@ async def render_and_persist_report_pdf(
 
     reporting_dt = report.finalized_at or getattr(report, "updated_at", None) or received_dt
 
+    lab_tz_str = "Asia/Kolkata"
+    if lab_settings and getattr(lab_settings, "timezone", None):
+        lab_tz_str = lab_settings.timezone
+    try:
+        from zoneinfo import ZoneInfo
+        lab_tz = ZoneInfo(lab_tz_str)
+    except Exception:
+        import datetime
+        lab_tz = datetime.timezone(datetime.timedelta(hours=5, minutes=30))
+
+    def format_lab_dt(dt, fmt):
+        if not dt:
+            return "N/A"
+        if getattr(dt, "tzinfo", None) is None:
+            import datetime
+            dt = dt.replace(tzinfo=datetime.timezone.utc)
+        return dt.astimezone(lab_tz).strftime(fmt)
+
     report_info_dict = {
         "report_id_display": report.report_id_display,
         "status": report.status.value,
         "version": report.current_version,
-        "date": report.finalized_at.strftime("%d-%b-%Y %I:%M %p") if report.finalized_at else "N/A",
-        "finalized_at": report.finalized_at.strftime("%d-%b-%Y %I:%M %p") if report.finalized_at else "N/A",
-        "received_date": received_dt.strftime("%d-%b-%Y") if received_dt else "N/A",
-        "reporting_date": reporting_dt.strftime("%d-%b-%Y") if reporting_dt else "N/A",
+        "date": format_lab_dt(report.finalized_at, "%d-%b-%Y %I:%M %p"),
+        "finalized_at": format_lab_dt(report.finalized_at, "%d-%b-%Y %I:%M %p"),
+        "received_date": format_lab_dt(received_dt, "%d-%b-%Y"),
+        "reporting_date": format_lab_dt(reporting_dt, "%d-%b-%Y"),
         "approved_by_name": approved_by_name,
         "signatory_title": signatory_title,
         "signatory_degrees": signatory_degrees,

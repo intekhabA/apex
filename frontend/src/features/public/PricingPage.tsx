@@ -9,8 +9,14 @@ import {
   Sliders,
   CheckCircle2
 } from 'lucide-react';
+import { useSEO } from '@/hooks/useSEO';
 
 export const PricingPage: React.FC = () => {
+  useSEO({
+    title: 'Pricing & Transparent ROI Plans — TrustMyLab LIMS',
+    description: 'Explore affordable pricing plans for solo clinics, diagnostic centers, and hospital networks. Calculate your laboratory ROI and start a 14-day free trial.',
+    canonical: 'https://trustmylab.in/pricing',
+  });
   const [isAnnual, setIsAnnual] = useState(true);
   const [estimatedSamples, setEstimatedSamples] = useState<number>(1200);
 

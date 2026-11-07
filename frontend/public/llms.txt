@@ -1,0 +1,26 @@
+# TrustMyLab — Multi-Tenant Diagnostic Laboratory Management System (LIMS)
+> https://trustmylab.in
+
+TrustMyLab is a modern cloud-native, multi-tenant Laboratory Information Management System (LIMS) built for clinical pathology laboratories, imaging & radiology centers, and diagnostic hospital networks.
+
+## Core Capabilities
+- **Automated Biological Reference Calculation**: Dynamic flagging of normal, high, low, and critical values based on patient age, gender, and clinical panel rules (CBC, LFT, KFT, Lipid, Thyroid).
+- **Tamper-Proof QR Medical Reports**: High-precision PDF generation with cryptographic HMAC SHA-256 digital verification seals and instant online patient QR verification.
+- **Referring Doctor Commission Settlement**: Automated calculation of referring doctor percentages/fixed payouts, printable billing statements, and payment reconciliation.
+- **Multi-Tenant Cryptographic Isolation**: Strict tenant isolation at the ORM layer ensuring 100% data privacy between pathology laboratories.
+- **Ultrasound & X-Ray Template Authoring**: WYSIWYG clinical template engine for ultrasound (USG), radiological impressions, and standardized pathology findings.
+- **Automated Communication**: Instant WhatsApp, SMS, and email notifications for booking confirmation, sample collection, and report readiness.
+
+## User Roles & RBAC Matrix
+- **Super Admin**: Platform-wide tenant onboarding, laboratory suspension, global test catalog, and platform SEO/system settings.
+- **Lab Admin**: Laboratory workstation management, staff roster provisioning, letterhead branding, and doctor commission rates.
+- **Pathologist / Radiologist**: Workstation verification, test result validation, biological interpretation, and digital report signing.
+- **Lab Assistant / Phlebotomist**: Patient intake, sample draw tracking, barcode assignment, and worklist management.
+- **Receptionist**: Patient booking, instant thermal receipt printing, payment collection, and report delivery.
+- **Patient**: Self-service portal to view appointment history, download finalized PDF reports, and verify digital credentials.
+
+## Official Links & Resources
+- Homepage: https://trustmylab.in
+- Pricing & Plans: https://trustmylab.in/pricing
+- Workstation Sign In: https://trustmylab.in/login
+- Technical Documentation & Deep Context: https://trustmylab.in/llms-full.txt

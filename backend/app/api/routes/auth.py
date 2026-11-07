@@ -1,7 +1,9 @@
 import os
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Request, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.security import get_current_user, get_password_hash, verify_password
@@ -15,6 +17,7 @@ from app.schemas.auth import (
     UserProfileResponse,
     LoginSuccessData,
     ChangePasswordRequest,
+    LabBrandingResponse,
 )
 from app.services.auth_service import AuthService
 from app.services.audit_service import AuditService
@@ -74,11 +77,20 @@ async def get_me(
 ):
     """Retrieve currently authenticated user profile and laboratory context."""
     lab_name = None
+    lab_logo_url = None
+    lab_timezone = "Asia/Kolkata"
     if current_user.lab_id:
-        res = await db.execute(select(Laboratory).where(Laboratory.id == current_user.lab_id))
+        res = await db.execute(
+            select(Laboratory).options(selectinload(Laboratory.settings)).where(Laboratory.id == current_user.lab_id)
+        )
         lab = res.scalar_one_or_none()
         if lab:
             lab_name = lab.name
+            if lab.settings and getattr(lab.settings, "timezone", None):
+                lab_timezone = lab.settings.timezone
+            if lab.logo_url:
+                clean = lab.logo_url.replace("./storage/", "").replace("storage/", "")
+                lab_logo_url = f"/storage/{clean}" if not clean.startswith("http") else clean
 
     user_profile = UserProfileResponse(
         id=str(current_user.id),
@@ -94,6 +106,8 @@ async def get_me(
         signature_image_url=current_user.signature_image_url,
         lab_id=str(current_user.lab_id) if current_user.lab_id else None,
         lab_name=lab_name,
+        lab_logo_url=lab_logo_url,
+        timezone=lab_timezone,
         is_active=current_user.is_active,
         permissions=current_user.permissions,
     )
@@ -102,6 +116,70 @@ async def get_me(
         success=True,
         message="Profile retrieved successfully.",
         data=user_profile,
+    )
+
+
+@router.get("/lab-branding", response_model=APIResponse[dict])
+async def get_lab_branding(
+    email: Optional[str] = None,
+    lab_code: Optional[str] = None,
+    lab_id: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Public endpoint to retrieve laboratory branding and logo for custom login display.
+    Allows looking up lab branding by staff email address, lab code, or lab ID.
+    """
+    lab = None
+    if email:
+        email_clean = email.lower().strip()
+        user_res = await db.execute(
+            select(User).where(User.email == email_clean, User.deleted_at.is_(None))
+        )
+        user = user_res.scalar_one_or_none()
+        if user and user.lab_id:
+            lab_res = await db.execute(
+                select(Laboratory).where(Laboratory.id == user.lab_id, Laboratory.deleted_at.is_(None))
+            )
+            lab = lab_res.scalar_one_or_none()
+
+    if not lab and lab_code:
+        code_clean = lab_code.upper().strip()
+        lab_res = await db.execute(
+            select(Laboratory).where(Laboratory.code == code_clean, Laboratory.deleted_at.is_(None))
+        )
+        lab = lab_res.scalar_one_or_none()
+
+    if not lab and lab_id:
+        lab_res = await db.execute(
+            select(Laboratory).where(Laboratory.id == lab_id, Laboratory.deleted_at.is_(None))
+        )
+        lab = lab_res.scalar_one_or_none()
+
+    if not lab:
+        return APIResponse(
+            success=True,
+            message="No specific laboratory branding found.",
+            data=None,
+        )
+
+    logo_display_url = lab.logo_url
+    if logo_display_url and not logo_display_url.startswith("http"):
+        clean_path = logo_display_url.replace("./storage/", "").replace("storage/", "")
+        logo_display_url = f"/storage/{clean_path}"
+
+    return APIResponse(
+        success=True,
+        message="Laboratory branding retrieved.",
+        data={
+            "has_branding": True,
+            "lab_id": str(lab.id),
+            "lab_name": lab.name,
+            "name": lab.name,
+            "lab_code": lab.code,
+            "code": lab.code,
+            "logo_url": logo_display_url,
+        },
     )
 
 

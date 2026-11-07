@@ -3,6 +3,7 @@ import { Card, Input, Badge, Button, Alert, Pagination } from '@/components/ui';
 import { notificationService } from '@/api/notificationService';
 import { NotificationLog, NotificationEventType, NotificationChannel, NotificationStatus } from '@/types/notification';
 import { PaginationMeta } from '@/types';
+import { formatDateTime } from '@/utils/formatters';
 import {
   Bell,
   Search,
@@ -223,7 +224,7 @@ export const NotificationsLogPage: React.FC = () => {
                       <td className="py-3 px-4 text-gray-500 whitespace-nowrap text-xs">
                         <div className="flex items-center gap-1">
                           <Clock className="w-3.5 h-3.5 text-gray-400" />
-                          <span>{new Date(log.created_at).toLocaleString()}</span>
+                          <span>{formatDateTime(log.created_at)}</span>
                         </div>
                       </td>
                     </tr>

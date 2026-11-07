@@ -33,6 +33,8 @@ class UserProfileResponse(BaseModel):
     signature_image_url: Optional[str] = None
     lab_id: Optional[str] = None
     lab_name: Optional[str] = None
+    lab_logo_url: Optional[str] = None
+    timezone: Optional[str] = "Asia/Kolkata"
     is_active: bool
     permissions: Optional[List[str]] = None
 
@@ -48,3 +50,13 @@ class LoginSuccessData(BaseModel):
 class ChangePasswordRequest(BaseModel):
     current_password: str
     new_password: str = Field(..., min_length=8)
+
+
+class LabBrandingResponse(BaseModel):
+    lab_id: str
+    lab_code: str
+    lab_name: str
+    logo_url: Optional[str] = None
+
+    class Config:
+        from_attributes = True

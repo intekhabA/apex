@@ -19,12 +19,15 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   X,
+  Globe,
 } from 'lucide-react';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useUIStore } from '@/store/uiStore';
+import { useAuthStore } from '@/store/authStore';
 import { clsx } from 'clsx';
 
 export const Sidebar: React.FC = () => {
+  const user = useAuthStore((state) => state.user);
   const { isSuperAdmin, isPatient, role, hasPermission } = usePermissions();
   const {
     isSidebarCollapsed,
@@ -38,6 +41,7 @@ export const Sidebar: React.FC = () => {
       return [
         { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { to: '/admin/laboratories', label: 'Laboratories', icon: Building2 },
+        { to: '/admin/seo', label: 'SEO & AI Search', icon: Globe },
         { to: '/admin/imaging-templates', label: 'X-Ray & USG Templates', icon: Scan },
         { to: '/expenses', label: 'Daily Expenses', icon: Wallet },
         { to: '/tests/catalog', label: 'Master Test Catalog', icon: TestTubes },
@@ -62,7 +66,7 @@ export const Sidebar: React.FC = () => {
       { to: '/bookings', label: 'Bookings & Orders', icon: CalendarDays, permission: 'bookings' },
       { to: '/results', label: 'Results Entry (LFT/KFT/CBC)', icon: FileSpreadsheet, permission: 'results' },
       { to: '/reports', label: 'Reports & Approvals', icon: FileCheck2, permission: 'reports' },
-      { to: '/templates', label: 'Report & USG Templates', icon: Scan, permission: 'reports' },
+      { to: '/templates', label: 'Report & USG Templates', icon: Scan, permission: 'templates' },
       { to: '/invoices', label: 'Billing & Invoices', icon: Receipt, permission: 'invoices' },
       { to: '/expenses', label: 'Daily Expenses', icon: Wallet, permission: 'expenses' },
       { to: '/doctor-commissions', label: 'Doctor Commissions', icon: Percent, permission: 'doctor_commissions' },
@@ -115,6 +119,46 @@ export const Sidebar: React.FC = () => {
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {/* Lab Branding Header in Sidebar */}
+        {user?.lab_name && !isSidebarCollapsed ? (
+          <div className="mx-1 mb-3 p-2.5 rounded-xl bg-gradient-to-r from-slate-50 to-brand-50/40 border border-slate-200/80 flex items-center gap-2.5 shadow-xs">
+            {user.lab_logo_url ? (
+              <div className="w-9 h-9 rounded-lg bg-white border border-slate-200 p-1 flex items-center justify-center shrink-0 shadow-xs overflow-hidden">
+                <img
+                  src={`/storage/${user.lab_logo_url.replace(/^(\.\/)?storage\//, '')}`}
+                  alt={user.lab_name}
+                  className="max-h-full max-w-full object-contain"
+                />
+              </div>
+            ) : (
+              <div className="w-9 h-9 rounded-lg bg-brand-50 border border-brand-200 flex items-center justify-center text-brand-600 shrink-0">
+                <Building2 className="w-4 h-4" />
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-bold text-slate-900 truncate leading-snug">
+                {user.lab_name}
+              </p>
+              <span className="text-[10px] text-brand-600 font-semibold block">
+                Active Lab Workspace
+              </span>
+            </div>
+          </div>
+        ) : user?.lab_logo_url && isSidebarCollapsed ? (
+          <div className="hidden md:flex justify-center mb-2 pb-2 border-b border-slate-100">
+            <div
+              className="w-8 h-8 rounded-lg bg-white border border-slate-200 p-0.5 flex items-center justify-center shadow-xs overflow-hidden"
+              title={user.lab_name || 'Laboratory'}
+            >
+              <img
+                src={`/storage/${user.lab_logo_url.replace(/^(\.\/)?storage\//, '')}`}
+                alt={user.lab_name || 'Lab'}
+                className="max-h-full max-w-full object-contain"
+              />
+            </div>
+          </div>
+        ) : null}
 
         {/* Desktop Header: When open, toggle button on the right of "Navigation" text */}
         {!isSidebarCollapsed ? (

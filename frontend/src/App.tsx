@@ -12,6 +12,7 @@ import { NotFoundPage } from '@/features/common/NotFoundPage';
 import { HomePage, PricingPage } from '@/features/public';
 import { LabsListPage } from '@/features/superadmin/LabsListPage';
 import { ImagingTemplatesPage } from '@/features/superadmin/ImagingTemplatesPage';
+import { SEOManagementPage } from '@/features/superadmin/SEOManagementPage';
 import { StaffManagementPage } from '@/features/settings/StaffManagementPage';
 import { LabProfilePage } from '@/features/settings/LabProfilePage';
 import { ReportSettingsPage } from '@/features/settings/ReportSettingsPage';
@@ -160,6 +161,14 @@ export const App: React.FC = () => {
               element={
                 <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
                   <LabsListPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/seo"
+              element={
+                <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
+                  <SEOManagementPage />
                 </ProtectedRoute>
               }
             />

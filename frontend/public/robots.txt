@@ -1,0 +1,73 @@
+# ==========================================
+# TrustMyLab Robots.txt
+# Optimized for Web Search & AI Search Agents
+# ==========================================
+
+# Standard Web Search Engines (Google, Bing, Yahoo, DuckDuckGo)
+User-agent: *
+Allow: /
+Allow: /pricing
+Allow: /login
+Allow: /verify/
+Allow: /sitemap.xml
+Allow: /llms.txt
+Allow: /llms-full.txt
+Disallow: /api/
+Disallow: /dashboard
+Disallow: /admin/
+Disallow: /settings/
+Disallow: /patients
+Disallow: /bookings
+Disallow: /samples
+Disallow: /results
+Disallow: /reports
+Disallow: /invoices
+Disallow: /expenses
+Disallow: /templates
+Disallow: /audit/
+
+# AI Search & Answer Engine Crawlers (OpenAI, Perplexity, Anthropic, Google Gemini)
+User-agent: GPTBot
+Allow: /
+Allow: /pricing
+Allow: /llms.txt
+Allow: /llms-full.txt
+Disallow: /api/
+Disallow: /dashboard
+
+User-agent: ChatGPT-User
+Allow: /
+Allow: /pricing
+Allow: /llms.txt
+Allow: /llms-full.txt
+
+User-agent: PerplexityBot
+Allow: /
+Allow: /pricing
+Allow: /llms.txt
+Allow: /llms-full.txt
+Disallow: /api/
+Disallow: /dashboard
+
+User-agent: ClaudeBot
+Allow: /
+Allow: /pricing
+Allow: /llms.txt
+Allow: /llms-full.txt
+Disallow: /api/
+Disallow: /dashboard
+
+User-agent: Google-Extended
+Allow: /
+Allow: /pricing
+Allow: /llms.txt
+Allow: /llms-full.txt
+
+User-agent: CCBot
+Allow: /
+Allow: /pricing
+Allow: /llms.txt
+Allow: /llms-full.txt
+
+# Official XML Sitemap
+Sitemap: https://trustmylab.in/sitemap.xml

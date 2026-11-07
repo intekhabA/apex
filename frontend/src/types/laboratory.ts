@@ -29,6 +29,7 @@ export interface LaboratorySettings {
   report_disclaimer?: string | null;
   currency_code: string;
   currency_symbol: string;
+  timezone?: string;
   default_tax_rate: number;
   enable_qr_verification: boolean;
   footer_code_type?: 'BARCODE' | 'QR_CODE' | 'BOTH' | 'NONE';
@@ -95,6 +96,7 @@ export interface LaboratorySettingsUpdatePayload {
   report_disclaimer?: string;
   currency_code?: string;
   currency_symbol?: string;
+  timezone?: string;
   default_tax_rate?: number;
   enable_qr_verification?: boolean;
   footer_code_type?: 'BARCODE' | 'QR_CODE' | 'BOTH' | 'NONE';

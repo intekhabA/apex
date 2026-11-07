@@ -3,9 +3,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Building2, Save } from 'lucide-react';
+import { Building2, Save, Upload, Trash2, Image as ImageIcon, CheckCircle2 } from 'lucide-react';
 import { labApi } from '@/api/labService';
-import { Input, Button, Card, CardHeader, CardTitle, CardContent, Alert, LoadingSpinner, Badge, toast } from '@/components/ui';
+import { useAuthStore } from '@/store/authStore';
+import { Input, Button, Card, CardHeader, CardTitle, CardContent, Alert, LoadingSpinner, Badge, toast, confirmDialog } from '@/components/ui';
 import { LaboratoryUpdatePayload } from '@/types';
 
 const profileSchema = z.object({
@@ -81,6 +82,48 @@ export const LabProfilePage: React.FC = () => {
     updateMutation.mutate(data);
   };
 
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingLogo(true);
+    try {
+      const updatedLab = await labApi.uploadLogo(file);
+      queryClient.setQueryData(['labProfile'], updatedLab);
+      useAuthStore.getState().updateUser({ lab_logo_url: updatedLab.logo_url });
+      toast.success('Laboratory brand logo uploaded successfully.');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || err?.message || 'Failed to upload laboratory logo.');
+    } finally {
+      setIsUploadingLogo(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleLogoDelete = async () => {
+    const confirmed = await confirmDialog({
+      title: 'Remove Laboratory Brand Logo?',
+      message: 'Are you sure you want to remove the laboratory logo? Workspace headers and login screen will revert to standard branding.',
+      confirmText: 'Yes, Remove Logo',
+      cancelText: 'Cancel',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
+
+    setIsUploadingLogo(true);
+    try {
+      const updatedLab = await labApi.deleteLogo();
+      queryClient.setQueryData(['labProfile'], updatedLab);
+      useAuthStore.getState().updateUser({ lab_logo_url: null });
+      toast.success('Laboratory brand logo removed successfully.');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || err?.message || 'Failed to remove laboratory logo.');
+    } finally {
+      setIsUploadingLogo(false);
+    }
+  };
+
   if (isLoading) {
     return <LoadingSpinner size="lg" label="Loading laboratory specifications..." />;
   }
@@ -104,6 +147,101 @@ export const LabProfilePage: React.FC = () => {
             <Badge variant="normal" dot>
               Active Tenant
             </Badge>
+          </div>
+        )}
+      </div>
+
+      {/* Laboratory Brand Logo */}
+      <div className="p-5 rounded-2xl border border-slate-200 bg-white shadow-xs space-y-4">
+        <div>
+          <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
+            <ImageIcon className="w-5 h-5 text-brand-600" />
+            Official Laboratory Brand Logo
+          </h3>
+          <p className="text-xs text-slate-500 mt-0.5">
+            This brand logo is displayed across your authenticated workspace header, navigation sidebar, and the staff login screen.
+          </p>
+        </div>
+
+        {lab?.logo_url ? (
+          <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 rounded-xl border border-slate-300 bg-white p-1.5 flex items-center justify-center shrink-0 shadow-sm overflow-hidden">
+                <img
+                  src={`/storage/${lab.logo_url.replace(/^(\.\/)?storage\//, '')}`}
+                  alt={lab.name}
+                  className="max-h-full max-w-full object-contain"
+                />
+              </div>
+              <div>
+                <span className="text-sm font-bold text-slate-900 block">
+                  Active Brand Logo
+                </span>
+                <span className="text-xs text-emerald-700 font-medium flex items-center gap-1.5 mt-0.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Active in Workspace &amp; Login
+                </span>
+                <span className="text-[11px] text-slate-400 block mt-0.5">
+                  High-res image optimized for clinical reports and portal headers.
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <label className="cursor-pointer">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 shadow-xs">
+                  <Upload className="w-3.5 h-3.5 text-slate-500" />
+                  {isUploadingLogo ? 'Uploading...' : 'Replace Logo'}
+                </span>
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                  className="hidden"
+                  disabled={isUploadingLogo}
+                  onChange={handleLogoUpload}
+                />
+              </label>
+
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleLogoDelete}
+                disabled={isUploadingLogo}
+                className="text-xs text-rose-600 border-rose-200 hover:bg-rose-50 h-8 px-2.5"
+                title="Remove Logo"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="p-4 bg-slate-50 border border-dashed border-slate-300 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center shrink-0">
+                <ImageIcon className="w-6 h-6" />
+              </div>
+              <div>
+                <span className="text-sm font-bold text-slate-800 block">
+                  No Custom Logo Uploaded
+                </span>
+                <span className="text-xs text-slate-500">
+                  Upload an official logo (PNG, JPG, SVG) to brand your workspace and staff login screen.
+                </span>
+              </div>
+            </div>
+
+            <label className="cursor-pointer shrink-0">
+              <span className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-brand-600 rounded-lg hover:bg-brand-700 shadow-sm">
+                <Upload className="w-3.5 h-3.5" />
+                {isUploadingLogo ? 'Uploading...' : 'Upload Brand Logo'}
+              </span>
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                className="hidden"
+                disabled={isUploadingLogo}
+                onChange={handleLogoUpload}
+              />
+            </label>
           </div>
         )}
       </div>

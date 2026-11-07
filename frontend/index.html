@@ -4,10 +4,170 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>TrustMyLab – Multi-Tenant Diagnostic Laboratory Management System</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Primary SEO Meta Tags -->
+    <title>TrustMyLab — Multi-Tenant Diagnostic Laboratory Management System (LIMS)</title>
+    <meta
+      name="title"
+      content="TrustMyLab — Multi-Tenant Diagnostic Laboratory Management System (LIMS)"
+    />
+    <meta
+      name="description"
+      content="Cloud-based diagnostic laboratory management system (LIMS) for pathology and radiology centers. Automate CBC/LFT/KFT calculations, QR-verified PDF reports, doctor commissions, and billing."
+    />
+    <meta
+      name="keywords"
+      content="LIMS software, pathology lab software, diagnostic lab management system, radiology reporting software, CBC calculation, doctor commission management, tamper-proof QR medical reports, multi-tenant LIMS, TrustMyLab"
+    />
+    <meta name="author" content="TrustMyLab Technologies Inc." />
+    <meta name="application-name" content="TrustMyLab" />
+    <meta name="theme-color" content="#0284c7" />
+
+    <!-- Search Engine Indexing Directives -->
+    <meta
+      name="robots"
+      content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"
+    />
+    <meta name="googlebot" content="index, follow, max-snippet:-1, max-image-preview:large" />
+    <meta name="bingbot" content="index, follow" />
+    <link rel="canonical" href="https://trustmylab.in/" />
+
+    <!-- Open Graph / Facebook / LinkedIn / WhatsApp -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="TrustMyLab" />
+    <meta property="og:url" content="https://trustmylab.in/" />
+    <meta
+      property="og:title"
+      content="TrustMyLab — Intelligent Diagnostic & Laboratory Management (LIMS)"
+    />
+    <meta
+      property="og:description"
+      content="Automate biological flag calculations, generate tamper-proof QR-verified medical PDF reports, track doctor commissions, and manage billing effortlessly."
+    />
+    <meta property="og:image" content="https://trustmylab.in/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:locale" content="en_IN" />
+
+    <!-- Twitter Cards -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content="https://trustmylab.in/" />
+    <meta
+      name="twitter:title"
+      content="TrustMyLab — Diagnostic Laboratory Management System (LIMS)"
+    />
+    <meta
+      name="twitter:description"
+      content="Cloud-based pathology and radiology LIMS with biological flag calculations, tamper-proof QR medical reports, and doctor commission tracking."
+    />
+    <meta name="twitter:image" content="https://trustmylab.in/og-image.png" />
+
+    <!-- Google Fonts Preconnect -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Structured Data: SoftwareApplication & MedicalBusiness -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebApplication",
+            "@id": "https://trustmylab.in/#software",
+            "name": "TrustMyLab",
+            "url": "https://trustmylab.in",
+            "applicationCategory": ["MedicalApplication", "BusinessApplication"],
+            "operatingSystem": "All (Cloud-native Web Application)",
+            "description": "Multi-tenant diagnostic laboratory information management system (LIMS) for clinical pathology, radiology centers, and diagnostic franchises.",
+            "offers": {
+              "@type": "AggregateOffer",
+              "priceCurrency": "INR",
+              "lowPrice": "1999",
+              "highPrice": "9999",
+              "offerCount": "3"
+            },
+            "featureList": [
+              "Automated CBC, LFT, KFT biological reference flag evaluation",
+              "Tamper-proof QR verified medical PDF reports with HMAC SHA-256 seal",
+              "Referring doctor commission percentage and settlement management",
+              "Multi-tenant cryptographic ORM database isolation",
+              "Ultrasound and X-ray clinical report template authoring",
+              "Automated patient notifications via WhatsApp, SMS, and Email"
+            ]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://trustmylab.in/#organization",
+            "name": "TrustMyLab",
+            "url": "https://trustmylab.in",
+            "logo": "https://trustmylab.in/logo.png",
+            "sameAs": [
+              "https://twitter.com/trustmylab",
+              "https://linkedin.com/company/trustmylab"
+            ]
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://trustmylab.in/#website",
+            "url": "https://trustmylab.in",
+            "name": "TrustMyLab",
+            "publisher": {
+              "@id": "https://trustmylab.in/#organization"
+            }
+          },
+          {
+            "@type": "FAQPage",
+            "@id": "https://trustmylab.in/#faq",
+            "mainEntity": [
+              {
+                "@type": "Question",
+                "name": "How fast can our laboratory get started with TrustMyLab?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "You can launch your lab account in less than 5 minutes! Our pre-configured test catalogs (CBC, LFT, KFT, Thyroid, Lipid, Urine) and built-in PDF report templates allow you to start booking patients immediately."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Is our patient health data secure and HIPAA compliant?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Yes. TrustMyLab uses enterprise multi-tenant isolation at the database/ORM layer. All data is encrypted in transit (TLS 1.3) and at rest (AES-256). Reports feature cryptographic HMAC SHA-256 signatures and instant QR code verification."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Can we customize report templates with our lab logo and doctor signatures?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Absolutely. You can upload custom header/footer logos, digital signatures of pathologists/radiologists, brand accent colors, and custom reference ranges."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Does TrustMyLab support multi-branch collection centers?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Yes! Our Professional and Enterprise plans support multi-branch workflows where sample collection occurs at remote centers and processing happens at the central lab."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "What happens when our 14-day free trial ends?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "You can seamlessly select any of our Starter, Professional, or Enterprise subscription plans. All your test catalog data, patient records, and configuration settings will remain intact."
+                }
+              }
+            ]
+          }
+        ]
+      }
+    </script>
   </head>
   <body class="bg-slate-50 text-slate-900 antialiased font-['Plus_Jakarta_Sans',sans-serif]">
     <div id="root"></div>

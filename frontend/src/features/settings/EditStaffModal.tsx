@@ -1,0 +1,223 @@
+import React, { useState, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { Modal, Input, Button, Alert, toast } from '@/components/ui';
+import { labApi } from '@/api/labService';
+import { UserResponse, UserUpdatePayload } from '@/types';
+
+const editStaffSchema = z.object({
+  first_name: z.string().min(1, 'First name is required'),
+  last_name: z.string().min(1, 'Last name is required'),
+  email: z.string().email('Valid work email required'),
+  password: z
+    .string()
+    .optional()
+    .refine((val) => !val || val.length >= 8, {
+      message: 'Password must be at least 8 characters if provided',
+    }),
+  phone: z.string().optional(),
+  role: z.enum([
+    'LAB_ADMIN',
+    'LAB_ASSISTANT',
+    'PATHOLOGIST',
+    'RADIOLOGIST',
+    'RECEPTIONIST',
+  ] as const),
+  medical_license_number: z.string().optional(),
+  qualifications: z.string().optional(),
+});
+
+type FormData = z.infer<typeof editStaffSchema>;
+
+export interface EditStaffModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  staffUser: UserResponse | null;
+  onSuccess: () => void;
+}
+
+export const EditStaffModal: React.FC<EditStaffModalProps> = ({
+  isOpen,
+  onClose,
+  staffUser,
+  onSuccess,
+}) => {
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    watch,
+    formState: { errors },
+  } = useForm<FormData>({
+    resolver: zodResolver(editStaffSchema),
+  });
+
+  useEffect(() => {
+    if (staffUser) {
+      reset({
+        first_name: staffUser.first_name,
+        last_name: staffUser.last_name,
+        email: staffUser.email,
+        password: '',
+        phone: staffUser.phone || '',
+        role: staffUser.role as any,
+        medical_license_number: staffUser.medical_license_number || '',
+        qualifications: staffUser.qualifications || '',
+      });
+      setErrorMessage(null);
+    }
+  }, [staffUser, reset]);
+
+  const selectedRole = watch('role');
+  const isDoctor = selectedRole === 'PATHOLOGIST' || selectedRole === 'RADIOLOGIST';
+
+  const onSubmit = async (data: FormData) => {
+    if (!staffUser) return;
+    setErrorMessage(null);
+    setIsSubmitting(true);
+    try {
+      const payload: UserUpdatePayload = {
+        first_name: data.first_name,
+        last_name: data.last_name,
+        email: data.email,
+        phone: data.phone || null,
+        role: data.role as any,
+        medical_license_number: isDoctor ? data.medical_license_number || null : null,
+        qualifications: isDoctor ? data.qualifications || null : null,
+      };
+
+      if (data.password && data.password.trim().length >= 8) {
+        payload.password = data.password.trim();
+      }
+
+      await labApi.updateStaffMember(staffUser.id, payload);
+      toast.success(
+        `Staff member '${data.first_name} ${data.last_name}' updated successfully.`
+      );
+      onSuccess();
+      onClose();
+    } catch (err: any) {
+      const msg =
+        err?.response?.data?.message || err?.message || 'Failed to update staff member';
+      setErrorMessage(msg);
+      toast.error(msg);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (!staffUser) return null;
+
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={`Edit Staff Member — ${staffUser.first_name} ${staffUser.last_name}`}
+      description="Update workstation profile, role designation, clinical credentials, or reset password."
+      maxWidth="3xl"
+    >
+      {errorMessage && (
+        <Alert type="error" className="mb-5" onDismiss={() => setErrorMessage(null)}>
+          {errorMessage}
+        </Alert>
+      )}
+
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Input
+            label="First Name *"
+            placeholder="Pooja"
+            error={errors.first_name?.message}
+            {...register('first_name')}
+          />
+          <Input
+            label="Last Name *"
+            placeholder="Nair"
+            error={errors.last_name?.message}
+            {...register('last_name')}
+          />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Input
+            label="Work Email Address *"
+            type="email"
+            placeholder="pooja@demolab.com"
+            error={errors.email?.message}
+            {...register('email')}
+          />
+
+          <Input
+            label="Reset Password (Optional)"
+            type="password"
+            placeholder="Leave empty to keep current password"
+            helperText="Min. 8 characters if changing"
+            error={errors.password?.message}
+            {...register('password')}
+          />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+              Workstation Role *
+            </label>
+            <select
+              className="block w-full rounded-lg border border-slate-300 py-2.5 px-3.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
+              {...register('role')}
+            >
+              <option value="LAB_ASSISTANT">Lab Assistant / Phlebotomist</option>
+              <option value="PATHOLOGIST">Consultant Pathologist (MD)</option>
+              <option value="RADIOLOGIST">Consultant Radiologist (MD)</option>
+              <option value="RECEPTIONIST">Billing & Frontdesk Receptionist</option>
+              <option value="LAB_ADMIN">Laboratory Administrator</option>
+            </select>
+            {errors.role && <p className="mt-1.5 text-xs text-rose-600">{errors.role.message}</p>}
+          </div>
+
+          <div>
+            <Input
+              label="Phone Number"
+              placeholder="+91 98200 12345"
+              error={errors.phone?.message}
+              {...register('phone')}
+            />
+          </div>
+        </div>
+
+        {isDoctor && (
+          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+            <h5 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+              Clinical Signatory Credentials
+            </h5>
+            <Input
+              label="Medical License / Council Registration No."
+              placeholder="MCI-2015-8849"
+              error={errors.medical_license_number?.message}
+              {...register('medical_license_number')}
+            />
+            <Input
+              label="Degrees & Professional Qualifications"
+              placeholder="MBBS, MD (Pathology), DCP"
+              error={errors.qualifications?.message}
+              {...register('qualifications')}
+            />
+          </div>
+        )}
+
+        <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+          <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
+            Cancel
+          </Button>
+          <Button type="submit" variant="primary" isLoading={isSubmitting}>
+            Save Changes
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+};

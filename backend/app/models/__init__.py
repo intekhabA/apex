@@ -24,9 +24,11 @@ from app.models.notification import NotificationLog, NotificationEventType, Noti
 from app.models.doctor import Doctor, DoctorTestCommission
 from app.models.expense import Expense, ExpenseCategory
 from app.models.imaging_template import ImagingTemplate
+from app.models.seo import PlatformSEOSettings
 
 __all__ = [
     "Base",
+    "PlatformSEOSettings",
     "Doctor",
     "DoctorTestCommission",
     "ImagingTemplate",

@@ -89,6 +89,12 @@ AVAILABLE_MODULES = [
         "icon": "FileCheck2",
     },
     {
+        "key": "templates",
+        "name": "Report & USG Templates",
+        "description": "Create and manage ultrasound, radiology, and diagnostic report narrative templates.",
+        "icon": "Scan",
+    },
+    {
         "key": "invoices",
         "name": "Billing & Invoices",
         "description": "Generate invoices, record payments, manage dues, and print official receipts.",
@@ -123,10 +129,10 @@ AVAILABLE_MODULES = [
 DEFAULT_ROLE_PERMISSIONS = {
     "SUPER_ADMIN": [m["key"] for m in AVAILABLE_MODULES],
     "LAB_ADMIN": [m["key"] for m in AVAILABLE_MODULES],
-    "RECEPTIONIST": ["dashboard", "patients", "bookings", "samples", "invoices", "expenses", "notifications"],
+    "RECEPTIONIST": ["dashboard", "patients", "bookings", "samples", "invoices", "expenses", "doctor_commissions", "notifications"],
     "LAB_ASSISTANT": ["patients", "samples", "results", "expenses"],
-    "PATHOLOGIST": ["results", "reports", "tests"],
-    "RADIOLOGIST": ["results", "reports", "tests"],
+    "PATHOLOGIST": ["results", "reports", "templates", "tests"],
+    "RADIOLOGIST": ["results", "reports", "templates", "tests"],
     "PATIENT": [],
 }
 

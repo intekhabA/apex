@@ -5,6 +5,7 @@ import { Card, Button, Badge, Pagination } from '@/components/ui';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { sampleService } from '@/api/sampleService';
 import { SpecimenSample, SampleStatus } from '@/types';
+import { formatTime } from '@/utils/formatters';
 import { SampleActionModal } from './SampleActionModal';
 
 export const PhlebotomyWorklistPage: React.FC = () => {
@@ -166,10 +167,7 @@ export const PhlebotomyWorklistPage: React.FC = () => {
                         <div>
                           Collected:{' '}
                           <span className="text-slate-700 font-medium">
-                            {new Date(s.collected_at).toLocaleTimeString([], {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
+                            {formatTime(s.collected_at)}
                           </span>
                         </div>
                       ) : (
@@ -179,10 +177,7 @@ export const PhlebotomyWorklistPage: React.FC = () => {
                         <div>
                           Received:{' '}
                           <span className="text-teal-700 font-medium">
-                            {new Date(s.received_at).toLocaleTimeString([], {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
+                            {formatTime(s.received_at)}
                           </span>
                         </div>
                       )}

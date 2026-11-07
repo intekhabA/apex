@@ -155,6 +155,7 @@ async def onboard_laboratory(
         ),
         currency_code="INR",
         currency_symbol="₹",
+        timezone="Asia/Kolkata",
         default_tax_rate=0.00,
         enable_qr_verification=True,
         show_report_header_status=True,
@@ -485,6 +486,72 @@ async def delete_laboratory_letterhead_superadmin(
         success=True,
         message=f"Letterhead image for '{lab.name}' removed successfully.",
         data=LaboratorySettingsResponse.model_validate(settings) if settings else None,
+    )
+
+
+@router.post("/laboratories/{lab_id}/logo", response_model=APIResponse[LaboratoryResponse])
+async def upload_laboratory_logo_superadmin(
+    lab_id: str,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_super_admin),
+):
+    """Upload official laboratory logo by Super Admin."""
+    lab_res = await db.execute(select(Laboratory).where(Laboratory.id == lab_id, Laboratory.deleted_at.is_(None)))
+    lab = lab_res.scalar_one_or_none()
+    if not lab:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Laboratory not found.")
+
+    contents = await file.read()
+    if len(contents) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Logo image must be under 5 MB.")
+
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext not in [".png", ".jpg", ".jpeg", ".webp", ".svg"]:
+        ext = ".png"
+
+    rel_path = f"logos/labs/{lab_id}/logo{ext}"
+    stored_path = await storage_service.save_file_bytes(
+        file_bytes=contents,
+        rel_path=rel_path,
+        content_type=file.content_type or "image/png",
+    )
+    lab.logo_url = stored_path
+    await db.commit()
+    await db.refresh(lab)
+
+    return APIResponse(
+        success=True,
+        message=f"Logo for laboratory '{lab.name}' uploaded successfully.",
+        data=LaboratoryResponse.model_validate(lab),
+    )
+
+
+@router.delete("/laboratories/{lab_id}/logo", response_model=APIResponse[LaboratoryResponse])
+async def delete_laboratory_logo_superadmin(
+    lab_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_super_admin),
+):
+    """Remove official laboratory logo by Super Admin."""
+    lab_res = await db.execute(select(Laboratory).where(Laboratory.id == lab_id, Laboratory.deleted_at.is_(None)))
+    lab = lab_res.scalar_one_or_none()
+    if not lab:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Laboratory not found.")
+
+    if lab.logo_url:
+        try:
+            await storage_service.delete_file(lab.logo_url)
+        except Exception:
+            pass
+        lab.logo_url = None
+        await db.commit()
+        await db.refresh(lab)
+
+    return APIResponse(
+        success=True,
+        message=f"Logo for laboratory '{lab.name}' removed successfully.",
+        data=LaboratoryResponse.model_validate(lab),
     )
 
 

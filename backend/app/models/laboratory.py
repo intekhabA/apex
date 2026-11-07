@@ -49,6 +49,7 @@ class LaboratorySettings(Base, UUIDMixin, TimestampMixin):
     )
     currency_code = Column(String(10), default="INR")
     currency_symbol = Column(String(5), default="₹")
+    timezone = Column(String(50), default="Asia/Kolkata", server_default="Asia/Kolkata", nullable=False)
     default_tax_rate = Column(Numeric(5, 2), default=0.00)
     enable_qr_verification = Column(Boolean, default=True)
     footer_code_type = Column(String(20), default="BARCODE")

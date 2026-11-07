@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { ReportAmendModal } from './ReportAmendModal';
 import { PrintReportModal } from './PrintReportModal';
-import { formatResultValue } from '@/utils/formatters';
+import { formatResultValue, formatDate } from '@/utils/formatters';
 
 function inferSubgroup(paramName: string, paramCode: string = ''): string | null {
   const nameUpper = (paramName || '').toUpperCase();
@@ -299,23 +299,11 @@ export const ReportDetailsModal: React.FC<ReportDetailsModalProps> = ({
                           </div>
                           <div>
                             <span className="font-bold">Received Date</span> &nbsp;&nbsp;&nbsp;: &nbsp;
-                            {report.created_at
-                              ? new Date(report.created_at).toLocaleDateString('en-GB', {
-                                  day: '2-digit',
-                                  month: 'short',
-                                  year: 'numeric',
-                                })
-                              : 'N/A'}
+                            {formatDate(report.created_at)}
                           </div>
                           <div>
                             <span className="font-bold">Reporting Date</span> &nbsp;&nbsp;: &nbsp;
-                            {report.finalized_at
-                              ? new Date(report.finalized_at).toLocaleDateString('en-GB', {
-                                  day: '2-digit',
-                                  month: 'short',
-                                  year: 'numeric',
-                                })
-                              : 'N/A'}
+                            {formatDate(report.finalized_at)}
                           </div>
                         </div>
                       </div>

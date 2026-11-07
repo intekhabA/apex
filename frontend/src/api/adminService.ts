@@ -111,6 +111,30 @@ export const adminApi = {
     return res.data.data;
   },
 
+  uploadLaboratoryLogo: async (labId: string, file: File): Promise<Laboratory> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await apiClient.post<APIResponse<Laboratory>>(
+      `/admin/laboratories/${labId}/logo`,
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    );
+    if (!res.data.success || !res.data.data) {
+      throw new Error(res.data.message || 'Failed to upload laboratory logo');
+    }
+    return res.data.data;
+  },
+
+  deleteLaboratoryLogo: async (labId: string): Promise<Laboratory> => {
+    const res = await apiClient.delete<APIResponse<Laboratory>>(
+      `/admin/laboratories/${labId}/logo`
+    );
+    if (!res.data.success || !res.data.data) {
+      throw new Error(res.data.message || 'Failed to remove laboratory logo');
+    }
+    return res.data.data;
+  },
+
   updateLaboratory: async (
     labId: string,
     payload: LaboratoryUpdatePayload
