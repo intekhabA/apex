@@ -20,6 +20,7 @@ import {
   PanelLeftOpen,
   X,
   Globe,
+  Mail,
 } from 'lucide-react';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useUIStore } from '@/store/uiStore';
@@ -41,6 +42,7 @@ export const Sidebar: React.FC = () => {
       return [
         { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { to: '/admin/laboratories', label: 'Laboratories', icon: Building2 },
+        { to: '/admin/contact', label: 'Inquiries & Mail Settings', icon: Mail },
         { to: '/admin/seo', label: 'SEO & AI Search', icon: Globe },
         { to: '/admin/imaging-templates', label: 'X-Ray & USG Templates', icon: Scan },
         { to: '/expenses', label: 'Daily Expenses', icon: Wallet },

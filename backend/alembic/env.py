@@ -6,7 +6,33 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 
 from app.core.config import settings
-from app.models import Base
+from app.models import (
+    Base,
+    PlatformSEOSettings,
+    Doctor,
+    DoctorTestCommission,
+    ImagingTemplate,
+    Laboratory,
+    LaboratorySettings,
+    SubscriptionPlan,
+    User,
+    Patient,
+    TestCategory,
+    Test,
+    TestParameter,
+    TestReferenceRange,
+    TestPackage,
+    Booking,
+    Sample,
+    TestResultValue,
+    Report,
+    Invoice,
+    AuditLog,
+    NotificationLog,
+    Expense,
+    ContactQuery,
+    ContactSettings,
+)
 
 config = context.config
 

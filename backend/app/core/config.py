@@ -52,6 +52,16 @@ class Settings(BaseSettings):
     AWS_REGION: str = "us-east-1"
     AWS_S3_BUCKET: str = "diagnolab-reports"
 
+    # Email & Notifications (SMTP)
+    SMTP_HOST: str = "smtp.mailtrap.io"
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM_EMAIL: str = "noreply@diagnolab.com"
+    SMTP_FROM_NAME: str = "TrustMyLab Notifications"
+    SMTP_USE_TLS: bool = True
+    CONTACT_RECIPIENT_EMAIL: str = "alam347709@gmail.com"
+
     @property
     def is_production(self) -> bool:
         return (self.ENVIRONMENT or "").lower() in ("production", "prod")

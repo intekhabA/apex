@@ -9,10 +9,11 @@ import { ProfilePage } from '@/features/auth/ProfilePage';
 import { DashboardPage } from '@/features/dashboard/DashboardPage';
 import { UnauthorizedPage } from '@/features/auth/UnauthorizedPage';
 import { NotFoundPage } from '@/features/common/NotFoundPage';
-import { HomePage, PricingPage } from '@/features/public';
+import { HomePage, PricingPage, ContactPage } from '@/features/public';
 import { LabsListPage } from '@/features/superadmin/LabsListPage';
 import { ImagingTemplatesPage } from '@/features/superadmin/ImagingTemplatesPage';
 import { SEOManagementPage } from '@/features/superadmin/SEOManagementPage';
+import { ContactManagementPage } from '@/features/superadmin/ContactManagementPage';
 import { StaffManagementPage } from '@/features/settings/StaffManagementPage';
 import { LabProfilePage } from '@/features/settings/LabProfilePage';
 import { ReportSettingsPage } from '@/features/settings/ReportSettingsPage';
@@ -61,6 +62,7 @@ export const App: React.FC = () => {
           <Route element={<PublicLayout />}>
             <Route path="/" element={<HomePage />} />
             <Route path="/pricing" element={<PricingPage />} />
+            <Route path="/contact" element={<ContactPage />} />
           </Route>
 
           {/* Public Auth & Verification Routes */}
@@ -161,6 +163,14 @@ export const App: React.FC = () => {
               element={
                 <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
                   <LabsListPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/contact"
+              element={
+                <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
+                  <ContactManagementPage />
                 </ProtectedRoute>
               }
             />

@@ -83,6 +83,16 @@ export const PublicHeader: React.FC = () => {
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-500"></span>
               </span>
             </Link>
+            <Link
+              to="/contact"
+              className={`px-3.5 py-2 rounded-lg text-sm font-medium transition-colors ${
+                isActive('/contact')
+                  ? 'text-brand-700 bg-brand-50/80 font-semibold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70'
+              }`}
+            >
+              Contact
+            </Link>
             <a
               href="/#faq"
               className="px-3.5 py-2 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition-colors"
@@ -171,6 +181,15 @@ export const PublicHeader: React.FC = () => {
               <span className="px-2 py-0.5 text-xs font-bold bg-brand-100 text-brand-800 rounded-full">
                 Plans
               </span>
+            </Link>
+            <Link
+              to="/contact"
+              onClick={() => setMobileMenuOpen(false)}
+              className={`px-3 py-2 rounded-md text-base font-medium ${
+                isActive('/contact') ? 'bg-brand-50 text-brand-700 font-semibold' : 'text-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              Contact
             </Link>
             <a
               href="/#faq"

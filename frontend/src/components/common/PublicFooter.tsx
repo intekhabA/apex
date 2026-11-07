@@ -41,6 +41,9 @@ export const PublicFooter: React.FC = () => {
                 <Link to="/" className="hover:text-white transition-colors">Overview</Link>
               </li>
               <li>
+                <Link to="/contact" className="hover:text-white transition-colors">Contact & Support</Link>
+              </li>
+              <li>
                 <Link to="/pricing" className="hover:text-white transition-colors font-medium text-brand-400">Pricing & Plans</Link>
               </li>
               <li>
