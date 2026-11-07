@@ -63,7 +63,7 @@ class LaboratorySettingsUpdate(BaseModel):
     report_disclaimer: Optional[str] = None
     currency_code: Optional[str] = None
     currency_symbol: Optional[str] = None
-    timezone: Optional[str] = "Asia/Kolkata"
+    timezone: Optional[str] = None
     default_tax_rate: Optional[Decimal] = None
     enable_qr_verification: Optional[bool] = None
     footer_code_type: Optional[str] = "BARCODE"

@@ -4,6 +4,7 @@ import { auditService } from '@/api/auditService';
 import { AuditLog } from '@/types/audit';
 import { PaginationMeta } from '@/types';
 import { formatDateTime } from '@/utils/formatters';
+import { useAuthStore } from '@/store/authStore';
 import {
   ShieldCheck,
   Search,
@@ -15,9 +16,13 @@ import {
   ChevronDown,
   ChevronUp,
   Globe,
+  Building2,
 } from 'lucide-react';
 
 export const AuditLogPage: React.FC = () => {
+  const user = useAuthStore((state) => state.user);
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [meta, setMeta] = useState<PaginationMeta | null>(null);
   const [page, setPage] = useState(1);
@@ -64,7 +69,8 @@ export const AuditLogPage: React.FC = () => {
         log.entity_name.toLowerCase().includes(s) ||
         (log.user_email && log.user_email.toLowerCase().includes(s)) ||
         (log.entity_id && log.entity_id.toLowerCase().includes(s)) ||
-        (log.ip_address && log.ip_address.toLowerCase().includes(s))
+        (log.ip_address && log.ip_address.toLowerCase().includes(s)) ||
+        (log.lab_name && log.lab_name.toLowerCase().includes(s))
       );
     });
   }, [logs, search]);
@@ -92,9 +98,14 @@ export const AuditLogPage: React.FC = () => {
             <ShieldCheck className="w-8 h-8 text-indigo-600" />
             <h1 className="text-2xl font-bold text-gray-900 tracking-tight">System Audit Trail</h1>
           </div>
-          <p className="text-sm text-gray-500 mt-1">
-            Immutable, cryptographically logged record of state changes, user interactions, and security events.
-          </p>
+          <div className="flex flex-wrap items-center gap-2.5 mt-1.5">
+            <p className="text-sm text-gray-500">
+              Immutable, cryptographically logged record of state changes, user interactions, and security events.
+            </p>
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200">
+              <Globe className="w-3.5 h-3.5 text-indigo-600" /> Active Operating Timezone: {user?.timezone || 'Asia/Kolkata'}
+            </span>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <Button variant="outline" onClick={fetchLogs} disabled={loading} className="gap-2">
@@ -116,7 +127,7 @@ export const AuditLogPage: React.FC = () => {
           <div className="relative">
             <Search className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
             <Input
-              placeholder="Search by action, email, IP, or entity ID..."
+              placeholder="Search by action, email, lab, IP, or entity ID..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9 bg-white"
@@ -170,6 +181,7 @@ export const AuditLogPage: React.FC = () => {
                   <th className="py-3 px-4">Timestamp</th>
                   <th className="py-3 px-4">Action</th>
                   <th className="py-3 px-4">Entity</th>
+                  {isSuperAdmin && <th className="py-3 px-4">Laboratory</th>}
                   <th className="py-3 px-4">Actor</th>
                   <th className="py-3 px-4">Client IP</th>
                   <th className="py-3 px-4 text-right">Details</th>
@@ -178,14 +190,18 @@ export const AuditLogPage: React.FC = () => {
               <tbody className="divide-y divide-gray-100">
                 {filteredLogs.map((log) => {
                   const isExpanded = expandedId === log.id;
-                  const dateStr = formatDateTime(log.created_at);
+                  const logTz = log.lab_timezone || user?.timezone || 'Asia/Kolkata';
+                  const dateStr = log.formatted_time || formatDateTime(log.created_at, { timezone: logTz });
                   return (
                     <React.Fragment key={log.id}>
                       <tr className="hover:bg-gray-50/80 transition-colors">
                         <td className="py-3 px-4 text-gray-600 whitespace-nowrap">
                           <div className="flex items-center gap-1.5">
-                            <Clock className="w-3.5 h-3.5 text-gray-400" />
-                            <span>{dateStr}</span>
+                            <Clock className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                            <span className="font-semibold text-gray-900">{dateStr}</span>
+                          </div>
+                          <div className="text-[10px] text-gray-400 font-mono mt-0.5 ml-5">
+                            {logTz}
                           </div>
                         </td>
                         <td className="py-3 px-4">
@@ -201,6 +217,16 @@ export const AuditLogPage: React.FC = () => {
                             </span>
                           )}
                         </td>
+                        {isSuperAdmin && (
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            <div className="flex items-center gap-1.5 text-gray-700">
+                              <Building2 className="w-3.5 h-3.5 text-gray-400" />
+                              <span className="font-medium text-xs text-gray-900">
+                                {log.lab_name || 'System / Platform'}
+                              </span>
+                            </div>
+                          </td>
+                        )}
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-1.5">
                             <User className="w-3.5 h-3.5 text-gray-400" />
@@ -239,7 +265,7 @@ export const AuditLogPage: React.FC = () => {
                       </tr>
                       {isExpanded && (
                         <tr className="bg-gray-50/60 border-b border-gray-200">
-                          <td colSpan={6} className="py-4 px-6">
+                          <td colSpan={isSuperAdmin ? 7 : 6} className="py-4 px-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
                               <div className="p-3 bg-white border border-gray-200 rounded-lg">
                                 <p className="font-bold text-gray-700 mb-1">State Before:</p>

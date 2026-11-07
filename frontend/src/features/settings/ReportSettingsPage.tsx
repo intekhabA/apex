@@ -14,6 +14,7 @@ const settingsSchema = z.object({
   report_disclaimer: z.string().min(5, 'Report disclaimer text required'),
   currency_code: z.string().min(1).max(5),
   currency_symbol: z.string().min(1).max(5),
+  timezone: z.string().optional(),
   default_tax_rate: z.coerce.number().min(0).max(100),
   enable_qr_verification: z.boolean(),
   footer_code_type: z.enum(['BARCODE', 'QR_CODE', 'BOTH', 'NONE']),
@@ -79,6 +80,7 @@ export const ReportSettingsPage: React.FC = () => {
         report_disclaimer: settings.report_disclaimer || '',
         currency_code: settings.currency_code || 'INR',
         currency_symbol: settings.currency_symbol || '₹',
+        timezone: settings.timezone || 'Asia/Kolkata',
         default_tax_rate: settings.default_tax_rate || 0,
         enable_qr_verification: settings.enable_qr_verification ?? true,
         footer_code_type: settings.footer_code_type || 'BARCODE',
@@ -104,6 +106,11 @@ export const ReportSettingsPage: React.FC = () => {
       toast.success('Report templates and signatory specifications saved.');
       queryClient.setQueryData(['labSettings', activeLabId], updated);
       queryClient.invalidateQueries({ queryKey: ['adminLaboratories'] });
+      if (updated?.timezone) {
+        useAuthStore.getState().updateUser({
+          timezone: updated.timezone,
+        });
+      }
     },
     onError: (err: any) => {
       const msg = err?.response?.data?.message || err?.message || 'Failed to update settings';
@@ -380,7 +387,7 @@ export const ReportSettingsPage: React.FC = () => {
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                   <Input
                     label="Currency Code"
                     placeholder="INR"
@@ -397,10 +404,27 @@ export const ReportSettingsPage: React.FC = () => {
                     label="Default Tax Rate (%)"
                     type="number"
                     step="0.01"
-                    placeholder="5.00"
+                    placeholder="0.00"
                     error={errors.default_tax_rate?.message}
                     {...register('default_tax_rate')}
                   />
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Operating Timezone
+                    </label>
+                    <select
+                      className="w-full h-10 px-3 py-2 text-sm bg-white border border-slate-300 rounded-md shadow-xs focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                      {...register('timezone')}
+                    >
+                      <option value="Asia/Kolkata">Asia/Kolkata (IST - UTC+05:30)</option>
+                      <option value="UTC">UTC (Coordinated Universal Time - UTC+00:00)</option>
+                      <option value="Asia/Dubai">Asia/Dubai (GST - UTC+04:00)</option>
+                      <option value="Asia/Dhaka">Asia/Dhaka (BST - UTC+06:00)</option>
+                      <option value="Asia/Kathmandu">Asia/Kathmandu (NPT - UTC+05:45)</option>
+                      <option value="America/New_York">America/New_York (EST/EDT - UTC-05:00)</option>
+                      <option value="Europe/London">Europe/London (GMT/BST - UTC+00:00)</option>
+                    </select>
+                  </div>
                 </div>
               </div>
             </div>

@@ -1,13 +1,16 @@
-from typing import List, Optional
-from datetime import datetime
+from typing import List, Optional, Dict
+from datetime import datetime, timezone
+import zoneinfo
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc, func
+from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.permissions import require_lab_admin, verify_tenant_access
 from app.models.user import User
 from app.models.audit import AuditLog
+from app.models.laboratory import Laboratory, LaboratorySettings
 from app.schemas.common import APIResponse, paginate_meta
 from app.schemas.audit import AuditLogResponse
 
@@ -81,24 +84,71 @@ async def list_audit_logs(
     res = await db.execute(query)
     logs = res.scalars().all()
 
-    output = [
-        AuditLogResponse(
-            id=str(log.id),
-            lab_id=str(log.lab_id) if log.lab_id else None,
-            user_id=str(log.user_id) if log.user_id else None,
-            user_email=log.user_email,
-            user_role=log.user_role,
-            action=log.action,
-            entity_name=log.entity_name,
-            entity_id=str(log.entity_id) if log.entity_id else None,
-            ip_address=log.ip_address,
-            user_agent=log.user_agent,
-            before_state_json=log.before_state_json,
-            after_state_json=log.after_state_json,
-            created_at=log.created_at,
+    # Collect all relevant lab IDs for timezone and name lookup
+    lab_ids = {str(log.lab_id) for log in logs if log.lab_id}
+    if current_user.lab_id:
+        lab_ids.add(str(current_user.lab_id))
+
+    lab_info_map: Dict[str, Dict[str, str]] = {}
+    if lab_ids:
+        lab_query = (
+            select(Laboratory)
+            .options(selectinload(Laboratory.settings))
+            .where(Laboratory.id.in_(list(lab_ids)))
         )
-        for log in logs
-    ]
+        lab_res = await db.execute(lab_query)
+        for lab in lab_res.scalars().all():
+            tz = "Asia/Kolkata"
+            if lab.settings and getattr(lab.settings, "timezone", None):
+                tz = lab.settings.timezone
+            lab_info_map[str(lab.id)] = {
+                "name": lab.name,
+                "timezone": tz,
+            }
+
+    fallback_tz = "Asia/Kolkata"
+    if current_user.lab_id and str(current_user.lab_id) in lab_info_map:
+        fallback_tz = lab_info_map[str(current_user.lab_id)]["timezone"]
+
+    output: List[AuditLogResponse] = []
+    for log in logs:
+        lid = str(log.lab_id) if log.lab_id else None
+        lab_meta = lab_info_map.get(lid) if lid else None
+        lab_name = lab_meta["name"] if lab_meta else None
+        lab_tz_name = lab_meta["timezone"] if lab_meta else fallback_tz
+
+        dt = log.created_at
+        if dt and dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+
+        formatted_str = None
+        if dt:
+            try:
+                target_tz = zoneinfo.ZoneInfo(lab_tz_name)
+            except Exception:
+                target_tz = zoneinfo.ZoneInfo("Asia/Kolkata")
+            formatted_str = dt.astimezone(target_tz).strftime("%d %b %Y, %I:%M %p")
+
+        output.append(
+            AuditLogResponse(
+                id=str(log.id),
+                lab_id=lid,
+                lab_name=lab_name,
+                lab_timezone=lab_tz_name,
+                user_id=str(log.user_id) if log.user_id else None,
+                user_email=log.user_email,
+                user_role=log.user_role,
+                action=log.action,
+                entity_name=log.entity_name,
+                entity_id=str(log.entity_id) if log.entity_id else None,
+                ip_address=log.ip_address,
+                user_agent=log.user_agent,
+                before_state_json=log.before_state_json,
+                after_state_json=log.after_state_json,
+                created_at=dt,
+                formatted_time=formatted_str,
+            )
+        )
 
     paged_limit = effective_limit if (not all and effective_limit) else (total or 20)
     meta = paginate_meta(page=effective_page, limit=paged_limit, total=total)

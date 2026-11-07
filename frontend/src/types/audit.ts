@@ -1,6 +1,8 @@
 export interface AuditLog {
   id: string;
   lab_id: string | null;
+  lab_name?: string | null;
+  lab_timezone?: string | null;
   user_id: string | null;
   user_email: string | null;
   user_role: string | null;
@@ -12,6 +14,7 @@ export interface AuditLog {
   before_state_json: Record<string, unknown> | null;
   after_state_json: Record<string, unknown> | null;
   created_at: string;
+  formatted_time?: string | null;
 }
 
 export interface AuditLogFilterParams {
