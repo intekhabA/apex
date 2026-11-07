@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Lock, Mail, Eye, EyeOff, ShieldCheck, UserCheck } from 'lucide-react';
+import { Lock, Mail, Eye, EyeOff, ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { authApi } from '@/api/authService';
 import { Input, Button, Alert } from '@/components/ui';
@@ -32,7 +32,6 @@ export const LoginPage: React.FC = () => {
   const {
     register,
     handleSubmit,
-    setValue,
     watch,
     formState: { errors },
   } = useForm<LoginFormData>({
@@ -101,12 +100,6 @@ export const LoginPage: React.FC = () => {
         'Authentication failed. Please verify your credentials.';
       setErrorMessage(msg);
     }
-  };
-
-  const handleQuickFill = (email: string, pass: string) => {
-    setValue('email', email, { shouldValidate: true });
-    setValue('password', pass, { shouldValidate: true });
-    setErrorMessage(null);
   };
 
   return (
@@ -197,63 +190,6 @@ export const LoginPage: React.FC = () => {
             </Button>
           </div>
         </form>
-
-        {/* Quick Demo Login Preset Buttons for easy testing across all roles */}
-        <div className="mt-8 pt-6 border-t border-slate-100">
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-            <UserCheck className="w-3.5 h-3.5" /> Quick Demo Role Switcher:
-          </p>
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <button
-              type="button"
-              onClick={() => handleQuickFill('admin@demolab.com', 'LabAdmin@2026!')}
-              className="p-2 text-left rounded-lg bg-slate-50 hover:bg-brand-50 hover:text-brand-700 border border-slate-200 transition-colors"
-            >
-              <span className="font-bold block">Lab Admin</span>
-              <span className="text-[11px] text-slate-500">admin@demolab.com</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleQuickFill('pathologist@demolab.com', 'Pathologist@2026!')}
-              className="p-2 text-left rounded-lg bg-slate-50 hover:bg-teal-50 hover:text-teal-700 border border-slate-200 transition-colors"
-            >
-              <span className="font-bold block">Pathologist</span>
-              <span className="text-[11px] text-slate-500">pathologist@demolab.com</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleQuickFill('radiologist@demolab.com', 'Radiologist@2026!')}
-              className="p-2 text-left rounded-lg bg-slate-50 hover:bg-teal-50 hover:text-teal-700 border border-slate-200 transition-colors"
-            >
-              <span className="font-bold block">Radiologist</span>
-              <span className="text-[11px] text-slate-500">radiologist@demolab.com</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleQuickFill('admin@example.com', 'SuperAdmin@2026!')}
-              className="p-2 text-left rounded-lg bg-slate-50 hover:bg-rose-50 hover:text-rose-700 border border-slate-200 transition-colors"
-            >
-              <span className="font-bold block">Super Admin</span>
-              <span className="text-[11px] text-slate-500">admin@example.com</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleQuickFill('assistant@demolab.com', 'Assistant@2026!')}
-              className="p-2 text-left rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 transition-colors"
-            >
-              <span className="font-bold block">Lab Assistant</span>
-              <span className="text-[11px] text-slate-500">assistant@demolab.com</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleQuickFill('patient@example.com', 'Patient@2026!')}
-              className="p-2 text-left rounded-lg bg-slate-50 hover:bg-emerald-50 hover:text-emerald-700 border border-slate-200 transition-colors"
-            >
-              <span className="font-bold block">Patient</span>
-              <span className="text-[11px] text-slate-500">patient@example.com</span>
-            </button>
-          </div>
-        </div>
       </div>
     </AuthLayout>
   );
