@@ -18,6 +18,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { useSEO } from '@/hooks/useSEO';
+import { DnaBackground3D } from '@/components/common/DnaBackground3D';
 
 export const HomePage: React.FC = () => {
   useSEO();
@@ -50,6 +51,9 @@ export const HomePage: React.FC = () => {
     <div className="space-y-16 lg:space-y-24 pb-16 font-sans">
       {/* HERO SECTION */}
       <section className="relative overflow-hidden pt-8 pb-16 lg:pt-16 lg:pb-24 bg-gradient-to-b from-slate-900 via-brand-950 to-slate-900 text-white">
+        {/* 3D DNA & Blood Cells Moving Biological Background */}
+        <DnaBackground3D opacity={0.88} speed={1.0} showBloodCells={true} />
+
         {/* Glowing Gradient Orbs */}
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-brand-500/20 rounded-full blur-[120px] pointer-events-none" />
         <div className="absolute top-1/3 right-10 w-96 h-96 bg-teal-500/15 rounded-full blur-[100px] pointer-events-none" />
