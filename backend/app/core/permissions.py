@@ -3,54 +3,6 @@ from fastapi import Depends, HTTPException, status
 from app.core.security import get_current_user
 
 
-class RoleChecker:
-    """Dependency that ensures the authenticated user possesses one of the allowed roles."""
-
-    def __init__(self, allowed_roles: List[str]):
-        self.allowed_roles = allowed_roles
-
-    def __call__(self, current_user = Depends(get_current_user)):
-        user_role = current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)
-        if user_role not in self.allowed_roles:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Access denied: Role '{user_role}' does not have sufficient permissions for this operation."
-            )
-        return current_user
-
-
-# Role guards
-require_super_admin = RoleChecker(["SUPER_ADMIN"])
-require_lab_admin = RoleChecker(["SUPER_ADMIN", "LAB_ADMIN"])
-require_pathologist = RoleChecker(["SUPER_ADMIN", "LAB_ADMIN", "PATHOLOGIST"])
-require_radiologist = RoleChecker(["SUPER_ADMIN", "LAB_ADMIN", "RADIOLOGIST"])
-require_lab_staff = RoleChecker([
-    "SUPER_ADMIN",
-    "LAB_ADMIN",
-    "LAB_ASSISTANT",
-    "PATHOLOGIST",
-    "RADIOLOGIST",
-    "RECEPTIONIST"
-])
-require_patient = RoleChecker(["PATIENT"])
-
-
-def verify_tenant_access(current_user, resource_lab_id: Optional[str]) -> None:
-    """Enforces strict multi-tenant boundary.
-    Raises HTTP 403 Forbidden if a tenant user attempts to access another lab's resource.
-    SUPER_ADMIN is granted platform-wide oversight.
-    """
-    user_role = current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)
-    if user_role == "SUPER_ADMIN":
-        return
-
-    if not current_user.lab_id or str(current_user.lab_id) != str(resource_lab_id):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access forbidden: You cannot access data outside your assigned laboratory."
-        )
-
-
 AVAILABLE_MODULES = [
     {
         "key": "dashboard",
@@ -149,6 +101,71 @@ def user_has_permission(user, permission_key: str) -> bool:
 
     # Fallback to role defaults
     return permission_key in DEFAULT_ROLE_PERMISSIONS.get(user_role, [])
+
+
+class RoleChecker:
+    """Dependency that ensures the authenticated user possesses one of the allowed roles
+    or has been assigned the specific functional module permission.
+    """
+
+    def __init__(self, allowed_roles: List[str], permission_key: Optional[str] = None):
+        self.allowed_roles = allowed_roles
+        self.permission_key = permission_key
+
+    def __call__(self, current_user = Depends(get_current_user)):
+        user_role = current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)
+        
+        # 1. Super Admin always bypasses
+        if user_role == "SUPER_ADMIN":
+            return current_user
+
+        # 2. Check if user's role is in allowed_roles
+        if user_role in self.allowed_roles:
+            return current_user
+
+        # 3. Check if user has explicit permission granted for this module
+        if self.permission_key and user_has_permission(current_user, self.permission_key):
+            return current_user
+
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Access denied: Role '{user_role}' does not have sufficient permissions for this operation."
+        )
+
+
+# Role guards
+require_super_admin = RoleChecker(["SUPER_ADMIN"])
+require_lab_admin = RoleChecker(["SUPER_ADMIN", "LAB_ADMIN"])
+require_pathologist = RoleChecker(["SUPER_ADMIN", "LAB_ADMIN", "PATHOLOGIST"], permission_key="reports")
+require_radiologist = RoleChecker(["SUPER_ADMIN", "LAB_ADMIN", "RADIOLOGIST"], permission_key="reports")
+require_report_signer = RoleChecker(["SUPER_ADMIN", "LAB_ADMIN", "PATHOLOGIST", "RADIOLOGIST"], permission_key="reports")
+require_doctor_manager = RoleChecker(["SUPER_ADMIN", "LAB_ADMIN"], permission_key="doctor_commissions")
+require_test_manager = RoleChecker(["SUPER_ADMIN", "LAB_ADMIN"], permission_key="tests")
+require_lab_staff = RoleChecker([
+    "SUPER_ADMIN",
+    "LAB_ADMIN",
+    "LAB_ASSISTANT",
+    "PATHOLOGIST",
+    "RADIOLOGIST",
+    "RECEPTIONIST"
+])
+require_patient = RoleChecker(["PATIENT"])
+
+
+def verify_tenant_access(current_user, resource_lab_id: Optional[str]) -> None:
+    """Enforces strict multi-tenant boundary.
+    Raises HTTP 403 Forbidden if a tenant user attempts to access another lab's resource.
+    SUPER_ADMIN is granted platform-wide oversight.
+    """
+    user_role = current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)
+    if user_role == "SUPER_ADMIN":
+        return
+
+    if not current_user.lab_id or str(current_user.lab_id) != str(resource_lab_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access forbidden: You cannot access data outside your assigned laboratory."
+        )
 
 
 def require_permission(permission_key: str):

@@ -33,6 +33,11 @@ export interface ReceiptPrintData {
 }
 
 export function printReceiptOnly(data: ReceiptPrintData): void {
+  const authUser = useAuthStore.getState().user;
+  const resolvedLabName = data.labName || authUser?.lab_name || 'Diagnostic Laboratory';
+  const resolvedLabAddress = data.labAddress || 'Accredited Pathology & Diagnostic Healthcare Center';
+  const resolvedLabPhone = data.labPhone || authUser?.phone || undefined;
+
   const iframe = document.createElement('iframe');
   iframe.style.position = 'fixed';
   iframe.style.right = '0';
@@ -47,7 +52,7 @@ export function printReceiptOnly(data: ReceiptPrintData): void {
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Receipt - ${data.receiptNumber || data.invoiceNumber || 'TrustMyLab'}</title>
+  <title>Receipt - ${data.receiptNumber || data.invoiceNumber || resolvedLabName}</title>
   <style>
     @page {
       size: A4 portrait;
@@ -228,9 +233,9 @@ export function printReceiptOnly(data: ReceiptPrintData): void {
   <div class="receipt-container">
     <div class="header">
       <div>
-        <h1 class="lab-title">${data.labName || 'TrustMyLab Diagnostics'}</h1>
-        <p class="lab-meta">${data.labAddress || 'Accredited Pathology & Diagnostic Healthcare Center'}</p>
-        ${data.labPhone ? `<p class="lab-meta">Phone: ${data.labPhone}</p>` : ''}
+        <h1 class="lab-title">${resolvedLabName}</h1>
+        <p class="lab-meta">${resolvedLabAddress}</p>
+        ${resolvedLabPhone ? `<p class="lab-meta">Phone: ${resolvedLabPhone}</p>` : ''}
       </div>
       <div class="badge-box">
         <div class="receipt-title">Payment Receipt / Bill</div>
@@ -290,7 +295,7 @@ export function printReceiptOnly(data: ReceiptPrintData): void {
 
     <div class="footer">
       <div>
-        <p style="margin: 0;"><i>Official computer-generated receipt issued by TrustMyLab Healthcare.</i></p>
+        <p style="margin: 0;"><i>Official computer-generated receipt issued by ${resolvedLabName}.</i></p>
         <p style="margin: 2px 0 0 0; color: #94a3b8; font-size: 10px;">Retain this receipt for insurance claims and specimen tracking.</p>
       </div>
       <div class="sign-area">
@@ -365,6 +370,17 @@ export function printReceiptFromBooking(
   paymentMethod: string = 'CASH',
   labName?: string | null
 ): void {
+  const authUser = useAuthStore.getState().user;
+  const effectiveLabName =
+    labName ||
+    booking.lab_name ||
+    authUser?.lab_name ||
+    'Diagnostic Laboratory';
+  const effectiveLabAddress =
+    booking.lab_address ||
+    'Accredited Pathology & Diagnostic Healthcare Center';
+  const effectiveLabPhone = booking.lab_phone || authUser?.phone || undefined;
+
   const items: ReceiptItem[] = (booking.items || []).map((it) => ({
     name: it.item_name,
     type: it.item_type,
@@ -372,8 +388,9 @@ export function printReceiptFromBooking(
   }));
 
   const data: ReceiptPrintData = {
-    labName: labName || 'TrustMyLab Diagnostics',
-    labAddress: 'Accredited Pathology & Diagnostic Healthcare Center',
+    labName: effectiveLabName,
+    labAddress: effectiveLabAddress,
+    labPhone: effectiveLabPhone,
     receiptNumber: booking.invoice_id_display || `REC-${booking.booking_id_display}`,
     invoiceNumber: booking.invoice_id_display || undefined,
     bookingNumber: booking.booking_id_display,
@@ -404,6 +421,19 @@ export function printReceiptFromInvoice(
 ): void {
   const latestPayment = inv.payments && inv.payments.length > 0 ? inv.payments[inv.payments.length - 1] : null;
 
+  const authUser = useAuthStore.getState().user;
+  const effectiveLabName =
+    labName ||
+    inv.lab_name ||
+    booking?.lab_name ||
+    authUser?.lab_name ||
+    'Diagnostic Laboratory';
+  const effectiveLabAddress =
+    inv.lab_address ||
+    booking?.lab_address ||
+    'Accredited Pathology & Diagnostic Healthcare Center';
+  const effectiveLabPhone = inv.lab_phone || booking?.lab_phone || authUser?.phone || undefined;
+
   const items: ReceiptItem[] =
     booking && booking.items && booking.items.length > 0
       ? booking.items.map((it) => ({
@@ -420,8 +450,9 @@ export function printReceiptFromInvoice(
         ];
 
   const data: ReceiptPrintData = {
-    labName: labName || 'TrustMyLab Diagnostics',
-    labAddress: 'Accredited Pathology & Diagnostic Healthcare Center',
+    labName: effectiveLabName,
+    labAddress: effectiveLabAddress,
+    labPhone: effectiveLabPhone,
     receiptNumber: latestPayment?.receipt_id_display || `BILL-${inv.invoice_id_display}`,
     invoiceNumber: inv.invoice_id_display,
     bookingNumber: inv.booking_id_display,

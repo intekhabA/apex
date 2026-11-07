@@ -18,6 +18,9 @@ export interface PaymentResponse {
 export interface InvoiceResponse {
   id: string;
   lab_id: string;
+  lab_name?: string | null;
+  lab_address?: string | null;
+  lab_phone?: string | null;
   booking_id: string;
   booking_id_display: string;
   patient_id: string;

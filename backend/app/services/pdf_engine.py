@@ -1433,11 +1433,12 @@ def generate_payment_receipt_pdf(
         )
     )
 
+    lab_display_name = lab_info.get("name") or "Diagnostic Laboratory"
     footer_table = Table(
         [
             [
                 Paragraph(
-                    "<i>Official computer-generated receipt issued by TrustMyLab Healthcare.</i><br/>"
+                    f"<i>Official computer-generated receipt issued by {lab_display_name}.</i><br/>"
                     "<font color='#94A3B8'>Retain this receipt for insurance claims and specimen tracking.</font>",
                     ParagraphStyle("FootText", parent=styles["Normal"], fontSize=8, leading=11, textColor=slate_muted),
                 ),

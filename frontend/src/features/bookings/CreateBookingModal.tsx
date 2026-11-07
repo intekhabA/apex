@@ -16,6 +16,7 @@ import { patientService } from '@/api/patientService';
 import { testService } from '@/api/testService';
 import { bookingService } from '@/api/bookingService';
 import { invoiceService } from '@/api/invoiceService';
+import { labApi } from '@/api/labService';
 import { AddPatientModal } from '@/features/patients/AddPatientModal';
 import { useAuth } from '@/hooks/useAuth';
 import { printReceiptFromBooking } from '@/utils/receiptPrinter';
@@ -43,6 +44,14 @@ export const CreateBookingModal: React.FC<CreateBookingModalProps> = ({
   const [createdBookingResult, setCreatedBookingResult] = useState<Booking | null>(null);
   const [isPrinting, setIsPrinting] = useState(false);
 
+  // Load laboratory settings for default tax rate
+  const { data: labSettings } = useQuery({
+    queryKey: ['lab-settings', user?.lab_id],
+    queryFn: () => labApi.getSettings(),
+    enabled: isOpen && !!user?.lab_id,
+    staleTime: 60000,
+  });
+
   // Form State
   const [selectedPatientId, setSelectedPatientId] = useState('');
   const [patientSearch, setPatientSearch] = useState('');
@@ -60,7 +69,7 @@ export const CreateBookingModal: React.FC<CreateBookingModalProps> = ({
 
   // Financial fields
   const [discountAmount, setDiscountAmount] = useState<number>(0);
-  const [taxPercentage, setTaxPercentage] = useState<number>(5);
+  const [taxPercentage, setTaxPercentage] = useState<number>(0);
   const [paidAmount, setPaidAmount] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState<
     'CASH' | 'UPI' | 'CARD' | 'BANK_TRANSFER' | 'OTHER'
@@ -79,6 +88,8 @@ export const CreateBookingModal: React.FC<CreateBookingModalProps> = ({
       setCreatedBookingResult(null);
       setTestSearchQuery('');
       setIsSearchFocused(false);
+      const configuredTax = labSettings?.default_tax_rate !== undefined ? Number(labSettings.default_tax_rate) : 0;
+      setTaxPercentage(configuredTax);
       if (initialPatient) {
         setSelectedPatientId(initialPatient.id);
         if (initialPatient.referring_doctor) {
@@ -98,7 +109,7 @@ export const CreateBookingModal: React.FC<CreateBookingModalProps> = ({
       setErrorMessage(null);
       setCreatedBookingResult(null);
     }
-  }, [isOpen, initialPatient, initialPatientId]);
+  }, [isOpen, labSettings, initialPatient, initialPatientId]);
 
   // Handle clicking outside test search dropdown
   useEffect(() => {

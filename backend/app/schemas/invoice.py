@@ -31,6 +31,9 @@ class PaymentResponse(BaseModel):
 class InvoiceResponse(BaseModel):
     id: str
     lab_id: str
+    lab_name: Optional[str] = None
+    lab_address: Optional[str] = None
+    lab_phone: Optional[str] = None
     booking_id: str
     booking_id_display: str
     patient_id: str

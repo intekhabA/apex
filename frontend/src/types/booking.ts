@@ -22,6 +22,9 @@ export interface BookingItem {
 export interface Booking {
   id: string;
   lab_id: string;
+  lab_name?: string | null;
+  lab_address?: string | null;
+  lab_phone?: string | null;
   patient_id: string;
   patient_name?: string | null;
   patient_id_display?: string | null;

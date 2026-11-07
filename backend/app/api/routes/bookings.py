@@ -179,6 +179,11 @@ async def create_booking(
     if not patient or patient.lab_id != current_user.lab_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found in this laboratory.")
 
+    lab_res = await db.execute(
+        select(Laboratory).options(selectinload(Laboratory.settings)).where(Laboratory.id == current_user.lab_id)
+    )
+    lab = lab_res.scalar_one_or_none()
+
     # 2. Process Items and calculate prices
     booking_items_to_create = []
     subtotal = Decimal("0.00")
@@ -250,7 +255,13 @@ async def create_booking(
     # 3. Calculate Financials
     discount = Decimal(str(payload.discount_amount))
     taxable = max(Decimal("0.00"), subtotal - discount)
-    tax_rate = Decimal(str(payload.tax_percentage)) / Decimal("100.00")
+    if payload.tax_percentage is not None:
+        eff_tax_percentage = payload.tax_percentage
+    elif lab and lab.settings and lab.settings.default_tax_rate is not None:
+        eff_tax_percentage = lab.settings.default_tax_rate
+    else:
+        eff_tax_percentage = Decimal("0.00")
+    tax_rate = Decimal(str(eff_tax_percentage)) / Decimal("100.00")
     tax_amount = (taxable * tax_rate).quantize(Decimal("0.01"))
     grand_total = (taxable + tax_amount).quantize(Decimal("0.01"))
     paid_amount = Decimal(str(payload.paid_amount)).quantize(Decimal("0.01"))

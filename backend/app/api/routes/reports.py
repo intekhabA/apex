@@ -45,7 +45,10 @@ from app.services.storage_service import storage_service
 
 router = APIRouter(prefix="/reports", tags=["Medical Reports Workflow & PDF Engine"])
 
-require_report_signer = RoleChecker(["SUPER_ADMIN", "LAB_ADMIN", "PATHOLOGIST", "RADIOLOGIST"])
+require_report_signer = RoleChecker(
+    ["SUPER_ADMIN", "LAB_ADMIN", "PATHOLOGIST", "RADIOLOGIST"],
+    permission_key="reports",
+)
 
 
 @router.get("", response_model=APIResponse[List[ReportListItemResponse]])
@@ -421,7 +424,13 @@ async def render_and_persist_report_pdf(
     )
     signatory_degrees = (signatory.qualifications if signatory else "") or (lab_settings.default_signatory_degrees if lab_settings else "")
     signatory_reg_no = (signatory.medical_license_number if signatory else "") or (lab_settings.default_signatory_reg_no if lab_settings else "")
-    approved_by_name = (signatory.full_name if signatory else (lab_settings.default_signatory_name if lab_settings else "Authorized Laboratory Pathologist")) or "Authorized Laboratory Pathologist"
+    signatory_is_doctor = signatory and getattr(signatory.role, "value", str(signatory.role)) in ("PATHOLOGIST", "RADIOLOGIST")
+    if signatory_is_doctor:
+        approved_by_name = signatory.full_name
+    elif lab_settings and lab_settings.default_signatory_name:
+        approved_by_name = lab_settings.default_signatory_name
+    else:
+        approved_by_name = (signatory.full_name if signatory else (lab_settings.default_signatory_name if lab_settings else "Authorized Laboratory Pathologist")) or "Authorized Laboratory Pathologist"
 
     suffix = "_letterhead" if is_letterhead else ""
     pdf_filename = f"report_v{report.current_version}{suffix}.pdf"

@@ -3,6 +3,7 @@ import { Button, Input, Badge, Alert, Card, toast, Pagination } from '@/componen
 import { invoiceService } from '@/api/invoiceService';
 import { InvoiceResponse, InvoicePaymentStatus } from '@/types/invoice';
 import { PaginationMeta } from '@/types';
+import { useAuthStore } from '@/store/authStore';
 import {
   CreditCard,
   Download,
@@ -18,6 +19,7 @@ import {
 import { RecordPaymentModal } from './RecordPaymentModal';
 
 export const InvoicesListPage: React.FC = () => {
+  const user = useAuthStore((state) => state.user);
   const [invoices, setInvoices] = useState<InvoiceResponse[]>([]);
   const [meta, setMeta] = useState<PaginationMeta | null>(null);
   const [page, setPage] = useState(1);
@@ -308,7 +310,8 @@ export const InvoicesListPage: React.FC = () => {
                         variant="ghost"
                         onClick={(e) => {
                           e.stopPropagation();
-                          invoiceService.printReceipt(inv.id);
+                          const activeLabName = user?.lab_name || inv.lab_name || undefined;
+                          invoiceService.printReceipt(inv.id, activeLabName);
                         }}
                         title="Print Receipt Only"
                       >

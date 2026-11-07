@@ -2,6 +2,7 @@ import { apiClient } from './client';
 import { APIResponse, PaginatedResponse } from '@/types/api';
 import { InvoiceResponse, PaymentResponse, PaymentCreate } from '@/types/invoice';
 import { printReceiptFromInvoice } from '@/utils/receiptPrinter';
+import { useAuthStore } from '@/store/authStore';
 
 export interface InvoiceQueryParams {
   payment_status?: string;
@@ -67,7 +68,13 @@ export const invoiceService = {
           // Ignore error fetching booking
         }
       }
-      printReceiptFromInvoice(inv, labName, bookingData);
+      const resolvedLabName =
+        labName ||
+        inv.lab_name ||
+        bookingData?.lab_name ||
+        useAuthStore.getState().user?.lab_name ||
+        undefined;
+      printReceiptFromInvoice(inv, resolvedLabName, bookingData);
     } catch (err) {
       console.error('Failed to retrieve invoice for receipt print:', err);
       // Fallback: download PDF

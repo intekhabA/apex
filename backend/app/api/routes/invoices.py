@@ -46,6 +46,7 @@ async def list_invoices(
     query = (
         select(Invoice)
         .options(
+            selectinload(Invoice.laboratory),
             selectinload(Invoice.booking),
             selectinload(Invoice.patient),
             selectinload(Invoice.payments).selectinload(Payment.received_by_user),
@@ -108,10 +109,17 @@ async def list_invoices(
             for p in inv.payments
         ]
 
+        lab_name = inv.laboratory.name if inv.laboratory else None
+        lab_addr = f"{inv.laboratory.address_street or ''}, {inv.laboratory.city or ''} {inv.laboratory.state or ''}".strip(', ') if inv.laboratory else None
+        lab_phone = inv.laboratory.phone if inv.laboratory else None
+
         output.append(
             InvoiceResponse(
                 id=str(inv.id),
                 lab_id=str(inv.lab_id),
+                lab_name=lab_name,
+                lab_address=lab_addr,
+                lab_phone=lab_phone,
                 booking_id=str(inv.booking_id),
                 booking_id_display=bk_disp,
                 patient_id=str(inv.patient_id),
@@ -155,6 +163,7 @@ async def get_invoice(
     res = await db.execute(
         select(Invoice)
         .options(
+            selectinload(Invoice.laboratory),
             selectinload(Invoice.booking),
             selectinload(Invoice.patient),
             selectinload(Invoice.payments).selectinload(Payment.received_by_user),
@@ -192,12 +201,19 @@ async def get_invoice(
         for p in payments_list
     ]
 
+    lab_name = inv.laboratory.name if inv.laboratory else None
+    lab_addr = f"{inv.laboratory.address_street or ''}, {inv.laboratory.city or ''} {inv.laboratory.state or ''}".strip(', ') if inv.laboratory else None
+    lab_phone = inv.laboratory.phone if inv.laboratory else None
+
     return APIResponse(
         success=True,
         message="Invoice details retrieved.",
         data=InvoiceResponse(
             id=str(inv.id),
             lab_id=str(inv.lab_id),
+            lab_name=lab_name,
+            lab_address=lab_addr,
+            lab_phone=lab_phone,
             booking_id=str(inv.booking_id),
             booking_id_display=inv.booking.booking_id_display if inv.booking else "",
             patient_id=str(inv.patient_id),
@@ -232,6 +248,7 @@ async def record_invoice_payment(
     res = await db.execute(
         select(Invoice)
         .options(
+            selectinload(Invoice.laboratory),
             selectinload(Invoice.booking),
             selectinload(Invoice.patient),
             selectinload(Invoice.payments).selectinload(Payment.received_by_user),

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Modal, Button, Input, Alert, Badge, toast } from '@/components/ui';
 import { invoiceService } from '@/api/invoiceService';
 import { InvoiceResponse, PaymentMethod } from '@/types/invoice';
+import { useAuthStore } from '@/store/authStore';
 import { DollarSign, Download, CheckCircle, CreditCard, Receipt, Printer } from 'lucide-react';
 
 interface RecordPaymentModalProps {
@@ -17,6 +18,7 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
   onSuccess,
   invoice,
 }) => {
+  const user = useAuthStore((state) => state.user);
   const [currentInvoice, setCurrentInvoice] = useState<InvoiceResponse | null>(invoice);
   const [amount, setAmount] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH');
@@ -84,7 +86,8 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
       setTransactionReference('');
       setNotes('');
       // Trigger instant receipt print
-      invoiceService.printReceipt(currentInvoice.id).catch(() => {});
+      const activeLabName = user?.lab_name || currentInvoice.lab_name || undefined;
+      invoiceService.printReceipt(currentInvoice.id, activeLabName).catch(() => {});
       await refreshInvoice();
       onSuccess();
     } catch (err: unknown) {
@@ -103,7 +106,8 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
   const handlePrintReceipt = async () => {
     if (!currentInvoice) return;
     try {
-      await invoiceService.printReceipt(currentInvoice.id);
+      const activeLabName = user?.lab_name || currentInvoice.lab_name || undefined;
+      await invoiceService.printReceipt(currentInvoice.id, activeLabName);
       toast.info('Receipt sent to printer.');
     } catch {
       toast.error('Failed to trigger receipt printing.');

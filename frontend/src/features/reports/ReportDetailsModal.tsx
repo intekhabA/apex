@@ -541,12 +541,12 @@ export const ReportDetailsModal: React.FC<ReportDetailsModalProps> = ({
 
                   <div className="flex flex-wrap items-center gap-2">
                     {/* Approve Action */}
-                    {(report.status === 'PENDING_REVIEW' || report.status === 'DRAFT') && (
+                    {(report.status === 'PENDING_REVIEW' || report.status === 'DRAFT' || report.status === 'REVIEWED') && (
                       <Button
-                        variant="primary"
+                        variant="secondary"
                         onClick={handleApprove}
                         disabled={isActionLoading}
-                        className="flex items-center gap-1.5"
+                        className="flex items-center gap-1.5 text-teal-700 border-teal-300 hover:bg-teal-50"
                       >
                         <FileCheck2 className="w-4 h-4" />
                         <span>{isActionLoading ? 'Signing...' : 'Approve & Sign Off'}</span>
@@ -554,7 +554,7 @@ export const ReportDetailsModal: React.FC<ReportDetailsModalProps> = ({
                     )}
 
                     {/* Finalize Action */}
-                    {report.status === 'APPROVED' && (
+                    {(report.status === 'APPROVED' || report.status === 'PENDING_REVIEW' || report.status === 'DRAFT' || report.status === 'REVIEWED') && (
                       <Button
                         variant="primary"
                         onClick={handleFinalize}
